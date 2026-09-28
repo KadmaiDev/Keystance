@@ -121,7 +121,10 @@ function M.load(files)
         self.shown = false
         if was and self.scripts.OnHide then self.scripts.OnHide(self) end
     end
-    function frameMethods:SetShown(v) if v then self:Show() else self:Hide() end end
+    -- A separate function in game, not a call to Show or Hide (hooks on those don't see it).
+    function frameMethods:SetShown(v)
+        if v then frameMethods.Show(self) else frameMethods.Hide(self) end
+    end
     function frameMethods:IsShown() return self.shown end
     function frameMethods:IsVisible() return self.shown end
     function frameMethods:SetTexture(t) self.texture = t end
