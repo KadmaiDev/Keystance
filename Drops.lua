@@ -221,10 +221,12 @@ function ns.HoldJustEnded()
     return endedAt ~= nil and GetTime() - endedAt < 0.5
 end
 
-function ns.StartBinding(command, label, icon)
+-- `profile`: what's held is the switch to that profile (its key is set with
+-- ns.SetProfileKey, which gives it one of the Profile 1-6 keybinds).
+function ns.StartBinding(command, label, icon, profile)
     if ns.InCombat() then return Refused(L["Not in combat: try again when combat ends."]) end
     if GetCursorInfo() then ClearCursor() end -- one thing held at a time, as with spells
-    held = { command = command, label = label, icon = icon }
+    held = { command = command, label = label, icon = icon, profile = profile }
     if not ghost then
         ghost = CreateFrame("Frame", "KeystanceDragIcon", UIParent)
         ghost:SetSize(28, 28)
@@ -315,7 +317,11 @@ local function AskBind(text)
             OnAccept = function()
                 local p = pendingBind
                 pendingBind = nil
-                if p then Bind(p.key, p.command, p.label) end
+                if p and p.profile then
+                    ns.SetProfileKey(p.profile, p.key)
+                elseif p then
+                    Bind(p.key, p.command, p.label)
+                end
             end,
             OnCancel = function() pendingBind = nil end,
             timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
@@ -331,6 +337,10 @@ function ns.BindHeld(fullKey, current)
     if not h then return false end
     EndHold()
     if ns.InCombat() then return Refused(L["Not in combat: try again when combat ends."]) end
+    if h.profile then
+        local n = ns.ProfileSlot(h.profile)
+        h.command = n and ns.ProfileSlotCommand(n) -- nil until it has a key
+    end
     if current == h.command then
         ns.Print(L["%s is already on %s."]:format(h.label, fullKey))
         ns.RefreshWindow()
@@ -342,11 +352,14 @@ function ns.BindHeld(fullKey, current)
     elseif ns.SharedKeybinds() then
         text = L["Put %s on %s?"]:format(h.label, fullKey)
     end
-    if not text then return Bind(fullKey, h.command, h.label) end
+    if not text then
+        if h.profile then return ns.SetProfileKey(h.profile, fullKey) end
+        return Bind(fullKey, h.command, h.label)
+    end
     if ns.SharedKeybinds() then
         text = text .. "\n\n" .. L["Your keybinds are shared by all your characters, so this character gets its own keybinds first: nothing changes on screen, and your other characters keep theirs."]
     end
-    pendingBind = { key = fullKey, command = h.command, label = h.label }
+    pendingBind = { key = fullKey, command = h.command, label = h.label, profile = h.profile }
     AskBind(text)
     ns.RefreshWindow()
     return true

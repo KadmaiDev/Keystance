@@ -1,4 +1,4 @@
--- Keystance spell panel: everything to put on bars and keys in one place, in three tabs.
+-- Keystance spell panel: everything to put on bars and keys in one place, in four tabs.
 --  * Spells: every class spell, so bars can be set up without paging through the
 --    spellbook. The spellbook's sections as headers that fold away; each spell at its
 --    highest rank, whether it's on a bar, and what's still to learn ("next at 22").
@@ -6,6 +6,7 @@
 --  * Macros: the account's and the character's macros.
 --  * Raid markers: markers are keybindings, not actions, so clicking one waits for a key
 --    in the Keyboard tab (Drops.lua); each shows the key it's on.
+--  * Profiles: each profile's switch (and Next profile), held and put on a key the same way.
 -- Search as you type; filters for what's on a bar, not on a bar, or still to learn. Drag or
 -- click a spell or macro to pick it up, then drop it on a bar or a key in the Keyboard tab.
 -- It sits against the Keystance window when both are open, unless it's been moved.
@@ -35,6 +36,7 @@ local MARKERS = {
     { 5, L["Moon"] }, { 6, L["Square"] }, { 7, L["Cross"] }, { 8, L["Skull"] },
 }
 local MARKER_ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_%d"
+local PROFILE_ICON = "Interface\\AddOns\\" .. ADDON .. "\\media\\icon.tga"
 
 ---------------------------------------------------------------------------
 -- Picking up
@@ -127,6 +129,25 @@ local function CollectMarkers(search)
     end
 end
 
+-- Each profile (its ItemRack set's picture, or Keystance's), then Next profile.
+local function CollectProfiles(search)
+    local c = ns.char
+    for _, name in ipairs(ns.ProfileNames()) do
+        if search == "" or name:lower():find(search, 1, true) then
+            local p = c.profiles[name]
+            local n = ns.ProfileSlot(name)
+            items[#items + 1] = { kind = "profile", name = name,
+                icon = (p.itemrack and ns.ItemRackSetIcon(p.itemrack)) or PROFILE_ICON,
+                key = n and GetBindingKey(ns.ProfileSlotCommand(n)) }
+        end
+    end
+    local nextName = L["Next profile"]
+    if search == "" or nextName:lower():find(search, 1, true) then
+        items[#items + 1] = { kind = "marker", command = "KEYSTANCE_NEXT", name = nextName, icon = PROFILE_ICON,
+            key = GetBindingKey("KEYSTANCE_NEXT") }
+    end
+end
+
 -- Rebuilds `items` from the tab, the search and the filter.
 local function Collect()
     for i = #items, 1, -1 do items[i] = nil end
@@ -135,6 +156,7 @@ local function Collect()
     local kind = Kind()
     if kind == "macros" then return CollectMacros(search, filter == "later" and "all" or filter) end
     if kind == "markers" then return CollectMarkers(search) end
+    if kind == "profiles" then return CollectProfiles(search) end
     local collapsed = Settings().spellCollapsed or {}
     for _, section in ipairs(ns.SpellSections()) do
         local header = { kind = "header", name = section.name, count = 0 }
@@ -176,9 +198,9 @@ local function RowTooltip(row)
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine(L["Drag onto a bar, or onto a key in Keystance's Keyboard tab."], 0.6, 0.8, 1, true)
         return GameTooltip:Show()
-    elseif item.kind == "marker" then
+    elseif item.kind == "marker" or item.kind == "profile" then
         GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-        GameTooltip:AddLine(item.name)
+        GameTooltip:AddLine(item.kind == "profile" and L["Switch to %s"]:format(item.name) or item.name)
         GameTooltip:AddLine(item.key and L["On %s."]:format(item.key) or L["Not on a key."], 1, 1, 1)
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine(L["Click to pick it up, then click a key in Keystance's Keyboard tab. Right-click drops it."], 0.6, 0.8, 1, true)
@@ -210,6 +232,7 @@ local function RowClick(row, button)
     end
     if item.kind == "macro" then return PickupMacroAt(item.index) end
     if item.kind == "marker" then return ns.StartBinding(item.command, item.name, item.icon) end
+    if item.kind == "profile" then return ns.StartBinding(nil, item.name, item.icon, item.name) end
     local e = item.entry
     local id = item.kind == "rank" and item.rank.id or e.id
     if IsModifiedClick and IsModifiedClick("CHATLINK") then return Link(id or e.futureID) end
@@ -240,8 +263,8 @@ end
 
 local function RowDrag(row)
     local item = row.item
-    if item and item.kind == "marker" then
-        ns.StartBinding(item.command, item.name, item.icon)
+    if item and (item.kind == "marker" or item.kind == "profile") then
+        ns.StartBinding(item.command, item.name, item.icon, item.kind == "profile" and item.name or nil)
         draggingMarker = ns.HeldBinding() ~= nil
         return
     end
@@ -308,7 +331,7 @@ local function ShowRow(row, item, combat)
         row.detail:SetText("")
         row.check:SetShown(item.onBar)
         return
-    elseif item.kind == "marker" then
+    elseif item.kind == "marker" or item.kind == "profile" then
         row.icon:SetTexCoord(0, 1, 0, 1)
         row.icon:SetTexture(item.icon)
         row.icon:SetDesaturated(false)
@@ -355,7 +378,7 @@ local function Refresh(self)
     self.kinds:Refresh()
     self.filters:Refresh()
     local kind = Kind()
-    self.filters:SetShown(kind ~= "markers")
+    self.filters:SetShown(kind ~= "markers" and kind ~= "profiles")
     self.filters.buttons[4]:SetShown(kind == "spells")
     self.combat:SetShown(combat)
     self.empty:SetShown(#items == 0)
@@ -408,12 +431,13 @@ local function Create()
     if not f.TitleText then title:SetPoint("TOP", 0, -6) end
     title:SetText(L["Spells"])
 
-    f.kinds = ns.ChoiceRow(f, f, { { "spells", L["Spells"] }, { "macros", L["Macros"] }, { "markers", L["Raid markers"] } },
+    f.kinds = ns.ChoiceRow(f, f, { { "spells", L["Spells"] }, { "macros", L["Macros"] }, { "markers", L["Markers"] },
+        { "profiles", L["Profiles"] } },
         Kind, function(value)
             Settings().spellKind = value
             offset = 0
             f:Refresh()
-        end, 98)
+        end, 73)
     f.kinds:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -30)
 
     local okBox, search = pcall(CreateFrame, "EditBox", "KeystanceSpellSearch", f, "SearchBoxTemplate")

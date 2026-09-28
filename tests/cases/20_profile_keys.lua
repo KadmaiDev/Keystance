@@ -187,3 +187,31 @@ test("the keybinds file ships with the addon and the dev copy", function()
     assert(readFile("tools/release.py"):find('"Bindings.xml"', 1, true))
     assert(readFile("tools/install_dev.py"):find('"Bindings.xml"', 1, true))
 end)
+
+test("the spell panel's Profiles tab holds a profile's switch; clicking a key gives it that key", function()
+    local c, ns = threeProfiles()
+    ns.ToggleSpellPanel()
+    local panel = KeystanceSpellPanel
+    click(choice(panel.kinds, "Profiles"))
+    eq(panel.rows[1].item.name, "Holy")
+    eq(panel.rows[4].item.name, "Next profile")
+    click(panel.rows[2]) -- Prot
+    eq(ns.HeldBinding().profile, "Prot")
+    ns.BindHeld("F7", "")
+    eq(GetBindingAction("F7"), "KEYSTANCE_PROFILE1")
+    eq(ns.ProfileKey("Prot"), "F7")
+    panel:Refresh()
+    eq(panel.rows[2].detail.text, "F7")
+    -- Held again and put on a key that does something: asked first, then moved.
+    wow.bindings.F8 = "TOGGLEAUTORUN"
+    click(panel.rows[2])
+    ns.BindHeld("F8", "TOGGLEAUTORUN")
+    eq(wow.popup.which, "KEYSTANCE_BIND_COMMAND")
+    StaticPopupDialogs.KEYSTANCE_BIND_COMMAND.OnAccept()
+    eq(GetBindingAction("F8"), "KEYSTANCE_PROFILE1")
+    eq(GetBindingAction("F7"), "", "still one key per profile")
+    -- Next profile is a plain keybind.
+    click(panel.rows[4])
+    ns.BindHeld("F9", "")
+    eq(GetBindingAction("F9"), "KEYSTANCE_NEXT")
+end)
