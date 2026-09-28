@@ -114,6 +114,9 @@ function M.load(files)
     function frameMethods:IsEventRegistered(event) return self.events[event] == true end
     function frameMethods:SetScript(script, fn)
         self.scripts[script] = fn
+        -- In game, giving a frame a key handler switches its keyboard input on.
+        if fn and (script == "OnKeyDown" or script == "OnKeyUp") then self.keyboard = true end
+        if fn and script == "OnGamePadButtonDown" then self.gamepad = true end
         if script == "OnEvent" then self.onEvent = fn end
     end
     function frameMethods:GetScript(script) return self.scripts[script] end
@@ -153,6 +156,7 @@ function M.load(files)
     function frameMethods:SetTexCoord(...) self.texCoord = { ... } end
     function frameMethods:IsProtected() return false end
     function frameMethods:EnableKeyboard(on) self.keyboard = on end
+    function frameMethods:EnableGamePadButton(on) self.gamepad = on end
     function frameMethods:GetAlpha() return self.alpha or 1 end
     function frameMethods:GetID() return self.id end
     function frameMethods:SetAttribute(k, v) self.attributes = self.attributes or {}; self.attributes[k] = v end

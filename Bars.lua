@@ -135,6 +135,7 @@ local function StopBindMode(page)
     page.bindMode, page.hovered = false, nil
     page.catcher:EnableKeyboard(false)
     if page.catcher.EnableGamePadButton then pcall(page.catcher.EnableGamePadButton, page.catcher, false) end
+    page.catcher:Hide()
     for _, row in ipairs(page.rows) do
         for _, b in ipairs(row.slots) do b:EnableMouseWheel(false) end
     end
@@ -144,6 +145,7 @@ end
 local function StartBindMode(page)
     if ns.InCombat() then return ns.Print(L["Not in combat: try again when combat ends."]) end
     page.bindMode = true
+    page.catcher:Show()
     page.catcher:EnableKeyboard(true)
     if page.catcher.EnableGamePadButton then pcall(page.catcher.EnableGamePadButton, page.catcher, true) end
     for _, row in ipairs(page.rows) do
@@ -245,13 +247,18 @@ local function Build(page, f)
     -- Takes key presses (and controller buttons) while keybind mode is on.
     local catcher = CreateFrame("Frame", nil, page)
     catcher:SetAllPoints()
-    catcher:EnableKeyboard(false)
     catcher:SetScript("OnKeyDown", function(_, key)
         if key == "ESCAPE" then return StopBindMode(page) end
         if MODIFIER_KEYS[key] then return end
         BindHovered(page, key)
     end)
     catcher:SetScript("OnGamePadButtonDown", function(_, button) BindHovered(page, button) end)
+    -- Setting a key handler switches the frame's keyboard on (in game), so it's switched off
+    -- after, and the frame stays hidden unless it's waiting for a key: a shown catcher took
+    -- every key (Esc, Enter...) while the window was open (2026-09-28).
+    catcher:EnableKeyboard(false)
+    if catcher.EnableGamePadButton then pcall(catcher.EnableGamePadButton, catcher, false) end
+    catcher:Hide()
     page.catcher = catcher
     page:HookScript("OnHide", function() StopBindMode(page) end)
     ns.On("PLAYER_REGEN_DISABLED", function() StopBindMode(page) end)

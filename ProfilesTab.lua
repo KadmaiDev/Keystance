@@ -30,12 +30,14 @@ local function StopCapture(page)
     page.capturing = nil
     page.catcher:EnableKeyboard(false)
     if page.catcher.EnableGamePadButton then pcall(page.catcher.EnableGamePadButton, page.catcher, false) end
+    page.catcher:Hide()
     ns.RefreshWindow()
 end
 
 local function StartCapture(page, name)
     if ns.InCombat() then return ns.Print(L["Not in combat: try again when combat ends."]) end
     page.capturing = name
+    page.catcher:Show()
     page.catcher:EnableKeyboard(true)
     if page.catcher.EnableGamePadButton then pcall(page.catcher.EnableGamePadButton, page.catcher, true) end
     ns.RefreshWindow()
@@ -344,13 +346,18 @@ local function Build(page, f)
     -- Takes the key press while a profile's key is being set.
     local catcher = CreateFrame("Frame", nil, list)
     catcher:SetAllPoints()
-    catcher:EnableKeyboard(false)
     catcher:SetScript("OnKeyDown", function(_, key)
         if key == "ESCAPE" then return StopCapture(page) end
         if MODIFIER_KEYS[key] then return end
         Pressed(page, key)
     end)
     catcher:SetScript("OnGamePadButtonDown", function(_, button) Pressed(page, button) end)
+    -- Setting a key handler switches the frame's keyboard on (in game), so it's switched off
+    -- after, and the frame stays hidden unless it's waiting for a key: a shown catcher took
+    -- every key (Esc, Enter...) while the window was open (2026-09-28).
+    catcher:EnableKeyboard(false)
+    if catcher.EnableGamePadButton then pcall(catcher.EnableGamePadButton, catcher, false) end
+    catcher:Hide()
     page.catcher = catcher
     page:HookScript("OnHide", function() StopCapture(page) end)
     ns.On("PLAYER_REGEN_DISABLED", function() StopCapture(page) end)

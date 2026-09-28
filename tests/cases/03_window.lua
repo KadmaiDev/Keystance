@@ -121,3 +121,34 @@ test("without Blizzard's window and tab templates the window still opens", funct
     eq(shownPage(), "bars")
     eq(tabNamed("Bars").highlightLocked, true)
 end)
+
+-- True if the frame and every parent are shown.
+local function onScreen(f)
+    while f do
+        if not f.shown then return false end
+        f = f.parent
+    end
+    return true
+end
+
+test("the open window never takes the keyboard (Esc, Enter...) unless it's waiting for a key", function()
+    local c, ns = profileLogin()
+    ns.SaveProfile("Ret")
+    slash("")
+    for _, tab in ipairs(KeystanceFrame.tabs) do
+        click(tab)
+        for _, f in ipairs(wow.frames) do
+            if (f.keyboard or f.gamepad) and onScreen(f) then
+                error("a shown frame takes the keyboard on the " .. tab.text .. " tab")
+            end
+        end
+    end
+    -- Waiting for a profile's key: it does, and lets go after.
+    click(tabNamed("Profiles"))
+    local page = pageFor("profiles")
+    click(page.rows[1].key)
+    eq(page.catcher.keyboard and onScreen(page.catcher), true)
+    page.catcher.scripts.OnKeyDown(page.catcher, "ESCAPE")
+    eq(onScreen(page.catcher), false)
+    eq(page.catcher.keyboard, false)
+end)
