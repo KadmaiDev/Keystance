@@ -43,12 +43,14 @@ test("the minimap button can be hidden from the menu, and stays hidden next sess
     eq(KeystanceMinimapButton:IsShown(), true, "turned back on")
 end)
 
--- EllesmereUI's tray, as its code behaves: hooks on Show and Hide that fight us (Show
--- fades the button to alpha 0 while its grid is closed; Hide while the grid is open shows
--- it again), and its published list of wanted buttons, _EBS_AddonVisible.
+-- EllesmereUI's tray, as its code behaves: its list of wanted buttons (_EBS_AddonVisible,
+-- filled by its scan), hooks on Show and Hide that fight us (Show fades to alpha 0 while
+-- the grid is closed; Hide while it's open shows the button again), and
+-- _EMIN_RefreshFlyout, which lays the grid out again (now if it's open) and shows every
+-- button parented to the grid, hidden ones included. `inGrid` are those buttons.
 function ellesmereTray(b)
-    local tray = { open = false }
-    _EBS_AddonVisible = {}
+    local tray = { open = false, inGrid = {}, regrids = 0 }
+    _EBS_AddonVisible = { [b] = b:IsShown() }
     local show, hide = b.Show, b.Hide
     b.Show = function(self)
         show(self)
@@ -58,6 +60,27 @@ function ellesmereTray(b)
     b.Hide = function(self)
         hide(self)
         if tray.open then show(self) else _EBS_AddonVisible[self] = false end
+    end
+    -- Opening the grid lays out every wanted button, visible (LayoutFlyoutButtons).
+    function tray.openGrid()
+        tray.open = true
+        for btn, wanted in pairs(_EBS_AddonVisible) do
+            if wanted then
+                tray.inGrid[btn] = true
+                btn:SetAlpha(1)
+                show(btn)
+            end
+        end
+    end
+    _EMIN_RefreshFlyout = function()
+        tray.regrids = tray.regrids + 1
+        for btn, wanted in pairs(_EBS_AddonVisible) do
+            if wanted then tray.inGrid[btn] = true end
+        end
+        for btn in pairs(tray.inGrid) do
+            btn:SetAlpha(1)
+            btn:Show()
+        end
     end
     return tray
 end
@@ -71,13 +94,43 @@ test("with EllesmereUI's tray, hiding and showing work at once, grid open or not
         slash("minimap")
         eq(b:IsShown(), false, "hidden at once")
         eq(_EBS_AddonVisible[b], false, "the tray's list says not wanted, so a rebuild won't bring it back")
-        b:SetAlpha(0) -- a rebuild while it's hidden tucks it away (HideMinimapChild)
         slash("minimap")
-        eq(b:IsShown(), true, "shown at once")
-        eq(b:GetAlpha(), 1, "and visible, with no reload")
         eq(_EBS_AddonVisible[b], true)
+        eq(tray.inGrid[b], true, "placed in the tray's grid")
+        if not open then tray.openGrid() end
+        eq(b:IsShown(), true, "shown in the grid")
+        eq(b:GetAlpha(), 1)
     end
     eq(wow.popup, nil, "never asks to reload")
+end)
+
+test("hidden at login and turned back on, it goes into the tray's grid, not loose on the minimap", function()
+    wow.load(FILES)
+    KeystanceDB = { v = 1, settings = { minimapHidden = true }, chars = {} }
+    wow.fire("ADDON_LOADED", "Keystance")
+    wow.fire("PLAYER_LOGIN")
+    local b = KeystanceMinimapButton
+    local tray = ellesmereTray(b) -- its scan: our button, hidden, not wanted
+    eq(_EBS_AddonVisible[b], false)
+    slash("minimap")
+    eq(tray.regrids, 1, "the tray lays its grid out again")
+    eq(tray.inGrid[b], true)
+end)
+
+test("making the tray regrid leaves other addons' hidden buttons hidden", function()
+    start(nil)
+    local b = KeystanceMinimapButton
+    local tray = ellesmereTray(b)
+    local other = CreateFrame("Button", "OtherAddonMinimapButton")
+    other:SetShown(false)
+    other:SetAlpha(0)
+    _EBS_AddonVisible[other] = false
+    tray.inGrid[other] = true -- hidden by its addon while it sat in the grid
+    slash("minimap")
+    slash("minimap")
+    eq(other:IsShown(), false)
+    eq(_EBS_AddonVisible[other], false)
+    eq(other:GetAlpha(), 0)
 end)
 
 test("without EllesmereUI, the button just hides and shows", function()

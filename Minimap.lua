@@ -121,19 +121,57 @@ end
 -- hidden button came back whenever the tray rebuilt its grid (after opening Options). We
 -- update that list too: EllesmereUI publishes it as _EBS_AddonVisible (for its own options
 -- screen; unofficial, so only used when it's there and a table). Seen in game 2026-09-28.
-local function TellEllesmereTray(wanted)
+local function TrayList()
     local list = _G._EBS_AddonVisible
-    if type(list) == "table" then list[mmButton] = wanted end
+    return type(list) == "table" and list or nil
+end
+
+-- True when EllesmereUI's tray manages our button: its scan recorded it in the list.
+local function InTray()
+    local list = TrayList()
+    return list ~= nil and list[mmButton] ~= nil
+end
+
+-- Makes the tray lay its grid out again, now if it's open or else when it next opens, so a
+-- button it left out (ours, when hidden at login) takes its place in the grid instead of
+-- sitting loose on the minimap. _EMIN_RefreshFlyout is EllesmereUI's own (unofficial,
+-- guarded), and it also shows every button in its grid, other addons' hidden ones
+-- included, so those are put back exactly as they were afterwards.
+local function RegridTray()
+    local refresh, list = _G._EMIN_RefreshFlyout, TrayList()
+    if type(refresh) ~= "function" or not list or InCombatLockdown() then return end
+    local hidden = {}
+    for btn, wanted in pairs(list) do
+        if btn ~= mmButton and type(btn) == "table" and btn.IsShown and not btn:IsShown() then
+            hidden[#hidden + 1] = { btn, wanted, btn:GetAlpha() }
+        end
+    end
+    pcall(refresh)
+    for _, h in ipairs(hidden) do
+        local btn = h[1]
+        if btn:IsShown() and not (btn.IsProtected and btn:IsProtected()) then btn:SetShown(false) end
+        btn:SetAlpha(h[3])
+        list[btn] = h[2]
+    end
 end
 
 function ns.SetMinimapButton(on)
     ns.db.settings.minimapHidden = not on or nil
     ns.CreateMinimapButton()
     if not mmButton then return end
-    TellEllesmereTray(on)
-    mmButton:SetShown(on)
-    -- The tray fades buttons it tucks away to alpha 0; ours must be seen when shown.
-    if on then mmButton:SetAlpha(1) end
+    if not InTray() then
+        -- On the minimap itself (no EllesmereUI tray).
+        mmButton:SetShown(on)
+        if on then mmButton:SetAlpha(1) end
+        return
+    end
+    TrayList()[mmButton] = on
+    if on then
+        -- The tray shows it, in its grid, when it lays the grid out.
+        RegridTray()
+    else
+        mmButton:SetShown(false)
+    end
 end
 
 ---------------------------------------------------------------------------
