@@ -212,7 +212,8 @@ function commands.mem()
 end
 
 function commands.help()
-    Print(L["by Kadmai. /kst opens Keystance. Also: /kst options | minimap | skin | mem | help"])
+    Print(L["by Kadmai. /kst opens Keystance. Profiles: /kst save Name | apply Name | undo | restore | profiles | ownkeys"])
+    Print(L["Also: /kst options | minimap | skin | mem | help"])
     Print(L["Or use the minimap button (right-click for options)."])
 end
 ns.ShowHelp = commands.help
@@ -220,6 +221,11 @@ ns.ShowHelp = commands.help
 -- For the menus: runs a slash command by name.
 function ns.RunCommand(name, arg)
     commands[name](arg or "")
+end
+
+-- Lets other files add a slash command (/kst name args).
+function ns.AddCommand(name, fn)
+    commands[name] = fn
 end
 
 commands[""] = function() ns.ToggleWindow() end

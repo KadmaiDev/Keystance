@@ -197,8 +197,10 @@ function M.load(files)
     GetBonusBarOffset = function() return M.bonus end
 
     -- Protected calls: in combat they're blocked (recorded, event fired, no effect).
+    M.calls = {} -- every protected call made (out of combat too), by name
     local function protect(name, fn)
         return function(...)
+            M.calls[#M.calls + 1] = name
             if M.combat then
                 M.blocked[#M.blocked + 1] = name
                 M.fire("ADDON_ACTION_BLOCKED", M.addonName, "UNKNOWN()")

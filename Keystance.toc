@@ -16,6 +16,8 @@ Core.lua
 Skins.lua
 Actions.lua
 Snapshot.lua
+Apply.lua
+Profiles.lua
 Layouts.lua
 Window.lua
 Keyboard.lua
