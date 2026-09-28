@@ -141,7 +141,17 @@ local function MakeCap(f, board, info, x, y)
             if self.fullKey then ns.BindHeld(self.fullKey, self.command) end
             return
         end
+        if button == "RightButton" then
+            -- Right-click: remove what's on the key (after asking).
+            if self.fullKey and not GetCursorInfo() then ns.AskRemove(self.fullKey, self.slot, self.command) end
+            return
+        end
         Drop(self)
+    end)
+    -- Dragging a key picks up its action, as dragging off a real bar does.
+    cap:RegisterForDrag("LeftButton")
+    cap:SetScript("OnDragStart", function(self)
+        if self.slot then ns.PickupFromSlot(self.slot, self.fullKey, self.command) end
     end)
     cap:SetScript("OnLeave", function() GameTooltip:Hide() end)
     cap.key, cap.mod, cap.blank = info[1], info.mod, info[1] == ""

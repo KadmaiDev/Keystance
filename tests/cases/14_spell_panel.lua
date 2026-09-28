@@ -237,11 +237,14 @@ test("a raid marker can be dragged onto a key; let go elsewhere, it waits for a 
     click(choice(p.kinds, "Raid markers"))
     local skull = rowNamed("Skull")
     skull.scripts.OnDragStart(skull)
-    eq(wow.pointer, "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8", "the marker as the mouse pointer")
+    eq(KeystanceDragIcon:IsShown(), true, "the marker's icon follows the mouse")
+    eq(KeystanceDragIcon.icon.texture, "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8")
+    assert(KeystanceDragIcon.scripts.OnUpdate, "moving with the mouse during the drag")
     local page = KeystanceFrame.pages[1]
     wow.mouseFoci = { capFor(page, "E") }
     skull.scripts.OnDragStop(skull)
-    eq(wow.pointer, nil)
+    eq(KeystanceDragIcon:IsShown(), false)
+    eq(KeystanceDragIcon.scripts.OnUpdate, nil, "nothing runs once let go")
     eq(GetBindingAction("E"), "RAIDTARGET8")
     local cross = rowNamed("Cross")
     cross.scripts.OnDragStart(cross)

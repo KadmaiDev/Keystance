@@ -225,10 +225,42 @@ end
 -- one shows its icon as the mouse pointer, and letting go over a key in the Keyboard tab
 -- puts it there (RowDragStop). Let go anywhere else, it waits for a click on a key.
 local draggingMarker = false
+
+-- The marker's icon, following the mouse while it's dragged. The game's cursor can't show
+-- it (SetCursor didn't, in game), so a small frame of our own does. Its OnUpdate exists
+-- only during the drag (the one exception to "no OnUpdate"), and it ignores the mouse so
+-- the key underneath is what's found on letting go.
+local ghost
+local function Follow(self)
+    local x, y = GetCursorPosition()
+    local scale = UIParent:GetEffectiveScale()
+    self:ClearAllPoints()
+    self:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale, y / scale)
+end
+local function ShowGhost(icon)
+    if not ghost then
+        ghost = CreateFrame("Frame", "KeystanceDragIcon", UIParent)
+        ghost:SetSize(28, 28)
+        ghost:SetFrameStrata("TOOLTIP")
+        ghost:EnableMouse(false)
+        ghost.icon = ghost:CreateTexture(nil, "OVERLAY")
+        ghost.icon:SetAllPoints()
+    end
+    ghost.icon:SetTexture(icon)
+    Follow(ghost)
+    ghost:Show()
+    ghost:SetScript("OnUpdate", Follow)
+end
+local function HideGhost()
+    if not ghost then return end
+    ghost:SetScript("OnUpdate", nil)
+    ghost:Hide()
+end
+
 local function RowDragStop()
     if not draggingMarker then return end
     draggingMarker = false
-    if ResetCursor then ResetCursor() end
+    HideGhost()
     local foci = GetMouseFoci and GetMouseFoci()
     local target = type(foci) == "table" and foci[1]
     if target and target.isKeyCap and target.fullKey and ns.HeldBinding() then
@@ -244,7 +276,7 @@ local function RowDrag(row)
         if ns.InCombat() then return ns.Print(L["Not in combat: try again when combat ends."]) end
         ns.StartBinding(item.command, item.name, item.icon, true)
         draggingMarker = true
-        if SetCursor then SetCursor(item.icon) end
+        ShowGhost(item.icon)
         return
     end
     if not item or item.kind == "header" then return end

@@ -162,6 +162,7 @@ function M.load(files)
     PanelTemplates_DeselectTab = function(tab) tab.selectedTab = false end
 
     UIParent = newObject("Frame", "UIParent")
+    UIParent.GetEffectiveScale = function() return 1 end
     Minimap = newObject("Frame", "Minimap")
     Minimap.GetWidth = function() return 140 end
     Minimap.GetCenter = function() return 1000, 600 end

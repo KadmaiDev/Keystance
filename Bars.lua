@@ -61,7 +61,18 @@ local function MakeRow(page, f, r)
             if self.slot and GetCursorInfo() then ns.DropOnSlot(self.slot) end
         end
         b:SetScript("OnReceiveDrag", Drop)
-        b:SetScript("OnClick", Drop)
+        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        b:SetScript("OnClick", function(self, button)
+            if button == "RightButton" then
+                if self.slot and not GetCursorInfo() then ns.AskRemove(nil, self.slot) end
+                return
+            end
+            Drop(self)
+        end)
+        b:RegisterForDrag("LeftButton")
+        b:SetScript("OnDragStart", function(self)
+            if self.slot then ns.PickupFromSlot(self.slot, nil, self.command) end
+        end)
         b:SetScript("OnLeave", function() GameTooltip:Hide() end)
         row.slots[i] = b
     end
@@ -86,7 +97,7 @@ local function Refresh(page)
                 local btn = bar.buttons[i]
                 local slot = ns.BarButtonSlot(btn)
                 local key = ns.BarButtonKey(btn)
-                b.slot, b.key = slot, key
+                b.slot, b.key, b.command = slot, key, btn.command
                 local texture = slot and GetActionTexture(slot)
                 b.icon:SetTexture(texture)
                 b.icon:SetShown(texture ~= nil)
