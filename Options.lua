@@ -42,7 +42,7 @@ end
 local pages = {} -- every built copy, so a change made in one shows in the other
 
 local function RefreshPage(page)
-    page.look:SetText(L["Look: %s"]:format(LOOK_NAMES[ns.db.settings.skin] or ns.db.settings.skin))
+    page.lookRow:Refresh()
     local inUse, chosen = ns.SkinName(), ns.SkinNameFor(ns.db.settings.skin)
     page.lookNote:SetText(inUse == chosen and L["In use: %s."]:format(LOOK_NAMES[inUse])
         or L["In use: %s until you reload."]:format(LOOK_NAMES[inUse]))
@@ -98,38 +98,30 @@ function ns.ChooseSkin(choice)
     return true
 end
 
-local function LookMenu(owner)
-    if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
-    MenuUtil.CreateContextMenu(owner, function(_, root)
-        root:CreateTitle(L["Look"])
-        for _, choice in ipairs({ "auto", "classic", "ellesmere", "elvui" }) do
-            root:CreateRadio(LOOK_NAMES[choice],
-                function() return ns.db.settings.skin == choice end,
-                function() ns.ChooseSkin(choice) end)
-        end
-    end)
-end
-
 -- Builds the settings controls into `page`, below `top` (a region to sit under, or nil for
 -- the page's top). Widgets are listed in owner.buttons and owner.texts for skinning.
 function ns.BuildSettings(page, owner, top)
-    local look = Button(owner, page, "")
+    local label = Text(owner, page, "GameFontNormal", L["Look"])
     if top then
-        look:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 0, -16)
+        label:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 0, -16)
     else
-        look:SetPoint("TOPLEFT", 16, -16)
+        label:SetPoint("TOPLEFT", 16, -16)
     end
-    look:SetScript("OnClick", LookMenu)
-    look:SetScript("OnEnter", function(self)
-        Tooltip(self, L["Look"], L["Automatic matches EllesmereUI or ElvUI when you use one, and Blizzard's look otherwise."])
+    local row = ns.ChoiceRow(owner, page, {
+        { "auto", LOOK_NAMES.auto }, { "classic", LOOK_NAMES.classic },
+        { "ellesmere", LOOK_NAMES.ellesmere }, { "elvui", LOOK_NAMES.elvui },
+    }, function() return ns.db.settings.skin end, ns.ChooseSkin, 96)
+    row:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -6)
+    row.buttons[1]:SetScript("OnEnter", function(self)
+        Tooltip(self, L["Automatic"], L["Matches EllesmereUI or ElvUI when you use one, and Blizzard's look otherwise."])
     end)
-    look:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    page.look = look
+    row.buttons[1]:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    page.lookRow = row
     local note = Text(owner, page, "GameFontDisableSmall")
-    note:SetPoint("LEFT", look, "RIGHT", 12, 0)
+    note:SetPoint("TOPLEFT", row, "BOTTOMLEFT", 0, -6)
     page.lookNote = note
     local minimap = Button(owner, page, "")
-    minimap:SetPoint("TOPLEFT", look, "BOTTOMLEFT", 0, -10)
+    minimap:SetPoint("TOPLEFT", note, "BOTTOMLEFT", 0, -14)
     minimap:SetScript("OnClick", function()
         ns.RunCommand("minimap")
         RefreshAll()

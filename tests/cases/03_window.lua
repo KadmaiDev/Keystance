@@ -14,6 +14,13 @@ end
 
 function click(b, button) b.scripts.OnClick(b, button or "LeftButton") end
 
+-- The button labelled `text` in a row of choices.
+function choice(row, text)
+    for _, b in ipairs(row.buttons) do
+        if b.text == text then return b end
+    end
+end
+
 test("the window is only built when first opened", function()
     start(nil)
     eq(KeystanceFrame, nil)
@@ -69,21 +76,21 @@ test("in combat the window says changes wait until combat ends", function()
     eq(KeystanceFrame.combat:IsShown(), false)
 end)
 
-test("Settings: the look menu saves the choice, offers to reload and says what's in use", function()
+test("Settings: the look buttons save the choice, offer to reload and say what's in use", function()
     wow.withElvUI = true
     start(nil)
     slash("")
     click(tabNamed("Settings"))
     local page = KeystanceFrame.pages[5]
-    eq(page.look.text, "Look: Automatic")
+    eq(choice(page.lookRow, "Automatic").chosen, true)
     eq(page.lookNote.text, "In use: ElvUI.")
-    click(page.look)
-    wow.menuItem("Classic").setSelected()
+    click(choice(page.lookRow, "Classic"))
     eq(KeystanceDB.settings.skin, "classic")
-    eq(page.look.text, "Look: Classic")
+    eq(choice(page.lookRow, "Classic").chosen, true)
+    eq(choice(page.lookRow, "Automatic").chosen, false)
     eq(page.lookNote.text, "In use: ElvUI until you reload.")
     eq(wow.popup.which, "KEYSTANCE_RELOAD")
-    eq(wow.menuItem("Classic").isSelected(), true)
+    eq(wow.menu, nil, "no pop-up menu: they once crashed the beta client")
 end)
 
 test("Settings: the minimap button can be hidden and shown", function()

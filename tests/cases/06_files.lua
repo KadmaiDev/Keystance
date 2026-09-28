@@ -122,3 +122,15 @@ test("the no-globals check catches every kind of write to a Blizzard global", fu
     eq(globalWrite("t.X = {\n    OnAccept = function()\n    end,\n    Text = '{',\n}\nGameTooltip = nil\n"),
         "6: GameTooltip", "table fields are skipped, and the scan picks up again after the table")
 end)
+
+-- A Blizzard pop-up menu opened from our window's layout button crashed the beta client
+-- inside Blizzard's menu code (2026-09-28). The window uses rows of buttons instead; only
+-- the minimap button's right-click keeps Blizzard's menu (as Alts Forever does, without trouble).
+test("only the minimap button opens Blizzard's pop-up menus", function()
+    for _, file in ipairs(FILES) do
+        local code = readFile(file):gsub("%-%-[^\n]*", "")
+        if file ~= "Minimap.lua" then
+            assert(not code:find("MenuUtil", 1, true), file .. " opens a Blizzard menu")
+        end
+    end
+end)

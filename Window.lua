@@ -25,6 +25,38 @@ local function Text(f, parent, template, text)
     return fs
 end
 
+-- A row of buttons, one per choice, with the chosen one lit. Used for settings instead of
+-- Blizzard's pop-up menus: opening one from our window once crashed the beta client inside
+-- Blizzard's menu code (2026-09-28, AGENTS.md). choices = { { value, label }, ... };
+-- get() returns the chosen value and set(value) chooses one. row:Refresh() relights it.
+function ns.ChoiceRow(owner, parent, choices, get, set, width)
+    width = width or 90
+    local row = CreateFrame("Frame", nil, parent)
+    row.buttons = {}
+    for i, choice in ipairs(choices) do
+        local b = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+        b:SetSize(width, 22)
+        b:SetPoint("LEFT", row, "LEFT", (i - 1) * (width + 4), 0)
+        b:SetText(choice[2])
+        b.value = choice[1]
+        b:SetScript("OnClick", function() set(choice[1]) end)
+        owner.buttons[#owner.buttons + 1] = b
+        row.buttons[i] = b
+    end
+    row:SetSize(#choices * (width + 4) - 4, 22)
+    function row:Refresh()
+        local chosen = get()
+        for _, b in ipairs(self.buttons) do
+            local on = b.value == chosen
+            b.chosen = on
+            if on then b:LockHighlight() else b:UnlockHighlight() end
+            local text = b:GetFontString()
+            if text then text:SetTextColor(on and 1 or 0.75, on and 0.82 or 0.75, on and 0 or 0.75) end
+        end
+    end
+    return row
+end
+
 ---------------------------------------------------------------------------
 -- Refresh: what the header and the open page show
 ---------------------------------------------------------------------------

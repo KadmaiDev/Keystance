@@ -10,7 +10,7 @@ test("the Options page is registered at login but built only when first shown", 
     slash("options")
     eq(wow.openedCategory, "cat:Keystance")
     eq(optionsPanel().built, true)
-    eq(optionsPanel().look.text, "Look: Automatic")
+    eq(choice(optionsPanel().lookRow, "Automatic").chosen, true)
     eq(optionsPanel().minimap.text, "Minimap button: shown")
 end)
 
@@ -26,9 +26,10 @@ test("the Options page and the window's Settings tab are the same controls, kept
     eq(KeystanceFrame.pages[5].minimap.text, "Minimap button: hidden")
     click(KeystanceFrame.pages[5].minimap)
     eq(p.minimap.text, "Minimap button: shown", "the Options page follows a change made in the window")
-    click(p.look)
-    wow.menuItem("Classic").setSelected()
+    click(choice(p.lookRow, "Classic"))
     eq(KeystanceDB.settings.skin, "classic")
+    click(tabNamed("Settings"))
+    eq(choice(KeystanceFrame.pages[5].lookRow, "Classic").chosen, true, "the window's tab follows too")
 end)
 
 test("Open Keystance closes the Options panel first, then opens the window a frame later", function()
@@ -73,7 +74,7 @@ test("with ElvUI, the Options page's buttons and text take its look", function()
     start(nil)
     slash("options")
     assert(skinnedWith("HandleButton", optionsPanel().open))
-    assert(skinnedWith("HandleButton", optionsPanel().look))
+    assert(skinnedWith("HandleButton", optionsPanel().lookRow.buttons[1]))
 end)
 
 -- Blizzard's setting objects run our values through its secure settings code; the page is a

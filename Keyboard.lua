@@ -54,11 +54,20 @@ local function BoundKeys()
     return bound
 end
 
--- A command's name as the game's Key Bindings list shows it.
+-- A command's name as the game's Key Bindings list shows it ("Toggle World Map" for
+-- TOGGLEWORLDMAP). GetBindingText(command, "BINDING_NAME_") gave the raw command in game.
 local function CommandName(command)
     if not command or command == "" then return nil end
-    local text = GetBindingText and GetBindingText(command, "BINDING_NAME_")
-    return text ~= "" and text or command
+    local text = GetBindingName and GetBindingName(command)
+    if type(text) == "string" and text ~= "" then return text end
+    return command
+end
+
+-- A key's name as the game shows it ("Num Pad 1" for NUMPAD1).
+local function KeyName(key)
+    local text = GetBindingText and GetBindingText(key)
+    if type(text) == "string" and text ~= "" then return text end
+    return key
 end
 
 ---------------------------------------------------------------------------
@@ -102,10 +111,13 @@ local function MakeCap(f, board, info, x, y)
     label:SetPoint("TOPLEFT", 3, -2)
     label:SetText(ns.KeyLabel(info[1]))
     cap.label = label
-    local name = cap:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    name:SetPoint("BOTTOMLEFT", 2, 2)
-    name:SetPoint("BOTTOMRIGHT", -2, 2)
-    name:SetWordWrap(false)
+    -- A command's name, in a small font over up to two lines ("Toggle World Map").
+    local name = cap:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    name:SetPoint("BOTTOMLEFT", 1, 2)
+    name:SetPoint("BOTTOMRIGHT", -1, 2)
+    name:SetHeight(18)
+    name:SetWordWrap(true)
+    name:SetJustifyV("BOTTOM")
     name:SetJustifyH("CENTER")
     cap.name = name
     f.texts[#f.texts + 1] = label
@@ -191,7 +203,7 @@ local function Part(key, command)
     end
     local part = byCommand[command]
     if not part then
-        part = key .. " " .. (CommandName(command) or command)
+        part = KeyName(key) .. ": " .. (CommandName(command) or command)
         byCommand[command] = part
     end
     return part
@@ -230,22 +242,9 @@ local function Refresh(page)
         t:SetText((on and "|cffffd100" or "") .. t.title .. (on and "|r" or ""))
     end
     page.layerText:SetText(LAYER_NAMES[layer] .. (live and L[" (held)"] or ""))
-    page.layout:SetText(L["Keyboard: %s"]:format(ns.LAYOUTS[key].name))
+    page.layoutRow:Refresh()
     RefreshCaps(page, layer)
     RefreshOthers(page, layer)
-end
-
-local function LayoutMenu(owner)
-    if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
-    MenuUtil.CreateContextMenu(owner, function(_, root)
-        root:CreateTitle(L["Keyboard"])
-        root:CreateRadio(L["Automatic"], function() return (ns.db.settings.layout or "auto") == "auto" end,
-            function() ns.db.settings.layout = "auto"; ns.RefreshWindow() end)
-        for _, key in ipairs(ns.LAYOUT_ORDER) do
-            root:CreateRadio(ns.LAYOUTS[key].name, function() return ns.db.settings.layout == key end,
-                function() ns.db.settings.layout = key; ns.RefreshWindow() end)
-        end
-    end)
 end
 
 local function Build(page, f)
@@ -268,12 +267,15 @@ local function Build(page, f)
     layerText:SetPoint("LEFT", page.toggles[3], "RIGHT", 12, 0)
     page.layerText = layerText
     f.texts[#f.texts + 1] = layerText
-    local layout = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
-    layout:SetSize(180, 22)
-    layout:SetPoint("TOPRIGHT", page, "TOPRIGHT", -16, -14)
-    layout:SetScript("OnClick", LayoutMenu)
-    page.layout = layout
-    f.buttons[#f.buttons + 1] = layout
+    -- The keyboard drawn: automatic (from the game's language), US or UK.
+    local row = ns.ChoiceRow(f, page, { { "auto", L["Automatic"] }, { "ansi", L["US"] }, { "iso", L["UK"] } },
+        function() return ns.db.settings.layout or "auto" end,
+        function(value)
+            ns.db.settings.layout = value
+            ns.RefreshWindow()
+        end, 76)
+    row:SetPoint("TOPRIGHT", page, "TOPRIGHT", -16, -14)
+    page.layoutRow = row
     local others = page:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     others:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -(48 + 6 * U + ROW_GAP + 12))
     others:SetPoint("RIGHT", page, "RIGHT", -16, 0)

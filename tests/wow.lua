@@ -330,11 +330,10 @@ function M.load(files)
         if cmd then return cmd, "category", GetBindingKey(cmd) end
     end
     -- Names from the game's Key Bindings list (M.bindingNames), else the command itself.
+    -- GetBindingText returns what it's given (in game it gave raw commands back).
     M.bindingNames = { MOVEFORWARD = "Move Forward", TOGGLEAUTORUN = "Toggle Autorun" }
-    GetBindingText = function(text, prefix)
-        if prefix == "BINDING_NAME_" then return M.bindingNames[text] or text end
-        return text
-    end
+    GetBindingName = function(command) return M.bindingNames[command] or command end
+    GetBindingText = function(text) return text end
     GetMacroInfo = function(nameOrIndex)
         for index, m in pairs(M.macros) do
             if index == nameOrIndex or m.name == nameOrIndex then return m.name, m.icon or 134400, m.body end
