@@ -146,6 +146,7 @@ end)
 test("the panel sits against the Keystance window, until it's moved", function()
     panelLogin()
     slash("") -- the panel opens with the window
+    click(tabNamed("Keyboard")) -- the panel belongs with Keyboard and Bars
     local p = KeystanceSpellPanel
     local point, rel = p:GetPoint()
     eq(point, "TOPLEFT"); eq(rel, KeystanceFrame)
@@ -160,6 +161,7 @@ end)
 test("the window's Spells button and the minimap menu open and close the panel", function()
     panelLogin()
     slash("")
+    click(tabNamed("Keyboard")) -- the panel belongs with Keyboard and Bars
     eq(KeystanceSpellPanel:IsShown(), true, "open with the window")
     click(KeystanceFrame.spellsButton)
     eq(KeystanceSpellPanel:IsShown(), false)
@@ -174,6 +176,7 @@ end)
 test("the panel opens with the window by default, and closes with it", function()
     panelLogin()
     slash("")
+    click(tabNamed("Keyboard")) -- the panel belongs with Keyboard and Bars
     eq(KeystanceSpellPanel:IsShown(), true)
     slash("") -- window closed
     eq(KeystanceSpellPanel:IsShown(), false, "a docked panel closes with the window")
@@ -184,6 +187,7 @@ end)
 test("closed by the player, the panel stays closed next time until the Spells button opens it", function()
     panelLogin()
     slash("")
+    click(tabNamed("Keyboard")) -- the panel belongs with Keyboard and Bars
     click(KeystanceFrame.spellsButton) -- the player closes it
     slash(""); slash("")
     eq(KeystanceSpellPanel:IsShown(), false, "remembered")
@@ -196,6 +200,7 @@ end)
 test("moved away from the window, the panel stays open when the window closes", function()
     panelLogin()
     slash("")
+    click(tabNamed("Keyboard")) -- the panel belongs with Keyboard and Bars
     local p = KeystanceSpellPanel
     p:SetPoint("CENTER", UIParent, "CENTER", 10, 20)
     p.scripts.OnDragStop(p)
@@ -236,7 +241,7 @@ test("clicking a marker, then a key, puts the marker on that key (undoable)", fu
     click(choice(p.kinds, "Markers"))
     click(rowNamed("Skull"))
     eq(shownPage(), "keyboard", "the Keyboard tab opens")
-    local page = KeystanceFrame.pages[1]
+    local page = pageFor("keyboard")
     eq(page.binding:IsShown(), true)
     local e = capFor(page, "E")
     click(e)
@@ -252,7 +257,7 @@ test("a key that already does something asks first; right-click cancels waiting 
     local p = openPanel()
     click(choice(p.kinds, "Markers"))
     click(rowNamed("Skull"))
-    local page = KeystanceFrame.pages[1]
+    local page = pageFor("keyboard")
     click(capFor(page, "W"))
     eq(wow.popup.which, "KEYSTANCE_BIND_COMMAND")
     assert(wow.popup.text:find("W is Move Forward", 1, true), wow.popup.text)
@@ -274,7 +279,7 @@ test("a raid marker can be dragged onto a key; let go elsewhere, it waits for a 
     eq(KeystanceDragIcon:IsShown(), true, "the marker's icon follows the mouse")
     eq(KeystanceDragIcon.icon.texture, "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8")
     assert(KeystanceDragIcon.scripts.OnUpdate, "moving with the mouse during the drag")
-    local page = KeystanceFrame.pages[1]
+    local page = pageFor("keyboard")
     wow.mouseFoci = { capFor(page, "E") }
     skull.scripts.OnDragStop(skull)
     eq(KeystanceDragIcon:IsShown(), false)
@@ -303,7 +308,7 @@ test("a clicked raid marker is held like a spell: its icon follows the mouse unt
     eq(KeystanceDragIcon:IsShown(), false)
     eq(KeystanceDragIcon.scripts.OnUpdate, nil, "nothing runs once dropped")
     eq(wow.sounds[#wow.sounds], 838, "the drop sound")
-    eq(KeystanceFrame.pages[1].binding:IsShown(), false, "no waiting mode left behind")
+    eq(pageFor("keyboard").binding:IsShown(), false, "no waiting mode left behind")
 end)
 
 test("the right-click that drops a held marker over a key doesn't also ask to remove that key", function()
@@ -311,7 +316,7 @@ test("the right-click that drops a held marker over a key doesn't also ask to re
     local p = openPanel()
     click(choice(p.kinds, "Markers"))
     click(rowNamed("Skull"))
-    local page = KeystanceFrame.pages[1]
+    local page = pageFor("keyboard")
     wow.fire("GLOBAL_MOUSE_DOWN", "RightButton")
     click(capFor(page, "1"), "RightButton")
     eq(wow.popup, nil)
@@ -336,7 +341,23 @@ test("putting a marker on a key plays the drop sound", function()
     local p = openPanel()
     click(choice(p.kinds, "Markers"))
     click(rowNamed("Skull"))
-    click(capFor(KeystanceFrame.pages[1], "E"))
+    click(capFor(pageFor("keyboard"), "E"))
     eq(GetBindingAction("E"), "RAIDTARGET8")
     eq(wow.sounds[#wow.sounds], 838)
+end)
+
+test("the panel opens beside Keyboard and Bars, and steps aside on the other tabs", function()
+    panelLogin()
+    slash("") -- opens on Profiles
+    eq(KeystanceSpellPanel, nil, "not even built on Profiles")
+    click(tabNamed("Keyboard"))
+    eq(KeystanceSpellPanel:IsShown(), true)
+    click(tabNamed("Rules"))
+    eq(KeystanceSpellPanel:IsShown(), false)
+    eq(KeystanceDB.settings.spellPanelHidden, nil, "stepping aside isn't the player closing it")
+    click(tabNamed("Bars"))
+    eq(KeystanceSpellPanel:IsShown(), true)
+    click(tabNamed("Settings"))
+    click(KeystanceFrame.spellsButton)
+    eq(KeystanceSpellPanel:IsShown(), true, "the Spells button opens it on any tab")
 end)

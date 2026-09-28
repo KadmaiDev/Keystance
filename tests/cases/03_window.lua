@@ -14,6 +14,13 @@ end
 
 function click(b, button) b.scripts.OnClick(b, button or "LeftButton") end
 
+-- The window's page for a tab ("profiles", "keyboard"...).
+function pageFor(key)
+    for _, page in ipairs(KeystanceFrame.pages) do
+        if page.key == key then return page end
+    end
+end
+
 -- The button labelled `text` in a row of choices.
 function choice(row, text)
     for _, b in ipairs(row.buttons) do
@@ -34,12 +41,12 @@ test("the window has the five tabs, and each shows its own page", function()
     slash("")
     local names = {}
     for i, tab in ipairs(KeystanceFrame.tabs) do names[i] = tab.text end
-    eq(table.concat(names, ","), "Keyboard,Bars,Profiles,Rules,Settings")
-    eq(shownPage(), "keyboard", "the first tab by default")
-    click(tabNamed("Profiles"))
-    eq(shownPage(), "profiles")
-    eq(tabNamed("Profiles").selectedTab, true)
-    eq(tabNamed("Keyboard").selectedTab, false)
+    eq(table.concat(names, ","), "Profiles,Keyboard,Bars,Rules,Settings")
+    eq(shownPage(), "profiles", "home: where a new player starts")
+    click(tabNamed("Keyboard"))
+    eq(shownPage(), "keyboard")
+    eq(tabNamed("Keyboard").selectedTab, true)
+    eq(tabNamed("Profiles").selectedTab, false)
 end)
 
 test("the last tab used and the window position are remembered next session", function()
@@ -81,7 +88,7 @@ test("Settings: the look buttons save the choice, offer to reload and say what's
     start(nil)
     slash("")
     click(tabNamed("Settings"))
-    local page = KeystanceFrame.pages[5]
+    local page = pageFor("settings")
     eq(choice(page.lookRow, "Automatic").chosen, true)
     eq(page.lookNote.text, "In use: ElvUI.")
     click(choice(page.lookRow, "Classic"))
@@ -97,7 +104,7 @@ test("Settings: the minimap button can be hidden and shown", function()
     start(nil)
     slash("")
     click(tabNamed("Settings"))
-    local page = KeystanceFrame.pages[5]
+    local page = pageFor("settings")
     eq(page.minimap.text, "Minimap button: shown")
     click(page.minimap)
     eq(KeystanceMinimapButton:IsShown(), false)

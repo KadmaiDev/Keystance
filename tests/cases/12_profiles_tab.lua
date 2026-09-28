@@ -3,7 +3,7 @@
 function profilesPage()
     slash("")
     click(tabNamed("Profiles"))
-    return KeystanceFrame.pages[3]
+    return pageFor("profiles")
 end
 
 -- A dialog as Blizzard shows it, with `typed` in its box.
@@ -120,7 +120,7 @@ test("Settings has Restore, and the own-keybinds button while keybinds are share
     profileLogin(true)
     slash("")
     click(tabNamed("Settings"))
-    local page = KeystanceFrame.pages[5]
+    local page = pageFor("settings")
     eq(page.ownKeys:IsShown(), true)
     click(page.restore)
     eq(wow.popup.which, "KEYSTANCE_RESTORE")

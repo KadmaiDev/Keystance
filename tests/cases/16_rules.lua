@@ -126,7 +126,7 @@ end)
 function rulesPage()
     slash("")
     click(tabNamed("Rules"))
-    return KeystanceFrame.pages[4]
+    return pageFor("rules")
 end
 
 test("the Rules tab adds rules, shows them as sentences, and reorders and deletes them", function()

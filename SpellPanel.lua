@@ -543,8 +543,23 @@ end
 
 -- The panel opens with the Keystance window (docked beside it) unless the player closed it,
 -- and a docked panel closes with the window.
-function ns.WindowOpened()
-    if not Settings().spellPanelHidden then ns.ToggleSpellPanel(true) end
+-- Tabs where the panel belongs: things are dragged from it onto keys and bars.
+local PANEL_TABS = { keyboard = true, bars = true }
+
+function ns.WindowOpened(tab)
+    if PANEL_TABS[tab] and not Settings().spellPanelHidden then ns.ToggleSpellPanel(true) end
+end
+
+-- Follows the window's tab: opens on Keyboard and Bars (unless the player closed it), and a
+-- docked panel steps aside on the others without counting as closed.
+function ns.SpellPanelForTab(tab)
+    if not ns.WindowShown() then return end
+    if PANEL_TABS[tab] then
+        ns.WindowOpened(tab)
+    elseif panel and panel:IsShown() and panel.docked then
+        panel.closingWithWindow = true
+        panel:Hide()
+    end
 end
 function ns.WindowClosed()
     if panel and panel:IsShown() and panel.docked then

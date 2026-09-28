@@ -3,7 +3,7 @@
 function keyboardPage()
     slash("")
     click(tabNamed("Keyboard"))
-    return KeystanceFrame.pages[1]
+    return pageFor("keyboard")
 end
 
 function capFor(page, key)

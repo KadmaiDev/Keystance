@@ -1,4 +1,4 @@
--- Keystance main window: tabs across the top (Keyboard, Bars, Profiles, Rules, Settings)
+-- Keystance main window: tabs across the top (Profiles, Keyboard, Bars, Rules, Settings)
 -- and a header strip for the active profile and combat notes. Built the first time it's
 -- opened and only refreshed while shown, so a closed window costs nothing.
 local ADDON, ns = ...
@@ -10,10 +10,12 @@ local ipairs, pcall, CreateFrame = ipairs, pcall, CreateFrame
 local WIDTH, HEIGHT = 720, 460
 local frame
 
+-- Profiles first: it's home (a new player's first steps are there), and Keyboard and Bars
+-- are where a profile's bars and keys are edited.
 local TABS = {
+    { key = "profiles", name = L["Profiles"] },
     { key = "keyboard", name = L["Keyboard"] },
     { key = "bars", name = L["Bars"] },
-    { key = "profiles", name = L["Profiles"] },
     { key = "rules", name = L["Rules"] },
     { key = "settings", name = L["Settings"] },
 }
@@ -88,6 +90,8 @@ local function SelectTab(i)
     -- Only the keyboard (with the numpad) needs more width; it asks again when shown.
     frame:SetWidth(WIDTH)
     frame.pages[i].boardKey = nil
+    -- The spell panel is for Keyboard and Bars, where things are dragged from it.
+    ns.SpellPanelForTab(TABS[i].key)
     for j, tab in ipairs(frame.tabs) do
         local on = j == i
         if tab.topTab and PanelTemplates_SelectTab then
@@ -213,7 +217,7 @@ local function CreateWindow()
     ns.SkinWindow(f)
     f:SetScript("OnShow", function()
         Refresh()
-        ns.WindowOpened() -- the spell panel opens beside it (SpellPanel.lua)
+        ns.WindowOpened(TABS[f.selected].key) -- the spell panel opens beside it (SpellPanel.lua)
     end)
     f:SetScript("OnHide", function() ns.WindowClosed() end)
     -- Escape closes it, like Blizzard's own windows.

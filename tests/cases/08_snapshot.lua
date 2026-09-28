@@ -128,6 +128,6 @@ test("Settings says when the original setup was saved", function()
     loginWithSetup(nil)
     slash("")
     click(tabNamed("Settings"))
-    local text = KeystanceFrame.pages[5].snapshot.text
+    local text = pageFor("settings").snapshot.text
     assert(text:find("(6 slots, 5 keys)", 1, true), text)
 end)

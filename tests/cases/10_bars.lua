@@ -3,7 +3,7 @@
 function barsPage()
     slash("")
     click(tabNamed("Bars"))
-    return KeystanceFrame.pages[2]
+    return pageFor("bars")
 end
 
 -- Blizzard's bars: the main bar and the bottom-left bar showing, the rest hidden.

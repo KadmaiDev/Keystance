@@ -92,7 +92,7 @@ test("in combat nothing is dropped, and the spell stays on the cursor", function
     local one = capFor(page, "1")
     one.scripts.OnReceiveDrag(one)
     click(tabNamed("Bars"))
-    local bars = KeystanceFrame.pages[2]
+    local bars = pageFor("bars")
     local slot4 = bars.rows[1].slots[4]
     slot4.scripts.OnReceiveDrag(slot4)
     eq(#wow.blocked, 0)
