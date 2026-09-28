@@ -158,6 +158,14 @@ function M.load(files)
     function frameMethods:GetRegions() return unpack(self.regions or {}) end
     function frameMethods:GetObjectType() return self.kind end
     function frameMethods:CreateTexture() return newObject("Texture") end
+    function frameMethods:CreateLine()
+        local line = newObject("Line")
+        self.lines = self.lines or {}
+        self.lines[#self.lines + 1] = line
+        return line
+    end
+    function frameMethods:SetStartPoint(point, rel, x, y) self.from = { point, rel, x, y } end
+    function frameMethods:SetEndPoint(point, rel, x, y) self.to = { point, rel, x, y } end
     M.missingTemplates = {}
     CreateFrame = function(kind, name, parent, template)
         if template and M.missingTemplates[template] then error("Couldn't find inherited node \"" .. template .. "\"") end

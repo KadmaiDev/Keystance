@@ -51,26 +51,27 @@ ns.LAYOUTS = {
         },
     },
 }
--- A game controller, drawn like one: `x`, `y` in key units. Button names measured on
--- Forever (C_GamePad.ButtonIndexToBinding, 2026-09-28); labels come from GetBindingText,
--- which gives the connected controller's own button icons. Stick directions (usually
--- movement) aren't drawn; bound ones show under "Also bound".
+-- A game controller, drawn as a diagram: an outline of one in the middle (media/controller.tga,
+-- drawn by tools/make_controller.py in the same PAD_W x PAD_H pixels), and each button's
+-- binding in a column to its left or right, joined to the button by a line. `at` is the
+-- button's spot on the drawing, in those pixels from its top-left. Button names measured on
+-- Forever (C_GamePad.ButtonIndexToBinding, 2026-09-28); their symbols come from
+-- GetBindingText, which gives the connected controller's own icons. Stick directions
+-- (usually movement), the extra buttons and paddles aren't drawn; bound ones show under
+-- "Also bound".
+ns.PAD_W, ns.PAD_H = 300, 218
 ns.LAYOUTS.pad = {
     name = L["Controller"], pad = true,
-    keys = {
-        { "PADLTRIGGER", x = 1.05, y = 0.2, w = 2 }, { "PADRTRIGGER", x = 12.05, y = 0.2, w = 2 },
-        { "PADLSHOULDER", x = 1.05, y = 1.25, w = 2 }, { "PADRSHOULDER", x = 12.05, y = 1.25, w = 2 },
-        { "PAD5", x = 9.75, y = 2.05 }, { "PAD6", x = 9.75, y = 3.1 },
-        { "PADLSTICK", x = 2.2, y = 2.5 },
-        { "PADBACK", x = 5.6, y = 2.1 }, { "PADSYSTEM", x = 7.0, y = 1.8 },
-        { "PADFORWARD", x = 8.4, y = 2.1 }, { "PADSOCIAL", x = 7.0, y = 2.95 },
-        { "PAD4", x = 12.0, y = 2.0 }, { "PAD3", x = 11.0, y = 2.95 },
-        { "PAD2", x = 13.0, y = 2.95 }, { "PAD1", x = 12.0, y = 3.9 },
-        { "PADDUP", x = 4.6, y = 2.9 }, { "PADDLEFT", x = 3.6, y = 3.9 },
-        { "PADDRIGHT", x = 5.6, y = 3.9 }, { "PADDDOWN", x = 4.6, y = 4.9 },
-        { "PADRSTICK", x = 9.6, y = 4.3 },
-        { "PADPADDLE1", x = 2.0, y = 6.0 }, { "PADPADDLE2", x = 3.1, y = 6.5 },
-        { "PADPADDLE3", x = 11.4, y = 6.5 }, { "PADPADDLE4", x = 12.5, y = 6.0 },
+    left = {
+        { "PADLTRIGGER", at = { 72, 8 } }, { "PADLSHOULDER", at = { 40, 30 } }, { "PADBACK", at = { 126, 56 } },
+        { "PADLSTICK", at = { 80, 84 } }, { "PADDUP", at = { 115, 124 } }, { "PADDLEFT", at = { 101, 138 } },
+        { "PADDRIGHT", at = { 129, 138 } }, { "PADDDOWN", at = { 115, 152 } },
+    },
+    -- `via`: a bend on the way, where the straight line would cross another button.
+    right = {
+        { "PADRTRIGGER", at = { 228, 8 } }, { "PADRSHOULDER", at = { 260, 30 } }, { "PADFORWARD", at = { 174, 56 } },
+        { "PAD4", at = { 228, 70 } }, { "PAD2", at = { 246, 88 } }, { "PAD1", at = { 228, 106 } },
+        { "PAD3", at = { 210, 88 }, via = { 207, 112 } }, { "PADRSTICK", at = { 190, 138 } },
     },
 }
 ns.LAYOUT_ORDER = { "ansi", "iso", "pad" }

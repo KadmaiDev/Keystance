@@ -1,5 +1,5 @@
--- Keystance Keyboard tab: a keyboard and mouse showing what each key does, with the
--- spell, macro or item icon of the action slot it triggers. Toggles show the Shift, Ctrl
+-- Keystance Keyboard tab: a keyboard and mouse (or a controller, as a diagram) showing what
+-- each key does, with the spell, macro or item icon of the action slot it triggers. Toggles show the Shift, Ctrl
 -- and Alt layers (and combinations); holding a real modifier switches the view live.
 -- Bound keys the drawn keyboard doesn't have are listed underneath. Read-only.
 local ADDON, ns = ...
@@ -8,11 +8,12 @@ local L = ns.L
 
 local ipairs, pairs, CreateFrame = ipairs, pairs, CreateFrame
 local GetBindingAction, GetActionTexture, HasAction = GetBindingAction, GetActionTexture, HasAction
+local GetActionInfo, GetActionText = GetActionInfo, GetActionText
 local IsShiftKeyDown, IsControlKeyDown, IsAltKeyDown = IsShiftKeyDown, IsControlKeyDown, IsAltKeyDown
 
 local U = 34 -- one key unit, in pixels
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\media\\"
-local CIRCLE = MEDIA .. "circle.tga" -- a white disc: the dark backing of a controller button's badge
+local CIRCLE = MEDIA .. "circle.tga" -- a white disc: a controller button badge's backing, the lines' dots
 local ROW_GAP = 8 -- extra space under the function row
 local NUMPAD_WIDTH = 830 -- the window's width while the numpad is drawn (keys stay full size)
 
@@ -181,6 +182,78 @@ local function MakeCap(f, board, info, x, y, unit)
     return cap
 end
 
+-- The controller diagram: an outline drawing in the middle and a column of buttons each
+-- side, each cap joined to its button on the drawing by a line (across, then to the
+-- button), with the binding's name beside it. No mouse, no numpad.
+local PAD_ROW, PAD_BOARD_W = 34, 688
+local PAD_NAME_W = 116
+local LINE_R, LINE_G, LINE_B, LINE_A = 0.85, 0.7, 0.3, 0.75
+local function BuildPad(f, board, layout, Add, caps)
+    local rows = math.max(#layout.left, #layout.right)
+    local height = rows * PAD_ROW
+    local dx, dy = (PAD_BOARD_W - ns.PAD_W) / 2, (height - ns.PAD_H) / 2
+    local drawing = board:CreateTexture(nil, "BACKGROUND")
+    drawing:SetSize(ns.PAD_W, ns.PAD_H)
+    drawing:SetPoint("TOPLEFT", board, "TOPLEFT", dx, -dy)
+    drawing:SetTexture(MEDIA .. "controller.tga")
+    -- The drawing fills the middle of a square texture (power-of-two sizes).
+    local crop = (1 - ns.PAD_H / ns.PAD_W) / 2
+    drawing:SetTexCoord(0, 1, crop, 1 - crop)
+    board.drawing = drawing
+    local function Line(x1, y1, x2, y2)
+        local line = board:CreateLine(nil, "ARTWORK")
+        line:SetThickness(1.5)
+        line:SetColorTexture(LINE_R, LINE_G, LINE_B, LINE_A)
+        line:SetStartPoint("TOPLEFT", board, x1, -y1)
+        line:SetEndPoint("TOPLEFT", board, x2, -y2)
+        return line
+    end
+    for _, side in ipairs({ "left", "right" }) do
+        local left = side == "left"
+        for i, info in ipairs(layout[side]) do
+            local capW = PAD_ROW - 4
+            local x = left and (PAD_NAME_W + 6) or (PAD_BOARD_W - PAD_NAME_W - 6 - capW)
+            local y = (i - 1) * PAD_ROW + 2
+            Add(info, x, y, PAD_ROW - 1)
+            local cap = caps[#caps]
+            cap.callout = side
+            -- The binding's name beside the cap, away from the drawing.
+            local name = cap.name
+            name:ClearAllPoints()
+            if left then
+                name:SetPoint("RIGHT", cap, "LEFT", -6, 0)
+                name:SetJustifyH("RIGHT")
+            else
+                name:SetPoint("LEFT", cap, "RIGHT", 6, 0)
+                name:SetJustifyH("LEFT")
+            end
+            name:SetSize(PAD_NAME_W, capW)
+            name:SetJustifyV("MIDDLE")
+            if GameFontNormalSmall then name:SetFontObject(GameFontNormalSmall) end
+            -- The line: across from the cap to beside the drawing, then to the button.
+            local cy = y + capW / 2
+            local fromX = left and (x + capW + 2) or (x - 2)
+            local elbowX = left and (dx - 8) or (dx + ns.PAD_W + 8)
+            local tx, ty = dx + info.at[1], dy + info.at[2]
+            cap.lines = { Line(fromX, cy, elbowX, cy) }
+            local lastX, lastY = elbowX, cy
+            if info.via then -- a bend, around another button
+                local vx, vy = dx + info.via[1], dy + info.via[2]
+                cap.lines[2] = Line(lastX, lastY, vx, vy)
+                lastX, lastY = vx, vy
+            end
+            cap.lines[#cap.lines + 1] = Line(lastX, lastY, tx, ty)
+            local dot = board:CreateTexture(nil, "ARTWORK", nil, 1)
+            dot:SetTexture(CIRCLE)
+            dot:SetVertexColor(LINE_R, LINE_G, LINE_B, 1)
+            dot:SetSize(6, 6)
+            dot:SetPoint("CENTER", board, "TOPLEFT", tx, -ty)
+            cap.dot = dot
+        end
+    end
+    board:SetSize(PAD_BOARD_W, height)
+end
+
 -- Draws a layout (once) and returns its caps and the set of keys it has. With `numpad`, the
 -- navigation block and the numpad sit to the right (the window widens to fit), and the
 -- mouse keys move to a row underneath.
@@ -189,8 +262,8 @@ local function BuildBoard(page, f, layoutKey, numpad)
     local board = CreateFrame("Frame", nil, page)
     board:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -48)
     local caps, drawn = {}, {}
-    local function Add(info, x, y)
-        local cap = MakeCap(f, board, info, x, y, u)
+    local function Add(info, x, y, unit)
+        local cap = MakeCap(f, board, info, x, y, unit or u)
         caps[#caps + 1] = cap
         if cap.blank then cap:Hide() end
         drawn[info[1]] = true
@@ -198,14 +271,7 @@ local function BuildBoard(page, f, layoutKey, numpad)
     local function RowY(r) return (r - 1) * u + (r > 1 and ROW_GAP or 0) end
     local layout = ns.LAYOUTS[layoutKey]
     if layout.pad then
-        -- A controller: its buttons on a drawing of one (media/controller.tga, drawn in these
-        -- units by tools/make_controller.py); no mouse, no numpad.
-        local drawing = board:CreateTexture(nil, "BACKGROUND")
-        drawing:SetAllPoints()
-        drawing:SetTexture(MEDIA .. "controller.tga")
-        board.drawing = drawing
-        for _, info in ipairs(layout.keys) do Add(info, info.x * u, info.y * u) end
-        board:SetSize(15.5 * u, 8 * u)
+        BuildPad(f, board, layout, Add, caps)
         board.caps, board.drawn = caps, drawn
         return board
     end
@@ -248,6 +314,20 @@ local function Tint(cap, r, g, b, a)
     cap.bg:SetColorTexture(r, g, b, a)
 end
 
+-- What an action slot holds, by name ("Holy Light"), for a controller's callouts.
+local function ActionName(slot)
+    local kind, id = GetActionInfo(slot)
+    local name
+    if kind == "spell" then
+        name = C_Spell.GetSpellName(id)
+    elseif kind == "item" then
+        name = C_Item.GetItemNameByID(id)
+    end
+    return name or GetActionText(slot) or ""
+end
+
+local NOT_BOUND = "|cff808080" .. L["Not bound"] .. "|r"
+
 local function RefreshCaps(page, layer, padMods)
     for _, cap in ipairs(page.board.caps) do
         -- A modifier: Shift, Ctrl or Alt, or the controller button set to act as one.
@@ -276,10 +356,14 @@ local function RefreshCaps(page, layer, padMods)
                 end
                 cap.icon:SetTexture(texture or picture)
                 cap.icon:Show()
-                cap.name:SetText("")
+                cap.name:SetText(cap.callout and (texture and ActionName(slot) or CommandName(command) or "") or "")
             else
                 cap.icon:Hide()
-                cap.name:SetText(slot and "" or (CommandName(command) or ""))
+                if cap.callout then
+                    cap.name:SetText(command == "" and NOT_BOUND or CommandName(command) or command)
+                else
+                    cap.name:SetText(slot and "" or (CommandName(command) or ""))
+                end
             end
             Tint(cap, 0.1, 0.1, 0.12, (command ~= "") and 0.9 or 0.45)
         end

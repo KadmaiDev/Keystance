@@ -222,18 +222,49 @@ test("a long list of other keys stops after 24 with how many more", function()
     assert(page.others.text:find(", and 7 more", 1, true), page.others.text)
 end)
 
-test("the Controller layout is drawn on a controller; each button's symbol is a badge on its icon's corner", function()
+test("the Controller layout is a diagram: a drawing, and each button's binding beside it with a line", function()
     loginWithSetup(nil)
+    wow.bindings.PAD1 = "ACTIONBUTTON1"
+    wow.bindings.PADDUP = "JUMP"
     local page = keyboardPage()
     click(choice(page.layoutRow, "Controller"))
     eq(page.board.drawing.texture, "Interface\\AddOns\\Keystance\\media\\controller.tga")
     local pad1 = capFor(page, "PAD1")
     eq(pad1.badge.texture, "Interface\\AddOns\\Keystance\\media\\circle.tga")
     eq(pad1.label.point[2], pad1.badge, "the symbol sits on the badge, off the icon")
+    eq(pad1.callout, "right")
+    eq(pad1.name.text, "Holy Strike", "the spell's name beside its icon")
+    eq(pad1.name.point[1], "LEFT", "right-hand names read away from the drawing")
+    eq(capFor(page, "PADDUP").callout, "left")
+    eq(capFor(page, "PADDUP").name.point[1], "RIGHT")
+    eq(capFor(page, "PADDUP").name.text, "JUMP", "a command with no action slot: its name (the fake names it by command)")
+    assert(capFor(page, "PADLTRIGGER").name.text:find("Not bound", 1, true))
+    -- Every drawn button has a line from its cap to its spot on the drawing, which ends there.
+    for _, cap in ipairs(page.board.caps) do
+        assert(cap.lines and #cap.lines >= 2, cap.key)
+        local last = cap.lines[#cap.lines].to
+        eq(cap.dot.point[4], last[3], cap.key .. " dot x")
+        eq(cap.dot.point[5], last[4], cap.key .. " dot y")
+    end
+    eq(#capFor(page, "PAD3").lines, 3, "X bends around A")
     eq(capFor(page, "Q"), nil)
     loginWithSetup(nil)
     page = keyboardPage()
     eq(capFor(page, "Q").badge, nil, "keyboard keys keep their name in the corner")
+    eq(capFor(page, "Q").callout, nil)
+end)
+
+test("the controller diagram fits the window without widening it", function()
+    local _, ns = loginWithSetup(nil)
+    local page = keyboardPage()
+    click(choice(page.layoutRow, "Controller"))
+    assert(page.board.width <= 720 - 32, page.board.width)
+    assert(page.board.height <= 280, page.board.height)
+    for _, side in ipairs({ "left", "right" }) do
+        for _, info in ipairs(ns.LAYOUTS.pad[side]) do
+            assert(info.at[1] >= 0 and info.at[1] <= ns.PAD_W and info.at[2] >= 0 and info.at[2] <= ns.PAD_H, info[1])
+        end
+    end
 end)
 
 test("Automatic shows the keyboard while the controller is merely switched on, not in use", function()
@@ -244,7 +275,7 @@ test("Automatic shows the keyboard while the controller is merely switched on, n
 end)
 
 test("the controller drawing and round cap ship with the addon, in a format the game loads", function()
-    for file, size in pairs({ ["media/controller.tga"] = { 512, 256 }, ["media/circle.tga"] = { 64, 64 } }) do
+    for file, size in pairs({ ["media/controller.tga"] = { 512, 512 }, ["media/circle.tga"] = { 64, 64 } }) do
         local header = readFile(file):sub(1, 18)
         eq(header:byte(3), 2, file .. " uncompressed")
         eq(header:byte(13) + header:byte(14) * 256, size[1], file .. " width")
