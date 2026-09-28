@@ -52,6 +52,7 @@ local source
 -- Picks up the action in `slot` (on `fullKey`, bound to `command`), as the real bars do.
 function ns.PickupFromSlot(slot, fullKey, command)
     if ns.InCombat() then return Refused(L["Not in combat: try again when combat ends."]) end
+    ns.CancelBinding() -- one thing held at a time
     if GetCursorInfo() or not slot or not HasAction(slot) then return false end
     local before = ns.CurrentState()
     PickupAction(slot)
@@ -168,26 +169,92 @@ local function AskToBind(text)
 end
 
 ---------------------------------------------------------------------------
--- Binding a command that isn't an action (a raid marker) to a key: the panel "holds" the
--- command, and the next click on a key in the Keyboard tab binds it there.
+-- Holding a command that isn't an action (a raid marker), as a spell is held on the
+-- cursor: its icon follows the mouse, a left-click on a key in the Keyboard tab puts it
+-- there, and a right-click anywhere drops it. The game's cursor can't carry a keybinding
+-- (and SetCursor didn't show the icon, in game), so a small frame of our own follows the
+-- mouse; its OnUpdate and the right-click listener exist only while something is held.
 ---------------------------------------------------------------------------
-local held -- { command = "RAIDTARGET8", label = "Skull", icon = ... } while waiting for a key
+-- The game's own pick-up and drop sounds, looked up by name in SOUNDKIT: a spell icon's
+-- first, then the general ones (listed on Forever 2026-09-28: IG_ABILITY_ICON_DROP 838,
+-- UI_CURSOR_PICKUP_OBJECT 688, UI_CURSOR_DROP_OBJECT 689).
+local PICKUP_SOUNDS = { "IG_ABILITY_ICON_PICKUP", "UI_CURSOR_PICKUP_OBJECT" }
+local DROP_SOUNDS = { "IG_ABILITY_ICON_DROP", "UI_CURSOR_DROP_OBJECT" }
+local function Sound(names)
+    local kit = SOUNDKIT
+    if type(kit) ~= "table" or not PlaySound then return end
+    for _, name in ipairs(names) do
+        local id = kit[name]
+        if id then
+            PlaySound(id)
+            return
+        end
+    end
+end
+
+local held -- { command = "RAIDTARGET8", label = "Skull", icon = ... } while held
+local ghost, listener
+local endedAt -- when the last hold ended (so the right-click that ended it does nothing more)
 
 function ns.HeldBinding() return held end
 
-function ns.StartBinding(command, label, icon, dragging)
+local function Follow(self)
+    local x, y = GetCursorPosition()
+    local scale = UIParent:GetEffectiveScale()
+    self:ClearAllPoints()
+    self:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale + 14, y / scale - 14)
+end
+
+local function EndHold()
+    held = nil
+    endedAt = GetTime()
+    if ghost then
+        ghost:SetScript("OnUpdate", nil)
+        ghost:Hide()
+    end
+    if listener then listener:UnregisterAllEvents() end
+    ns.RefreshWindow()
+end
+
+-- True just after a hold ended: the right-click that ended it shouldn't also act on a key.
+function ns.HoldJustEnded()
+    return endedAt ~= nil and GetTime() - endedAt < 0.5
+end
+
+function ns.StartBinding(command, label, icon)
+    if ns.InCombat() then return Refused(L["Not in combat: try again when combat ends."]) end
+    if GetCursorInfo() then ClearCursor() end -- one thing held at a time, as with spells
     held = { command = command, label = label, icon = icon }
+    if not ghost then
+        ghost = CreateFrame("Frame", "KeystanceDragIcon", UIParent)
+        ghost:SetSize(28, 28)
+        ghost:SetFrameStrata("TOOLTIP")
+        ghost:EnableMouse(false) -- so the key under it is what's clicked
+        ghost.icon = ghost:CreateTexture(nil, "OVERLAY")
+        ghost.icon:SetAllPoints()
+    end
+    ghost.icon:SetTexture(icon)
+    Follow(ghost)
+    ghost:Show()
+    ghost:SetScript("OnUpdate", Follow)
+    Sound(PICKUP_SOUNDS)
+    if not listener then
+        listener = CreateFrame("Frame")
+        listener:SetScript("OnEvent", function(_, _, button)
+            if button == "RightButton" and held then ns.CancelBinding() end
+        end)
+    end
+    pcall(listener.RegisterEvent, listener, "GLOBAL_MOUSE_DOWN")
     ns.ToggleWindow(true)
     ns.ShowTab("keyboard")
-    if not dragging then
-        ns.Print(L["Click a key in the Keyboard tab to put %s on it. Right-click cancels."]:format(label))
-    end
     ns.RefreshWindow()
 end
 
 function ns.CancelBinding()
-    held = nil
-    ns.RefreshWindow()
+    if held then
+        EndHold()
+        Sound(DROP_SOUNDS)
+    end
 end
 
 local function Bind(key, command, label)
@@ -206,6 +273,7 @@ local function Bind(key, command, label)
     local ok, why = ns.ApplyState(state, { scope = "all" })
     if not ok then return Refused(L["Nothing changed: %s."]:format(why)) end
     ns.RecordChange(before, L["putting %s on %s"]:format(label, key))
+    Sound(DROP_SOUNDS)
     ns.Print(L["%s is now on %s."]:format(label, key))
     ns.RefreshWindow()
     return true
@@ -235,7 +303,7 @@ end
 function ns.BindHeld(fullKey, current)
     local h = held
     if not h then return false end
-    held = nil
+    EndHold()
     if ns.InCombat() then return Refused(L["Not in combat: try again when combat ends."]) end
     if current == h.command then
         ns.Print(L["%s is already on %s."]:format(h.label, fullKey))

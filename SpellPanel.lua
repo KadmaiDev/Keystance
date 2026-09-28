@@ -41,6 +41,7 @@ local MARKER_ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_%d"
 ---------------------------------------------------------------------------
 local function Pickup(entry, rankID)
     if ns.InCombat() then return ns.Print(L["Spells can't be picked up in combat."]) end
+    ns.CancelBinding() -- one thing held at a time
     if not entry.known then
         return ns.Print(L["%s is learned at level %s."]:format(entry.name, tostring(entry.level or "?")))
     end
@@ -53,6 +54,7 @@ end
 
 local function PickupMacroAt(index)
     if ns.InCombat() then return ns.Print(L["Macros can't be picked up in combat."]) end
+    ns.CancelBinding()
     PickupMacro(index)
 end
 
@@ -179,7 +181,7 @@ local function RowTooltip(row)
         GameTooltip:AddLine(item.name)
         GameTooltip:AddLine(item.key and L["On %s."]:format(item.key) or L["Not on a key."], 1, 1, 1)
         GameTooltip:AddLine(" ")
-        GameTooltip:AddLine(L["Drag it onto a key in Keystance's Keyboard tab, or click it and then click a key."], 0.6, 0.8, 1, true)
+        GameTooltip:AddLine(L["Click to pick it up, then click a key in Keystance's Keyboard tab. Right-click drops it."], 0.6, 0.8, 1, true)
         return GameTooltip:Show()
     end
     local e = item.entry
@@ -221,62 +223,26 @@ local function RowClick(row, button)
     Pickup(e, item.kind == "rank" and id or nil)
 end
 
--- A raid marker isn't something the game's cursor can carry (it's a keybinding), so dragging
--- one shows its icon as the mouse pointer, and letting go over a key in the Keyboard tab
--- puts it there (RowDragStop). Let go anywhere else, it waits for a click on a key.
+-- A raid marker is held like a spell on the cursor (Drops.lua): clicking or dragging it
+-- picks it up. Let go of a drag over a key in the Keyboard tab and it goes there; let go
+-- anywhere else and it stays held, as a spell does, until a key is clicked or a
+-- right-click drops it.
 local draggingMarker = false
-
--- The marker's icon, following the mouse while it's dragged. The game's cursor can't show
--- it (SetCursor didn't, in game), so a small frame of our own does. Its OnUpdate exists
--- only during the drag (the one exception to "no OnUpdate"), and it ignores the mouse so
--- the key underneath is what's found on letting go.
-local ghost
-local function Follow(self)
-    local x, y = GetCursorPosition()
-    local scale = UIParent:GetEffectiveScale()
-    self:ClearAllPoints()
-    self:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale, y / scale)
-end
-local function ShowGhost(icon)
-    if not ghost then
-        ghost = CreateFrame("Frame", "KeystanceDragIcon", UIParent)
-        ghost:SetSize(28, 28)
-        ghost:SetFrameStrata("TOOLTIP")
-        ghost:EnableMouse(false)
-        ghost.icon = ghost:CreateTexture(nil, "OVERLAY")
-        ghost.icon:SetAllPoints()
-    end
-    ghost.icon:SetTexture(icon)
-    Follow(ghost)
-    ghost:Show()
-    ghost:SetScript("OnUpdate", Follow)
-end
-local function HideGhost()
-    if not ghost then return end
-    ghost:SetScript("OnUpdate", nil)
-    ghost:Hide()
-end
-
 local function RowDragStop()
     if not draggingMarker then return end
     draggingMarker = false
-    HideGhost()
     local foci = GetMouseFoci and GetMouseFoci()
     local target = type(foci) == "table" and foci[1]
     if target and target.isKeyCap and target.fullKey and ns.HeldBinding() then
         ns.BindHeld(target.fullKey, target.command)
-    elseif ns.HeldBinding() then
-        ns.Print(L["Click a key in the Keyboard tab to put %s on it. Right-click cancels."]:format(ns.HeldBinding().label))
     end
 end
 
 local function RowDrag(row)
     local item = row.item
     if item and item.kind == "marker" then
-        if ns.InCombat() then return ns.Print(L["Not in combat: try again when combat ends."]) end
-        ns.StartBinding(item.command, item.name, item.icon, true)
-        draggingMarker = true
-        ShowGhost(item.icon)
+        ns.StartBinding(item.command, item.name, item.icon)
+        draggingMarker = ns.HeldBinding() ~= nil
         return
     end
     if not item or item.kind == "header" then return end

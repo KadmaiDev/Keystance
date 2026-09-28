@@ -13,7 +13,7 @@ local KNOWN_EVENTS = {
     PLAYER_REGEN_DISABLED = true, PLAYER_REGEN_ENABLED = true,
     ADDON_ACTION_BLOCKED = true, ADDON_ACTION_FORBIDDEN = true,
     ACTIONBAR_SLOT_CHANGED = true, UPDATE_BINDINGS = true, CURSOR_CHANGED = true,
-    MODIFIER_STATE_CHANGED = true, UPDATE_MACROS = true, ACTIONBAR_PAGE_CHANGED = true, UPDATE_BONUS_ACTIONBAR = true,
+    MODIFIER_STATE_CHANGED = true, UPDATE_MACROS = true, GLOBAL_MOUSE_DOWN = true, ACTIONBAR_PAGE_CHANGED = true, UPDATE_BONUS_ACTIONBAR = true,
     SPELLS_CHANGED = true, LEARNED_SPELL_IN_SKILL_LINE = true,
     PLAYER_EQUIPMENT_CHANGED = true, UNIT_INVENTORY_CHANGED = true,
 }
@@ -427,6 +427,10 @@ function M.load(files)
     M.errors = {}
     geterrorhandler = function() return function(err) M.errors[#M.errors + 1] = err end end
     M.reloads = 0
+    -- Sounds played, and the game's sound names (as listed on Forever).
+    M.sounds = {}
+    SOUNDKIT = { IG_ABILITY_ICON_DROP = 838, UI_CURSOR_PICKUP_OBJECT = 688, UI_CURSOR_DROP_OBJECT = 689 }
+    PlaySound = function(id) M.sounds[#M.sounds + 1] = id end
     -- Other addons loaded (M.loadedAddons["EllesmereUIMinimap"] = true...).
     M.loadedAddons = {}
     C_AddOns = { IsAddOnLoaded = function(name) return M.loadedAddons[name] == true end }

@@ -142,7 +142,9 @@ local function MakeCap(f, board, info, x, y)
             return
         end
         if button == "RightButton" then
-            -- Right-click: remove what's on the key (after asking).
+            -- Right-click: remove what's on the key (after asking), unless that right-click
+            -- just dropped a held raid marker.
+            if ns.HoldJustEnded() then return end
             if self.fullKey and not GetCursorInfo() then ns.AskRemove(self.fullKey, self.slot, self.command) end
             return
         end
@@ -275,7 +277,7 @@ local function Refresh(page)
     page.layoutRow:Refresh()
     local held = ns.HeldBinding()
     page.binding:SetShown(held ~= nil)
-    if held then page.binding:SetText(L["Click a key for %s (right-click cancels)"]:format(held.label)) end
+    if held then page.binding:SetText(L["Click a key for %s (right-click drops it)"]:format(held.label)) end
     RefreshCaps(page, layer)
     RefreshOthers(page, layer)
 end
