@@ -111,6 +111,7 @@ local function Create()
         f = CreateFrame("Frame", "KeystanceIconPicker", UIParent, "BackdropTemplate")
         local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
         close:SetPoint("TOPRIGHT", -4, -4)
+        f.CloseButton = close -- restyled with the window by EllesmereUI and ElvUI
     end
     picker = f
     f.buttons, f.texts, f.cells = {}, {}, {}

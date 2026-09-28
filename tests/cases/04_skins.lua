@@ -154,3 +154,14 @@ test("the reload pop-up is added without assigning Blizzard's StaticPopupDialogs
     eq(StaticPopupDialogs, dialogs)
     assert(dialogs.KEYSTANCE_RELOAD, "added on first use")
 end)
+
+test("the guide bar under the window takes the look too, its X like the window's", function()
+    wow.withEllesmere = true
+    local ns = wow.load(FILES)
+    wow.login(nil)
+    wow.skinCallback(wow.skinFacade)
+    slash("")
+    assert(KeystanceGuideBar:IsShown(), "a new character sees the guide")
+    assert(skinnedWith("Shell", KeystanceGuideBar), "backdrop")
+    assert(skinnedWith("CloseButton", KeystanceGuideBar.close), "its X, as the window's")
+end)

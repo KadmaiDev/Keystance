@@ -170,6 +170,7 @@ local function BuildBar(window)
     f.close:SetSize(22, 22)
     f.close:SetPoint("TOPRIGHT", -3, -3)
     f.close:SetScript("OnClick", function() ns.HideGuide() end)
+    f.CloseButton = f.close -- where EllesmereUI and ElvUI look for a window's X to restyle it
     f.all = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     f.all:SetSize(80, 22)
     f.all:SetPoint("BOTTOMRIGHT", -30, 8)
