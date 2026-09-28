@@ -1,0 +1,128 @@
+-- Tests: looks (classic, EllesmereUI, ElvUI).
+---------------------------------------------------------------------------
+function skinnedWith(fname, obj)
+    for _, call in ipairs(wow.skinned) do
+        if call[1] == fname and call[2] == obj then return true end
+    end
+    return false
+end
+
+function countSkinned(fname)
+    local n = 0
+    for _, call in ipairs(wow.skinned) do if call[1] == fname then n = n + 1 end end
+    return n
+end
+
+test("without a UI addon nothing is skinned: the classic look stays", function()
+    local ns = start(nil)
+    slash("")
+    eq(#wow.skinned, 0)
+    eq(ns.SkinName(), "classic")
+end)
+
+test("with EllesmereUI, the window, its tabs, buttons and text take its look", function()
+    wow.withEllesmere = true
+    local ns = wow.load(FILES)
+    eq(wow.skinName, "Keystance", "registered under the addon's folder name")
+    wow.login(nil)
+    wow.skinCallback(wow.skinFacade) -- EllesmereUI calls this at login
+    eq(ns.SkinName(), "ellesmere")
+    slash("")
+    assert(skinnedWith("Shell", KeystanceFrame), "backdrop")
+    eq(countSkinned("Tab"), 5)
+    assert(skinnedWith("Button", KeystanceFrame.pages[5].look), "buttons")
+    assert(skinnedWith("Font", KeystanceFrame.credit), "window text")
+    assert(countSkinned("Font") > 5, "page text too")
+end)
+
+test("a window built before EllesmereUI's callback is skinned when it arrives", function()
+    wow.withEllesmere = true
+    wow.load(FILES)
+    wow.login(nil)
+    slash("")
+    eq(#wow.skinned, 0)
+    wow.skinCallback(wow.skinFacade)
+    assert(skinnedWith("Shell", KeystanceFrame))
+    eq(countSkinned("Tab"), 5)
+end)
+
+test("if the player turned our skinning off in EllesmereUI, the classic look stays", function()
+    wow.withEllesmere = true
+    wow.load(FILES)
+    wow.login(nil)
+    slash("") -- EllesmereUI never calls back when its third-party skinning is off for us
+    eq(#wow.skinned, 0)
+end)
+
+test("with ElvUI, the window, its tabs and buttons take its look", function()
+    wow.withElvUI = true
+    local ns = start(nil)
+    eq(ns.SkinName(), "elvui")
+    slash("")
+    assert(skinnedWith("HandleFrame", KeystanceFrame))
+    eq(countSkinned("HandleTab"), 5)
+    assert(skinnedWith("HandleButton", KeystanceFrame.pages[5].look))
+    assert(skinnedWith("FontTemplate", KeystanceFrame.credit))
+end)
+
+test("before ElvUI has initialised the classic look is used", function()
+    wow.withElvUI = true
+    local ns = wow.load(FILES)
+    wow.elv.Initialized = nil
+    wow.login(nil)
+    eq(ns.SkinName(), "classic")
+end)
+
+test("an error inside ElvUI's skinning never stops the window opening", function()
+    wow.withElvUI = true
+    wow.load(FILES)
+    for _, fname in ipairs({ "HandleFrame", "HandleButton", "HandleTab" }) do
+        wow.elvSkins[fname] = function() error("changed API") end
+    end
+    wow.login(nil)
+    slash("")
+    eq(KeystanceFrame:IsShown(), true)
+end)
+
+test("with both installed, EllesmereUI wins on Automatic; ElvUI can still be chosen", function()
+    wow.withEllesmere, wow.withElvUI = true, true
+    local ns = start(nil)
+    wow.skinCallback(wow.skinFacade)
+    eq(ns.SkinName(), "ellesmere")
+    slash("")
+    assert(skinnedWith("Shell", KeystanceFrame))
+    eq(skinnedWith("HandleFrame", KeystanceFrame), false)
+
+    wow.withEllesmere, wow.withElvUI = true, true
+    ns = start({ v = 1, settings = { skin = "elvui" }, chars = {} })
+    wow.skinCallback(wow.skinFacade)
+    eq(ns.SkinName(), "elvui")
+end)
+
+test("choosing Classic keeps Blizzard's look even with a UI addon installed", function()
+    wow.withEllesmere, wow.withElvUI = true, true
+    local ns = start({ v = 1, settings = { skin = "classic" }, chars = {} })
+    wow.skinCallback(wow.skinFacade)
+    slash("")
+    eq(ns.SkinName(), "classic")
+    eq(#wow.skinned, 0)
+end)
+
+test("a choice whose addon isn't installed falls back to classic", function()
+    local ns = start({ v = 1, settings = { skin = "ellesmere" }, chars = {} })
+    eq(ns.SkinName(), "classic")
+end)
+
+test("/kst skin changes the setting, which applies after /reload", function()
+    wow.withElvUI = true
+    local ns = start(nil)
+    slash("skin classic")
+    eq(KeystanceDB.settings.skin, "classic")
+    eq(ns.SkinName(), "elvui", "unchanged until /reload")
+    assert(printed():find("applies after /reload", 1, true))
+    slash("skin shiny")
+    eq(KeystanceDB.settings.skin, "classic")
+    assert(printed():find("Unknown look 'shiny'", 1, true))
+    slash("skin")
+    assert(printed():find("Look: classic (in use: elvui)", 1, true), printed())
+end)

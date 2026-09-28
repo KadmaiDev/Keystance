@@ -10,7 +10,19 @@ A keybind and action bar manager for **World of Warcraft: Forever**, by **Kadmai
 - Finger-friendly suggestions: common abilities go on keys close to your movement keys, so you're not stretching for them.
 - Looks at home with the default UI, EllesmereUI or ElvUI.
 
-Status: planning. Nothing to install yet.
+Status: early development, not released yet. So far there's the window (empty tabs), the minimap button and the look that follows your UI addon; the features above arrive in stages.
+
+## Commands
+
+`/kst` (or `/keystance`) opens Keystance. Also: `/kst minimap` shows or hides the minimap button, `/kst skin auto | classic | ellesmere | elvui` picks the look, `/kst mem` shows memory use, `/kst help` lists everything.
+
+## Performance
+
+Keystance does nothing while you play: no code runs every frame, and the window is only built the first time you open it. It uses about 40 KB of memory (measured outside the game; `/kst mem` shows the real figure).
+
+## Development
+
+`luajit tests/run.lua` runs the tests against a fake game API; `luajit tests/perf.lua` measures memory and garbage. `python tools/install_dev.py "<WoW>\_classic_beta_"` installs a "Keystance (dev)" copy; `python tools/release.py` builds the release zip.
 
 ## Licence
 
