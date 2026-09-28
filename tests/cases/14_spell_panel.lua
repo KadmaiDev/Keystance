@@ -393,3 +393,12 @@ test("the panel opens beside Keyboard and Bars, and steps aside on the other tab
     click(KeystanceFrame.spellsButton)
     eq(KeystanceSpellPanel:IsShown(), true, "the Spells button opens it on any tab")
 end)
+
+test("the filter buttons are sized to their labels and fit the panel", function()
+    panelLogin()
+    local p = openPanel()
+    local b = p.filters.buttons
+    eq(b[2].width, 92, "Not on bars, the longest")
+    assert(b[1].width < b[2].width, "All, the shortest, is narrower")
+    assert(p.filters.width <= 330 - 28, "the row fits inside the panel")
+end)

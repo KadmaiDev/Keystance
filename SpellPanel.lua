@@ -470,7 +470,9 @@ local function Create()
     f.search = search
 
     f.filters = ns.ChoiceRow(f, f, {
-        { "all", L["All"] }, { "missing", L["Not on bars"] }, { "onbar", L["On bars"] }, { "later", L["To learn"] },
+        -- "Not on bars" needs more room than the others (it ran to the edges).
+        { "all", L["All"], 52 }, { "missing", L["Not on bars"], 92 }, { "onbar", L["On bars"], 72 },
+        { "later", L["To learn"], 72 },
     }, function() return Settings().spellFilter or "all" end, function(value)
         Settings().spellFilter = value
         offset = 0
