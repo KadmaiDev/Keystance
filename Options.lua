@@ -190,8 +190,19 @@ end
 ns.On("PLAYER_LOGIN", RegisterCanvas)
 
 -- Opens the game's Options at our page (falls back to the window's Settings tab).
+-- It opens a frame later: from a menu's click the menu is still closing, and opening the
+-- Options window inside that did nothing in game (Alts Forever, 2026-09-28). A failure
+-- is reported to the error handler (BugGrabber shows it), not hidden.
+local function OpenCategory()
+    local ok, err = pcall(Settings.OpenToCategory, category:GetID())
+    if not ok and geterrorhandler then geterrorhandler()(err) end
+end
+
 function ns.OpenOptions()
-    if category and Settings.OpenToCategory and pcall(Settings.OpenToCategory, category:GetID()) then return end
+    if category and Settings.OpenToCategory then
+        C_Timer.After(0, OpenCategory)
+        return
+    end
     ns.ToggleWindow(true)
     ns.ShowTab("settings")
 end

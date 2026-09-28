@@ -10,6 +10,7 @@ test("a minimap button is made as soon as saved data loads (before login)", func
     eq(KeystanceFrame:IsShown(), true)
     b.scripts.OnClick(b, "RightButton")
     eq(wow.menu.items[1].text, "Keystance", "right-click: options menu")
+    eq(wow.menu.owner, UIParent, "not the button: EllesmereUI's tray hides it on a click, closing the menu")
     b.scripts.OnEnter(b)
     eq(GameTooltip.lines[1][1], "Keystance")
 end)
@@ -92,8 +93,22 @@ end)
 
 test("the Options page shows the full logo, not the small icon stretched", function()
     start(nil)
-    slash("options")
+    openOptions()
     eq(KeystanceOptionsPanel.logo.texture, "Interface\\AddOns\\Keystance\\media\\logo.tga")
+end)
+
+test("no menu action returns a value (the menu would read it as a response and stay open)", function()
+    start(nil)
+    Keystance_OnAddonCompartmentClick("Keystance", "RightButton", UIParent)
+    local n = 0
+    for _, item in ipairs(wow.menu.items) do
+        local fn = item.kind == "checkbox" and item.setSelected or item.kind == "button" and item.fn
+        if fn then
+            n = n + 1
+            eq(select("#", fn()), 0, item.text)
+        end
+    end
+    assert(n >= 3, "checked the buttons and the checkbox")
 end)
 
 test("every menu option has a slash command listed in /kst help", function()

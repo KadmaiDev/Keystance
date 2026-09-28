@@ -392,6 +392,9 @@ function M.load(files)
     M.popup = nil
     StaticPopupDialogs = {}
     StaticPopup_Show = function(which, text1, text2, data) M.popup = { which = which, text = text1, data = data } end
+    -- Errors passed to the error handler (BugGrabber in game).
+    M.errors = {}
+    geterrorhandler = function() return function(err) M.errors[#M.errors + 1] = err end end
     M.reloads = 0
     ReloadUI = function() M.reloads = M.reloads + 1 end
     YES, NO = "Yes", "No"

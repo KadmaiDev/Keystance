@@ -17,19 +17,24 @@ local mmButton
 ---------------------------------------------------------------------------
 -- Options menu (right-click on the button or the compartment entry)
 ---------------------------------------------------------------------------
+-- Every menu action returns nothing: the menu reads a returned value as a MenuResponse,
+-- and a true kept Alts Forever's menu open (2026-09-28). A test checks each one.
 local function MinimapSelected() return ns.MinimapButtonOn() end
 local function ToggleMinimap() ns.SetMinimapButton(not ns.MinimapButtonOn()) end
+local function OpenWindow() ns.ToggleWindow(true) end
+local function OpenOptions() ns.OpenOptions() end
+local function ShowMemory() ns.RunCommand("mem") end
 
 function ns.ShowOptionsMenu(owner)
     if not (MenuUtil and MenuUtil.CreateContextMenu) then return ns.ShowHelp() end
     MenuUtil.CreateContextMenu(owner, function(_, root)
         root:CreateTitle("Keystance")
         if not ns.WindowShown() then
-            root:CreateButton(L["Open Keystance"], function() ns.ToggleWindow(true) end)
+            root:CreateButton(L["Open Keystance"], OpenWindow)
         end
-        root:CreateButton(L["Settings"], function() ns.RunCommand("options") end)
+        root:CreateButton(L["Settings"], OpenOptions)
         root:CreateCheckbox(L["Show minimap button"], MinimapSelected, ToggleMinimap)
-        root:CreateButton(L["Memory use"], function() ns.RunCommand("mem") end)
+        root:CreateButton(L["Memory use"], ShowMemory)
     end)
 end
 
@@ -90,7 +95,11 @@ function ns.CreateMinimapButton()
     border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
     b.icon = icon
     b:SetScript("OnClick", function(self, button)
-        if button == "RightButton" then ns.ShowOptionsMenu(self) else ns.ToggleWindow() end
+        -- The menu belongs to UIParent, not the button: EllesmereUI's minimap tray hides
+        -- itself (and this button) on any left press outside it, and a menu closes with its
+        -- owner, so every click on the menu only closed it (found in Alts Forever,
+        -- 2026-09-28). It opens at the cursor.
+        if button == "RightButton" then ns.ShowOptionsMenu(UIParent) else ns.ToggleWindow() end
     end)
     b:SetScript("OnEnter", ButtonTooltip)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
