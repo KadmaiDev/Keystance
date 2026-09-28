@@ -11,6 +11,7 @@ local GetBindingAction, GetActionTexture, HasAction = GetBindingAction, GetActio
 local IsShiftKeyDown, IsControlKeyDown, IsAltKeyDown = IsShiftKeyDown, IsControlKeyDown, IsAltKeyDown
 
 local U = 34 -- one key unit, in pixels
+local SMALL_U = 28 -- with the navigation block and numpad, so it all fits the window
 local ROW_GAP = 8 -- extra space under the function row
 
 -- The eight modifier layers, in the game's prefix order.
@@ -94,10 +95,11 @@ local function CapTooltip(cap)
     GameTooltip:Show()
 end
 
-local function MakeCap(f, board, info, x, y)
+local function MakeCap(f, board, info, x, y, unit)
+    unit = unit or U
     local w = info.w or 1
     local cap = CreateFrame("Button", nil, board)
-    cap:SetSize(U * w - 3, U - 3)
+    cap:SetSize(unit * w - 3, unit * (info.h or 1) - 3)
     cap:SetPoint("TOPLEFT", board, "TOPLEFT", x, -y)
     local bg = cap:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints()
@@ -164,34 +166,49 @@ local function MakeCap(f, board, info, x, y)
     return cap
 end
 
--- Draws a layout (once) and returns its caps and the set of keys it has.
-local function BuildBoard(page, f, layoutKey)
+-- Draws a layout (once) and returns its caps and the set of keys it has. With `numpad`, the
+-- keys are smaller, the navigation block and the numpad sit to the right, and the mouse
+-- keys move to a row underneath.
+local function BuildBoard(page, f, layoutKey, numpad)
+    local u = numpad and SMALL_U or U
     local board = CreateFrame("Frame", nil, page)
     board:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -48)
-    board:SetSize(15 * U + 20 + 2 * U, 6 * U + ROW_GAP)
     local caps, drawn = {}, {}
+    local function Add(info, x, y)
+        local cap = MakeCap(f, board, info, x, y, u)
+        caps[#caps + 1] = cap
+        if cap.blank then cap:Hide() end
+        drawn[info[1]] = true
+    end
+    local function RowY(r) return (r - 1) * u + (r > 1 and ROW_GAP or 0) end
     for r, row in ipairs(ns.LAYOUTS[layoutKey].rows) do
         local x = 0
-        local y = (r - 1) * U + (r > 1 and ROW_GAP or 0)
         for _, info in ipairs(row) do
-            x = x + (info.gap or 0) * U
-            local cap = MakeCap(f, board, info, x, y)
-            caps[#caps + 1] = cap
-            if cap.blank then cap:Hide() end
-            drawn[info[1]] = true
-            x = x + (info.w or 1) * U
+            x = x + (info.gap or 0) * u
+            Add(info, x, RowY(r))
+            x = x + (info.w or 1) * u
         end
     end
-    -- The mouse, to the right of the keyboard.
-    for i, key in ipairs(ns.MOUSE_KEYS) do
-        local cap = MakeCap(f, board, { key }, 15 * U + 20 + ((i - 1) % 2) * U, U + ROW_GAP + math.floor((i - 1) / 2) * U)
-        caps[#caps + 1] = cap
-        drawn[key] = true
-    end
     local mouse = board:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    mouse:SetPoint("BOTTOMLEFT", board, "TOPLEFT", 15 * U + 20, -(U + ROW_GAP) + 2)
     mouse:SetText(L["Mouse"])
     f.texts[#f.texts + 1] = mouse
+    if numpad then
+        for _, block in ipairs({ { ns.NAV_KEYS, 15.5 }, { ns.NUMPAD_KEYS, 19 } }) do
+            for _, info in ipairs(block[1]) do Add(info, (block[2] + info.x) * u, RowY(info.row)) end
+        end
+        -- The mouse, in a row under the keyboard.
+        local y = RowY(6) + u + 10
+        mouse:SetPoint("TOPLEFT", board, "TOPLEFT", 0, -y)
+        for i, key in ipairs(ns.MOUSE_KEYS) do Add({ key }, (i + 1) * u, y) end
+        board:SetSize(23 * u, y + u)
+    else
+        -- The mouse, to the right of the keyboard.
+        for i, key in ipairs(ns.MOUSE_KEYS) do
+            Add({ key }, 15 * u + 20 + ((i - 1) % 2) * u, u + ROW_GAP + math.floor((i - 1) / 2) * u)
+        end
+        mouse:SetPoint("BOTTOMLEFT", board, "TOPLEFT", 15 * u + 20, -(u + ROW_GAP) + 2)
+        board:SetSize(15 * u + 20 + 2 * u, 6 * u + ROW_GAP)
+    end
     board.caps, board.drawn = caps, drawn
     return board
 end
@@ -259,14 +276,21 @@ end
 
 local function Refresh(page)
     local key = ns.LayoutKey(ns.db.settings.layout)
-    if page.layoutKey ~= key then
+    local numpad = ns.db.settings.numpad and true or false
+    local boardKey = key .. (numpad and "+numpad" or "")
+    if page.boardKey ~= boardKey then
         if page.board then page.board:Hide() end
-        page.boards[key] = page.boards[key] or BuildBoard(page, page.window, key)
-        page.board = page.boards[key]
+        page.boards[boardKey] = page.boards[boardKey] or BuildBoard(page, page.window, key, numpad)
+        page.board = page.boards[boardKey]
         page.board:Show()
-        page.layoutKey = key
+        page.layoutKey, page.boardKey = key, boardKey
+        page.others:ClearAllPoints()
+        page.others:SetPoint("TOPLEFT", page.board, "BOTTOMLEFT", 0, -12)
+        page.others:SetPoint("RIGHT", page, "RIGHT", -16, 0)
         for _, fs in ipairs(page.window.texts) do ns.SkinText(fs) end
     end
+    if numpad then page.numpad:LockHighlight() else page.numpad:UnlockHighlight() end
+    page.numpad:SetText((numpad and "|cffffd100" or "") .. L["Numpad"] .. (numpad and "|r" or ""))
     local layer, live = CurrentLayer()
     for _, t in ipairs(page.toggles) do
         local on = toggles[t.mod]
@@ -311,6 +335,16 @@ local function Build(page, f)
         end, 76)
     row:SetPoint("TOPRIGHT", page, "TOPRIGHT", -16, -14)
     page.layoutRow = row
+    -- Also draw the navigation block (Insert, Home, arrows...) and the numpad.
+    local numpad = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+    numpad:SetSize(76, 22)
+    numpad:SetPoint("RIGHT", row, "LEFT", -10, 0)
+    numpad:SetScript("OnClick", function()
+        ns.db.settings.numpad = not ns.db.settings.numpad or nil
+        ns.RefreshWindow()
+    end)
+    page.numpad = numpad
+    f.buttons[#f.buttons + 1] = numpad
     local binding = page:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     binding:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -36)
     binding:SetTextColor(0.4, 0.8, 1)
@@ -318,8 +352,7 @@ local function Build(page, f)
     page.binding = binding
     f.texts[#f.texts + 1] = binding
     local others = page:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    others:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -(48 + 6 * U + ROW_GAP + 12))
-    others:SetPoint("RIGHT", page, "RIGHT", -16, 0)
+    -- Anchored under whichever keyboard is drawn (Refresh).
     others:SetJustifyH("LEFT")
     others:SetWordWrap(true)
     page.others = others

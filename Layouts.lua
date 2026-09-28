@@ -53,6 +53,30 @@ ns.LAYOUTS = {
 }
 ns.LAYOUT_ORDER = { "ansi", "iso" }
 
+-- The navigation block and the numpad, drawn with the Numpad option. Keys are placed by
+-- row (as the main keyboard's rows) and column `x` in key units within their block; `h` is
+-- a key two rows tall. Most names were seen bound in game (NUMPAD0, NUMPAD5, NUMLOCK,
+-- NUMPADDIVIDE, NUMPADMINUS, NUMPADPLUS, PRINTSCREEN, INSERT, DELETE, HOME, END, PAGEUP,
+-- PAGEDOWN, UP, DOWN, LEFT, RIGHT); NUMPADMULTIPLY, NUMPADDECIMAL and NUMPADENTER aren't
+-- confirmed (a wrong one just shows under "Also bound").
+ns.NAV_KEYS = {
+    { "PRINTSCREEN", row = 1, x = 0 }, { "SCROLLLOCK", row = 1, x = 1 }, { "PAUSE", row = 1, x = 2 },
+    { "INSERT", row = 2, x = 0 }, { "HOME", row = 2, x = 1 }, { "PAGEUP", row = 2, x = 2 },
+    { "DELETE", row = 3, x = 0 }, { "END", row = 3, x = 1 }, { "PAGEDOWN", row = 3, x = 2 },
+    { "UP", row = 5, x = 1 },
+    { "LEFT", row = 6, x = 0 }, { "DOWN", row = 6, x = 1 }, { "RIGHT", row = 6, x = 2 },
+}
+ns.NUMPAD_KEYS = {
+    { "NUMLOCK", row = 2, x = 0 }, { "NUMPADDIVIDE", row = 2, x = 1 }, { "NUMPADMULTIPLY", row = 2, x = 2 },
+    { "NUMPADMINUS", row = 2, x = 3 },
+    { "NUMPAD7", row = 3, x = 0 }, { "NUMPAD8", row = 3, x = 1 }, { "NUMPAD9", row = 3, x = 2 },
+    { "NUMPADPLUS", row = 3, x = 3, h = 2 },
+    { "NUMPAD4", row = 4, x = 0 }, { "NUMPAD5", row = 4, x = 1 }, { "NUMPAD6", row = 4, x = 2 },
+    { "NUMPAD1", row = 5, x = 0 }, { "NUMPAD2", row = 5, x = 1 }, { "NUMPAD3", row = 5, x = 2 },
+    { "NUMPADENTER", row = 5, x = 3, h = 2 },
+    { "NUMPAD0", row = 6, x = 0, w = 2 }, { "NUMPADDECIMAL", row = 6, x = 2 },
+}
+
 -- The mouse: middle button, side buttons and the wheel.
 ns.MOUSE_KEYS = { "BUTTON3", "BUTTON4", "BUTTON5", "MOUSEWHEELUP", "MOUSEWHEELDOWN" }
 
@@ -67,6 +91,12 @@ local SHORT = {
     ESCAPE = "Esc", BACKSPACE = "Bksp", CAPSLOCK = "Caps", ENTER = "Enter", SPACE = "Space", TAB = "Tab",
     SHIFT = "Shift", CTRL = "Ctrl", ALT = "Alt", BUTTON3 = "M3", BUTTON4 = "M4", BUTTON5 = "M5",
     MOUSEWHEELUP = "WhUp", MOUSEWHEELDOWN = "WhDn",
+    PRINTSCREEN = "PrtSc", SCROLLLOCK = "ScrLk", PAUSE = "Pause", INSERT = "Ins", HOME = "Home",
+    PAGEUP = "PgUp", DELETE = "Del", END = "End", PAGEDOWN = "PgDn", UP = "Up", DOWN = "Down",
+    LEFT = "Left", RIGHT = "Right", NUMLOCK = "Num", NUMPADDIVIDE = "N/", NUMPADMULTIPLY = "N*",
+    NUMPADMINUS = "N-", NUMPADPLUS = "N+", NUMPADENTER = "NEnt", NUMPADDECIMAL = "N.",
+    NUMPAD0 = "N0", NUMPAD1 = "N1", NUMPAD2 = "N2", NUMPAD3 = "N3", NUMPAD4 = "N4", NUMPAD5 = "N5",
+    NUMPAD6 = "N6", NUMPAD7 = "N7", NUMPAD8 = "N8", NUMPAD9 = "N9",
 }
 function ns.KeyLabel(key)
     return SHORT[key] or key
