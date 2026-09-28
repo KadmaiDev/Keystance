@@ -2,10 +2,12 @@
 
     python tools/make_icons.py
 
-  media/icon.tga     64x64, the whole badge: the addon list (## IconTexture)
-  media/minimap.tga  64x64, the badge without its gold ring: the minimap button, whose own
-                     border (or EllesmereUI's tray) draws the ring; two rings never line up
-  media/logo.png     400x400, for the README
+  media/icon.tga     64x64, the badge without its gold ring: the addon list (## IconTexture)
+                     shows it at about 16 pixels, where the ring took room from the keys
+                     and they lost their detail (as Alts Forever's icon does)
+  media/minimap.tga  64x64, the same: the minimap button's own border (or EllesmereUI's
+                     tray) draws the ring, and two rings never line up
+  media/logo.png     400x400, the whole badge with its ring, for the README
 
 The game wants uncompressed 32-bit TGA files with power-of-two sizes.
 """
@@ -45,7 +47,6 @@ def main():
     cx, cy, half, short = badge_box(src)
 
     full = src.crop((round(cx - half), round(cy - half), round(cx + half), round(cy + half)))
-    save_tga(full.resize((SIZE, SIZE), Image.LANCZOS), "icon.tga")
     full.resize((400, 400), Image.LANCZOS).save(os.path.join(MEDIA, "logo.png"))
 
     # Inside the gold ring: measured on the logo, the ring's inner edge is at 92.4% of the
@@ -56,6 +57,7 @@ def main():
     alpha = Image.new("L", (SIZE, SIZE), 0)
     alpha.paste(disc.split()[3], mask=circle_mask(SIZE, 1.0))
     disc.putalpha(alpha)
+    save_tga(disc, "icon.tga")
     save_tga(disc, "minimap.tga")
     print("made media/icon.tga, media/minimap.tga, media/logo.png")
 
