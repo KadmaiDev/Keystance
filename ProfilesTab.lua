@@ -1,12 +1,13 @@
--- Keystance Profiles tab: the character's profiles, each with Apply, Update, Rename, Copy and
--- Delete; New profile from the current setup; Undo; Restore original setup; and, while the
--- character shares the account's keybinds, a note with the one-click switch. Anything
--- that would change bars or keys is greyed out in combat.
+-- Keystance Profiles tab: the character's profiles, each with Apply, Gear, Update, Rename,
+-- Copy and Delete; New profile from the current setup; Undo; Restore original setup; and,
+-- while the character shares the account's keybinds, a note with the one-click switch.
+-- Anything that would change bars or keys is greyed out in combat. A profile's Gear button
+-- swaps the list for its gear editor (GearTab.lua) until Back.
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
 
-local ipairs, CreateFrame = ipairs, CreateFrame
+local ipairs, pairs, CreateFrame = ipairs, pairs, CreateFrame
 
 local ROWS, ROW_HEIGHT = 6, 34
 
@@ -52,7 +53,7 @@ local function Text(f, parent, template)
 end
 
 local function MakeRow(page, f, i)
-    local row = CreateFrame("Frame", nil, page)
+    local row = CreateFrame("Frame", nil, page.list)
     row:SetSize(680, ROW_HEIGHT)
     row:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -112 - (i - 1) * ROW_HEIGHT)
     local bg = row:CreateTexture(nil, "BACKGROUND")
@@ -77,6 +78,7 @@ local function MakeRow(page, f, i)
     row.copy = RowButton(L["Copy"], 56, ns.AskDuplicate)
     row.rename = RowButton(L["Rename"], 64, ns.AskRename)
     row.update = RowButton(L["Update"], 64, ns.ConfirmUpdate)
+    row.gear = RowButton(L["Gear"], 56, function(name) ns.ShowGear(page, name) end)
     row.apply = RowButton(L["Apply"], 64, ns.ConfirmApply)
     row.update:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -85,15 +87,43 @@ local function MakeRow(page, f, i)
         GameTooltip:Show()
     end)
     row.update:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    for _, b in ipairs({ row.delete, row.copy, row.rename, row.update, row.apply }) do ns.SkinButton(b) end
+    for _, b in ipairs({ row.delete, row.copy, row.rename, row.update, row.gear, row.apply }) do ns.SkinButton(b) end
     ns.SkinText(name)
     ns.SkinText(detail)
     return row
 end
 
+-- "; gear: ItemRack set Tank" or "; gear: 12 items" for a profile's row.
+local function GearNote(p)
+    local kind, data = ns.ProfileGear(p)
+    if kind == "itemrack" then return L["; gear: ItemRack set %s"]:format(data) end
+    if kind == "items" then
+        local n = 0
+        for _ in pairs(data) do n = n + 1 end
+        return L["; gear: %d items"]:format(n)
+    end
+    return ""
+end
+
+-- Shows a profile's gear editor in place of the list (nil: back to the list).
+function ns.ShowGear(page, name)
+    page.gearFor = name
+    if name and not page.gearView then
+        page.gearView = CreateFrame("Frame", nil, page)
+        page.gearView:SetAllPoints()
+        ns.BuildGearView(page.gearView, page.window, function() ns.ShowGear(page, nil) end)
+    end
+    ns.RefreshWindow()
+end
+
 local function Refresh(page)
     local c = ns.char
     if not c then return end
+    local gearFor = page.gearFor and ns.FindProfile(page.gearFor)
+    page.gearFor = gearFor
+    page.list:SetShown(not gearFor)
+    if page.gearView then page.gearView:SetShown(gearFor ~= nil) end
+    if gearFor then return ns.RefreshGearView(page.gearView, gearFor) end
     local combat = ns.InCombat()
     page.title:SetText(L["Profiles for %s"]:format(ns.charKey or "?"))
     page.active:SetText(c.active and L["In use: %s"]:format(c.active) or "")
@@ -117,7 +147,7 @@ local function Refresh(page)
             row.profile = name
             row.name:SetText(name == c.active and ("|cff55ff55" .. name .. "|r") or name)
             row.detail:SetText(L["%d slots, %d keys, saved %s"]:format(p.nSlots or 0, p.nBinds or 0,
-                date("%d %b %Y", p.updated or p.created or 0)))
+                date("%d %b %Y", p.updated or p.created or 0)) .. GearNote(p))
             row.apply:SetEnabled(not combat)
             row:Show()
         elseif row then
@@ -133,18 +163,21 @@ end
 
 local function Build(page, f)
     page.window, page.rows = f, {}
-    local title = Text(f, page, "GameFontNormalLarge")
+    local list = CreateFrame("Frame", nil, page)
+    list:SetAllPoints()
+    page.list = list
+    local title = Text(f, list, "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 16, -14)
     page.title = title
-    local active = Text(f, page, "GameFontHighlight")
+    local active = Text(f, list, "GameFontHighlight")
     active:SetPoint("TOPRIGHT", page, "TOPRIGHT", -16, -16)
     page.active = active
 
-    page.new = Button(f, page, L["New profile from current setup"], 230, function() ns.NewProfile() end)
+    page.new = Button(f, list, L["New profile from current setup"], 230, function() ns.NewProfile() end)
     page.new:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -12)
-    page.undo = Button(f, page, L["Undo"], 200, function() ns.Undo() end)
+    page.undo = Button(f, list, L["Undo"], 200, function() ns.Undo() end)
     page.undo:SetPoint("LEFT", page.new, "RIGHT", 8, 0)
-    page.restore = Button(f, page, L["Restore original setup"], 190, function() ns.ConfirmRestore() end)
+    page.restore = Button(f, list, L["Restore original setup"], 190, function() ns.ConfirmRestore() end)
     page.restore:SetPoint("LEFT", page.undo, "RIGHT", 8, 0)
     page.restore:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -154,21 +187,21 @@ local function Build(page, f)
     end)
     page.restore:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-    local shared = Text(f, page, "GameFontHighlightSmall")
+    local shared = Text(f, list, "GameFontHighlightSmall")
     shared:SetPoint("TOPLEFT", page.new, "BOTTOMLEFT", 0, -12)
     shared:SetWidth(430)
     shared:SetJustifyH("LEFT")
     shared:SetText(L["Your keybinds are shared by all your characters. Give this character its own, so profiles change only its keys."])
     page.shared = shared
-    page.ownKeys = Button(f, page, L["Give it its own keybinds"], 200, function() ns.UseOwnKeybinds() end)
+    page.ownKeys = Button(f, list, L["Give it its own keybinds"], 200, function() ns.UseOwnKeybinds() end)
     page.ownKeys:SetPoint("LEFT", shared, "RIGHT", 12, 0)
 
-    local empty = Text(f, page, "GameFontHighlight")
+    local empty = Text(f, list, "GameFontHighlight")
     empty:SetPoint("TOP", page, "TOP", 0, -140)
     empty:SetWidth(520)
     empty:SetText(L["No profiles yet. Set up your bars and keys the way you like them for a role, then click New profile from current setup."])
     page.empty = empty
-    local more = Text(f, page, "GameFontDisableSmall")
+    local more = Text(f, list, "GameFontDisableSmall")
     more:SetPoint("TOPLEFT", page, "TOPLEFT", 24, -112 - ROWS * ROW_HEIGHT - 6)
     page.more = more
     page.Refresh = Refresh

@@ -130,6 +130,18 @@ function ns.SetProfileGear(name, items)
     return key
 end
 
+-- Sets one slot of a profile's own gear (nil: leave that slot alone).
+function ns.SetGearSlot(name, slot, item)
+    local key = ns.FindProfile(name)
+    if not key then return nil, L["No profile called %s."]:format(tostring(name)) end
+    local p = Char().profiles[key]
+    p.gear = p.gear or {}
+    p.gear[slot] = item
+    if not next(p.gear) then p.gear = nil end
+    ns.RefreshWindow()
+    return key
+end
+
 function ns.SetProfileItemRack(name, set)
     local key = ns.FindProfile(name)
     if not key then return nil, L["No profile called %s."]:format(tostring(name)) end

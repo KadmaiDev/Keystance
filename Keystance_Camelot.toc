@@ -28,6 +28,7 @@ Window.lua
 Keyboard.lua
 Bars.lua
 ProfilesTab.lua
+GearTab.lua
 RulesTab.lua
 SpellPanel.lua
 Options.lua
