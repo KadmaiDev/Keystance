@@ -47,6 +47,7 @@ local function RefreshPage(page)
     page.lookNote:SetText(inUse == chosen and L["In use: %s."]:format(LOOK_NAMES[inUse])
         or L["In use: %s until you reload."]:format(LOOK_NAMES[inUse]))
     page.minimap:SetText(ns.MinimapButtonOn() and L["Minimap button: shown"] or L["Minimap button: hidden"])
+    page.ranksRow:Refresh()
     local snap = ns.char and ns.char.snapshot
     page.snapshot:SetText(snap and L["Your bars and keys as they were before Keystance were saved on %s (%d slots, %d keys). Restore puts them back; before uninstalling Keystance, use it to get your original setup back."]
         :format(date("%d %b %Y", snap.at), snap.nSlots, snap.nBinds)
@@ -142,8 +143,24 @@ function ns.BuildSettings(page, owner, top)
         RefreshAll()
     end)
     page.minimap = minimap
+    -- New spell ranks: upgrade the bars (the rank in use until now) or leave them.
+    local ranksLabel = Text(owner, page, "GameFontNormal", L["New spell ranks"])
+    ranksLabel:SetPoint("TOPLEFT", minimap, "BOTTOMLEFT", 0, -16)
+    local ranks = ns.ChoiceRow(owner, page, { { true, L["Upgrade my bars"], 130 }, { false, L["Leave them"], 100 } },
+        function() return ns.RanksOn() end,
+        function(on)
+            ns.db.settings.ranksOff = not on or nil
+            RefreshAll()
+        end)
+    ranks:SetPoint("LEFT", ranksLabel, "RIGHT", 10, 0)
+    page.ranksRow = ranks
+    local ranksNote = Text(owner, page, "GameFontDisableSmall",
+        L["Learning a rank replaces the one you were using. Lower ranks you put on your bars on purpose are left alone."])
+    ranksNote:SetPoint("TOPLEFT", ranksLabel, "BOTTOMLEFT", 0, -8)
+    ranksNote:SetWidth(460)
+    ranksNote:SetJustifyH("LEFT")
     local snapshot = Text(owner, page, "GameFontHighlightSmall")
-    snapshot:SetPoint("TOPLEFT", minimap, "BOTTOMLEFT", 0, -16)
+    snapshot:SetPoint("TOPLEFT", ranksNote, "BOTTOMLEFT", 0, -16)
     snapshot:SetWidth(460)
     snapshot:SetJustifyH("LEFT")
     page.snapshot = snapshot

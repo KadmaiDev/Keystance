@@ -1,8 +1,11 @@
--- Keystance spell ranks: when the character learns a new rank of a spell, any lower rank of
--- it on the bars is replaced by the new one. It runs 3 seconds after learning (after the
+-- Keystance spell ranks: when the character learns a new rank of a spell, the rank it was
+-- using until then (the previous highest) is replaced on the bars by the new one. Lower
+-- ranks stay: players down-rank on purpose (a cheap low rank of a heal), which is why the
+-- game itself doesn't upgrade spells. It runs 3 seconds after learning (after the
 -- spellbook has updated, and after anything the game itself does to the bars, which the
 -- phase 0 probe watches at 1.5 s), waits for combat to end, and can be undone.
--- The "upgrade ranks" setting (on by default, /kst ranks) turns it off. Profiles keep the
+-- The "New spell ranks" setting (Settings tab and Options page; on by default, /kst ranks)
+-- turns it off. Profiles keep the
 -- rank they saved; applying one with a rank the character no longer has uses the highest.
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
@@ -26,11 +29,20 @@ local function Upgrade()
         local name = C_Spell.GetSpellName(id)
         local ranks = name and book.byName[name] -- highest first
         local best = ranks and ranks[1]
+        -- What gets replaced: the ranks just learned below the best (several bought at once),
+        -- and the highest rank known before them, the one in use until now. Not lower ones.
+        local replace = {}
+        if ranks then
+            for i = 2, #ranks do
+                replace[ranks[i]] = true
+                if not learned[ranks[i]] then break end -- the previous highest: stop here
+            end
+        end
         if best then
             local n = 0
             for slot = 1, ns.MANAGED_SLOTS do
                 local a = state.slots[slot]
-                if a and a.t == "spell" and a.name == name and a.id ~= best then
+                if a and a.t == "spell" and a.name == name and replace[a.id] then
                     state.slots[slot] = { t = "spell", id = best, name = name, rank = C_Spell.GetSpellSubtext(best) }
                     n = n + 1
                 end
