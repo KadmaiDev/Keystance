@@ -10,6 +10,7 @@ local L = ns.L
 local ipairs, pairs, CreateFrame = ipairs, pairs, CreateFrame
 
 local ROWS, ROW_HEIGHT = 6, 34
+local TEXT_WIDTH = 276 -- a row's text stops short of its buttons (cut off, never under them)
 
 -- Apply from the tab: says what will change first (the shared-keybinds question covers it).
 function ns.ConfirmApply(name)
@@ -61,11 +62,15 @@ local function MakeRow(page, f, i)
     bg:SetColorTexture(1, 1, 1, i % 2 == 0 and 0.03 or 0.06)
     local name = Text(f, row, "GameFontNormal")
     name:SetPoint("TOPLEFT", 8, -4)
-    name:SetWidth(250)
+    name:SetWidth(TEXT_WIDTH)
+    name:SetWordWrap(false)
     name:SetJustifyH("LEFT")
     row.name = name
     local detail = Text(f, row, "GameFontDisableSmall")
     detail:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -2)
+    detail:SetWidth(TEXT_WIDTH)
+    detail:SetJustifyH("LEFT")
+    detail:SetWordWrap(false)
     row.detail = detail
     local x = -4
     local function RowButton(text, width, fn)
@@ -93,16 +98,22 @@ local function MakeRow(page, f, i)
     return row
 end
 
--- "; gear: ItemRack set Tank" or "; gear: 12 items" for a profile's row.
-local function GearNote(p)
+-- A grey note after a profile's name: its gear ("ItemRack: Tank" or "12 items") and the key
+-- that switches to it ("key F2"), or "".
+local function Note(p, i)
+    local parts = {}
     local kind, data = ns.ProfileGear(p)
-    if kind == "itemrack" then return L["; gear: ItemRack set %s"]:format(data) end
-    if kind == "items" then
+    if kind == "itemrack" then
+        parts[#parts + 1] = L["ItemRack: %s"]:format(data)
+    elseif kind == "items" then
         local n = 0
         for _ in pairs(data) do n = n + 1 end
-        return L["; gear: %d items"]:format(n)
+        parts[#parts + 1] = L["%d items"]:format(n)
     end
-    return ""
+    local key = ns.ProfileKey(i)
+    if key then parts[#parts + 1] = L["key %s"]:format(key) end
+    if #parts == 0 then return "" end
+    return "  |cff9d9d9d" .. table.concat(parts, "  ·  ") .. "|r"
 end
 
 -- Shows a profile's gear editor in place of the list (nil: back to the list).
@@ -145,11 +156,9 @@ local function Refresh(page)
             end
             local p = c.profiles[name]
             row.profile = name
-            row.name:SetText(name == c.active and ("|cff55ff55" .. name .. "|r") or name)
-            local key = ns.ProfileKey(i)
+            row.name:SetText((name == c.active and ("|cff55ff55" .. name .. "|r") or name) .. Note(p, i))
             row.detail:SetText(L["%d slots, %d keys, saved %s"]:format(p.nSlots or 0, p.nBinds or 0,
-                date("%d %b %Y", p.updated or p.created or 0)) .. GearNote(p)
-                .. (key and L["; switch with %s"]:format(key) or ""))
+                date("%d %b %Y", p.updated or p.created or 0)))
             row.apply:SetEnabled(not combat)
             row:Show()
         elseif row then

@@ -82,8 +82,8 @@ test("a profile's row shows the key that switches to it", function()
     local c, ns = threeProfiles()
     wow.bindings.F2 = "KEYSTANCE_PROFILE2"
     local page = profilesPage()
-    assert(page.rows[2].detail.text:find("; switch with F2", 1, true), page.rows[2].detail.text)
-    assert(not page.rows[1].detail.text:find("switch with", 1, true))
+    assert(page.rows[2].name.text:find("key F2", 1, true), page.rows[2].name.text)
+    assert(not page.rows[1].name.text:find("key", 1, true))
 end)
 
 test("the keybinds file ships with the addon and the dev copy", function()
