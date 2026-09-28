@@ -1,0 +1,161 @@
+-- Keystance settings: the controls shown on the window's Settings tab and on our page in
+-- the game's Options > AddOns list (both built by ns.BuildSettings, so they never differ).
+-- The Options page is a "canvas": Blizzard's panel only hosts our own frame. It uses none
+-- of Blizzard's setting objects (RegisterProxySetting and friends), so our values never
+-- run through Blizzard's secure settings code (a test keeps it that way). The page is
+-- registered at login but only builds its contents the first time it's shown.
+local ADDON, ns = ...
+if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
+local L = ns.L
+
+local ipairs, pcall, CreateFrame = ipairs, pcall, CreateFrame
+
+local LOOK_NAMES = {
+    auto = L["Automatic"], classic = L["Classic"], ellesmere = "EllesmereUI", elvui = "ElvUI",
+}
+
+local function Tooltip(owner, title, text)
+    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(title)
+    if text then GameTooltip:AddLine(text, 1, 1, 1, true) end
+    GameTooltip:Show()
+end
+
+local function Button(owner, parent, text, width)
+    local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    b:SetSize(width or 200, 24)
+    b:SetText(text)
+    owner.buttons[#owner.buttons + 1] = b
+    return b
+end
+
+local function Text(owner, parent, template, text)
+    local fs = parent:CreateFontString(nil, "OVERLAY", template or "GameFontHighlight")
+    if text then fs:SetText(text) end
+    owner.texts[#owner.texts + 1] = fs
+    return fs
+end
+
+---------------------------------------------------------------------------
+-- The controls
+---------------------------------------------------------------------------
+local pages = {} -- every built copy, so a change made in one shows in the other
+
+local function RefreshPage(page)
+    page.look:SetText(L["Look: %s"]:format(LOOK_NAMES[ns.db.settings.skin] or ns.db.settings.skin))
+    page.lookNote:SetText(L["In use now: %s. A change applies after /reload."]:format(LOOK_NAMES[ns.SkinName()]))
+    page.minimap:SetText(ns.MinimapButtonOn() and L["Minimap button: shown"] or L["Minimap button: hidden"])
+end
+
+local function RefreshAll()
+    for _, page in ipairs(pages) do
+        if page:IsShown() then RefreshPage(page) end
+    end
+end
+ns.RefreshSettings = RefreshAll
+
+local function LookMenu(owner)
+    if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
+    MenuUtil.CreateContextMenu(owner, function(_, root)
+        root:CreateTitle(L["Look"])
+        for _, choice in ipairs({ "auto", "classic", "ellesmere", "elvui" }) do
+            root:CreateRadio(LOOK_NAMES[choice],
+                function() return ns.db.settings.skin == choice end,
+                function()
+                    ns.SetSkin(choice)
+                    ns.Print(L["Look set to %s. It applies after /reload."]:format(LOOK_NAMES[choice]))
+                    RefreshAll()
+                end)
+        end
+    end)
+end
+
+-- Builds the settings controls into `page`, below `top` (a region to sit under, or nil for
+-- the page's top). Widgets are listed in owner.buttons and owner.texts for skinning.
+function ns.BuildSettings(page, owner, top)
+    local look = Button(owner, page, "")
+    if top then
+        look:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 0, -16)
+    else
+        look:SetPoint("TOPLEFT", 16, -16)
+    end
+    look:SetScript("OnClick", LookMenu)
+    look:SetScript("OnEnter", function(self)
+        Tooltip(self, L["Look"], L["Automatic matches EllesmereUI or ElvUI when you use one, and Blizzard's look otherwise."])
+    end)
+    look:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    page.look = look
+    local note = Text(owner, page, "GameFontDisableSmall")
+    note:SetPoint("LEFT", look, "RIGHT", 12, 0)
+    page.lookNote = note
+    local minimap = Button(owner, page, "")
+    minimap:SetPoint("TOPLEFT", look, "BOTTOMLEFT", 0, -10)
+    minimap:SetScript("OnClick", function()
+        ns.RunCommand("minimap")
+        RefreshAll()
+    end)
+    page.minimap = minimap
+    page.Refresh = RefreshPage
+    pages[#pages + 1] = page
+end
+
+---------------------------------------------------------------------------
+-- Our page in Options > AddOns
+---------------------------------------------------------------------------
+local category, canvas
+
+-- Opens the window from the Options page. Blizzard's panel closes first and the window
+-- opens a frame later (as EllesmereUI does), so nothing of ours runs inside its closing.
+local function OpenWindowFromOptions()
+    -- In combat Blizzard's panel is left alone (its panel code isn't ours to run then).
+    if not InCombatLockdown() and SettingsPanel and SettingsPanel:IsShown() then HideUIPanel(SettingsPanel) end
+    C_Timer.After(0, function() ns.ToggleWindow(true) end)
+end
+
+local function BuildCanvas(f)
+    f.buttons, f.texts = {}, {}
+    local logo = f:CreateTexture(nil, "ARTWORK")
+    logo:SetSize(48, 48)
+    logo:SetPoint("TOPLEFT", 16, -16)
+    logo:SetTexture("Interface\\AddOns\\" .. ADDON .. "\\media\\icon.tga")
+    local title = Text(f, f, "GameFontNormalLarge", "Keystance")
+    title:SetPoint("TOPLEFT", logo, "TOPRIGHT", 10, -4)
+    local by = Text(f, f, "GameFontDisableSmall", L["Keybinds and action bars, by Kadmai"])
+    by:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
+    local open = Button(f, f, L["Open Keystance"])
+    open:SetPoint("TOPLEFT", logo, "BOTTOMLEFT", 0, -16)
+    open:SetScript("OnClick", OpenWindowFromOptions)
+    f.open = open
+    ns.BuildSettings(f, f, open)
+    local help = Text(f, f, "GameFontHighlightSmall", L["Type /kst help for every command."])
+    help:SetPoint("TOPLEFT", f.minimap, "BOTTOMLEFT", 0, -16)
+    for _, b in ipairs(f.buttons) do ns.SkinButton(b) end
+    for _, fs in ipairs(f.texts) do ns.SkinText(fs) end
+end
+
+local function RegisterCanvas()
+    if category or not (Settings and Settings.RegisterCanvasLayoutCategory and Settings.RegisterAddOnCategory) then return end
+    local f = CreateFrame("Frame", "KeystanceOptionsPanel")
+    f:SetScript("OnShow", function(self)
+        if not self.built then
+            self.built = true
+            BuildCanvas(self)
+        end
+        RefreshPage(self)
+    end)
+    local ok, cat = pcall(Settings.RegisterCanvasLayoutCategory, f, "Keystance")
+    if not ok or not cat then return end
+    if not pcall(Settings.RegisterAddOnCategory, cat) then return end
+    category, canvas = cat, f
+end
+
+ns.On("PLAYER_LOGIN", RegisterCanvas)
+
+-- Opens the game's Options at our page (falls back to the window's Settings tab).
+function ns.OpenOptions()
+    if category and Settings.OpenToCategory and pcall(Settings.OpenToCategory, category:GetID()) then return end
+    ns.ToggleWindow(true)
+    ns.ShowTab("settings")
+end
+
+function ns.OptionsPanel() return canvas end

@@ -199,13 +199,17 @@ function commands.skin(arg)
     Print(L["Look set to %s. It applies after /reload."]:format(arg))
 end
 
+function commands.options()
+    ns.OpenOptions()
+end
+
 function commands.mem()
     UpdateAddOnMemoryUsage()
     Print(L["Memory: %.1f KB"]:format(GetAddOnMemoryUsage(ADDON)))
 end
 
 function commands.help()
-    Print(L["by Kadmai. /kst opens Keystance. Also: /kst minimap | skin | mem | help"])
+    Print(L["by Kadmai. /kst opens Keystance. Also: /kst options | minimap | skin | mem | help"])
     Print(L["Or use the minimap button (right-click for options)."])
 end
 ns.ShowHelp = commands.help

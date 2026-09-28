@@ -15,4 +15,5 @@ Locales.lua
 Core.lua
 Skins.lua
 Window.lua
+Options.lua
 Minimap.lua

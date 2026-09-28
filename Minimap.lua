@@ -27,6 +27,7 @@ function ns.ShowOptionsMenu(owner)
         if not ns.WindowShown() then
             root:CreateButton(L["Open Keystance"], function() ns.ToggleWindow(true) end)
         end
+        root:CreateButton(L["Settings"], function() ns.RunCommand("options") end)
         root:CreateCheckbox(L["Show minimap button"], MinimapSelected, ToggleMinimap)
         root:CreateButton(L["Memory use"], function() ns.RunCommand("mem") end)
     end)

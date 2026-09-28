@@ -51,13 +51,13 @@ test("/kst and /keystance open the window; unknown commands show help", function
     slash("")
     eq(KeystanceFrame:IsShown(), false)
     slash("nonsense")
-    assert(printed():find("/kst minimap", 1, true), printed())
+    assert(printed():find("by Kadmai", 1, true), printed())
 end)
 
 test("every command is listed in /kst help", function()
     start(nil)
     slash("help")
-    for _, cmd in ipairs({ "minimap", "skin", "mem" }) do
+    for _, cmd in ipairs({ "options", "minimap", "skin", "mem" }) do
         assert(printed():find(cmd, 1, true), cmd .. " missing from help")
     end
 end)

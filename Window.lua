@@ -18,25 +18,6 @@ local TABS = {
     { key = "settings", name = L["Settings"] },
 }
 
-local LOOK_NAMES = {
-    auto = L["Automatic"], classic = L["Classic"], ellesmere = "EllesmereUI", elvui = "ElvUI",
-}
-
-local function Tooltip(owner, title, text)
-    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
-    GameTooltip:AddLine(title)
-    if text then GameTooltip:AddLine(text, 1, 1, 1, true) end
-    GameTooltip:Show()
-end
-
-local function Button(f, parent, text, width)
-    local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    b:SetSize(width or 160, 24)
-    b:SetText(text)
-    f.buttons[#f.buttons + 1] = b
-    return b
-end
-
 local function Text(f, parent, template, text)
     local fs = parent:CreateFontString(nil, "OVERLAY", template or "GameFontHighlight")
     if text then fs:SetText(text) end
@@ -47,12 +28,6 @@ end
 ---------------------------------------------------------------------------
 -- Refresh: what the header and the open page show
 ---------------------------------------------------------------------------
-local function RefreshSettings(page)
-    page.look:SetText(L["Look: %s"]:format(LOOK_NAMES[ns.db.settings.skin] or ns.db.settings.skin))
-    page.lookNote:SetText(L["In use now: %s. A change applies after /reload."]:format(LOOK_NAMES[ns.SkinName()]))
-    page.minimap:SetText(ns.MinimapButtonOn() and L["Minimap button: shown"] or L["Minimap button: hidden"])
-end
-
 local function Refresh()
     if not frame or not frame:IsShown() then return end
     frame.combat:SetShown(ns.InCombat())
@@ -81,46 +56,6 @@ end
 ---------------------------------------------------------------------------
 -- Building the window
 ---------------------------------------------------------------------------
-local function LookMenu(owner)
-    if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
-    MenuUtil.CreateContextMenu(owner, function(_, root)
-        root:CreateTitle(L["Look"])
-        for _, choice in ipairs({ "auto", "classic", "ellesmere", "elvui" }) do
-            root:CreateRadio(LOOK_NAMES[choice],
-                function() return ns.db.settings.skin == choice end,
-                function()
-                    ns.SetSkin(choice)
-                    ns.Print(L["Look set to %s. It applies after /reload."]:format(LOOK_NAMES[choice]))
-                    Refresh()
-                end)
-        end
-    end)
-end
-
-local function SettingsPage(f, page)
-    local title = Text(f, page, "GameFontNormalLarge", L["Settings"])
-    title:SetPoint("TOPLEFT", 16, -16)
-    local look = Button(f, page, "", 200)
-    look:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -16)
-    look:SetScript("OnClick", LookMenu)
-    look:SetScript("OnEnter", function(self)
-        Tooltip(self, L["Look"], L["Automatic matches EllesmereUI or ElvUI when you use one, and Blizzard's look otherwise."])
-    end)
-    look:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    page.look = look
-    local note = Text(f, page, "GameFontDisableSmall")
-    note:SetPoint("LEFT", look, "RIGHT", 12, 0)
-    page.lookNote = note
-    local minimap = Button(f, page, "", 200)
-    minimap:SetPoint("TOPLEFT", look, "BOTTOMLEFT", 0, -10)
-    minimap:SetScript("OnClick", function()
-        ns.RunCommand("minimap")
-        Refresh()
-    end)
-    page.minimap = minimap
-    page.Refresh = RefreshSettings
-end
-
 local function CreateWindow()
     local ok, f = pcall(CreateFrame, "Frame", "KeystanceFrame", UIParent, "BasicFrameTemplateWithInset")
     if not ok then
@@ -198,7 +133,10 @@ local function CreateWindow()
         end
         f.pages[i] = page
     end
-    SettingsPage(f, f.pages[#TABS])
+    local settings = f.pages[#TABS]
+    local heading = Text(f, settings, "GameFontNormalLarge", L["Settings"])
+    heading:SetPoint("TOPLEFT", 16, -16)
+    ns.BuildSettings(settings, f, heading)
 
     f.credit = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     f.credit:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 16, 10)
@@ -215,6 +153,14 @@ local function CreateWindow()
         if info.key == ns.db.settings.tab then first = i end
     end
     SelectTab(first)
+end
+
+-- Shows the tab with this key ("settings"...), if the window is open.
+function ns.ShowTab(key)
+    if not frame then return end
+    for i, info in ipairs(TABS) do
+        if info.key == key then SelectTab(i) end
+    end
 end
 
 -- Opens or closes the window; `open` only ever opens it (menus).

@@ -79,8 +79,9 @@ end)
 test("every menu option has a slash command listed in /kst help", function()
     start(nil)
     slash("help")
-    -- Show minimap button: /kst minimap; Memory use: /kst mem; Open: /kst.
-    assert(printed():find("/kst minimap", 1, true))
+    -- Settings: /kst options; Show minimap button: /kst minimap; Memory use: /kst mem; Open: /kst.
+    assert(printed():find("options", 1, true))
+    assert(printed():find("minimap", 1, true))
     assert(printed():find("mem", 1, true))
     assert(printed():find("/kst opens Keystance", 1, true))
 end)

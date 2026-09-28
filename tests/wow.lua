@@ -345,6 +345,37 @@ function M.load(files)
     StaticPopup_Show = function(which, text1, text2, data) M.popup = { which = which, text = text1, data = data } end
     YES, NO = "Yes", "No"
 
+    -- The game's Options panel: addon pages are canvases (our own frames) that it shows when
+    -- their category is opened. M.withoutSettings leaves the Settings API out.
+    M.settingsCategories, M.openedCategory, M.hiddenPanels = {}, nil, {}
+    SettingsPanel = CreateFrame("Frame", "SettingsPanel")
+    SettingsPanel:Hide()
+    HideUIPanel = function(f)
+        M.hiddenPanels[#M.hiddenPanels + 1] = f
+        f:Hide()
+    end
+    Settings = nil
+    if not M.withoutSettings then
+        Settings = {
+            RegisterCanvasLayoutCategory = function(frame, name)
+                frame:Hide() -- a registered canvas stays hidden until its page is opened
+                return { frame = frame, name = name, GetID = function() return "cat:" .. name end }
+            end,
+            RegisterAddOnCategory = function(cat) M.settingsCategories[#M.settingsCategories + 1] = cat end,
+            OpenToCategory = function(id)
+                for _, cat in ipairs(M.settingsCategories) do
+                    if cat:GetID() == id then
+                        SettingsPanel:Show()
+                        cat.frame:Show()
+                        M.openedCategory = id
+                        return true
+                    end
+                end
+            end,
+        }
+    end
+    M.withoutSettings = nil
+
     KeystanceDB = nil
     -- EllesmereUI's skinning API, only if a test asked for it (wow.withEllesmere) before
     -- loading. The callback is kept in M.skinCallback; the facade records every call.
@@ -412,6 +443,13 @@ function M.login(saved)
     KeystanceDB = saved
     M.fire("ADDON_LOADED", "Keystance")
     M.fire("PLAYER_LOGIN")
+end
+
+-- Runs the C_Timer callbacks waiting (the next frame).
+function M.runTimers()
+    local waiting = M.timers
+    M.timers = {}
+    for _, fn in ipairs(waiting) do fn() end
 end
 
 function M.enterCombat()

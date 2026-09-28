@@ -16,7 +16,7 @@ Status: early development, not released yet. So far there's the window (empty ta
 
 ## Commands
 
-`/kst` (or `/keystance`) opens Keystance. Also: `/kst minimap` shows or hides the minimap button, `/kst skin auto | classic | ellesmere | elvui` picks the look, `/kst mem` shows memory use, `/kst help` lists everything.
+`/kst` (or `/keystance`) opens Keystance. Also: `/kst options` opens its page in the game's Options > AddOns, `/kst minimap` shows or hides the minimap button, `/kst skin auto | classic | ellesmere | elvui` picks the look, `/kst mem` shows memory use, `/kst help` lists everything.
 
 ## Performance
 
