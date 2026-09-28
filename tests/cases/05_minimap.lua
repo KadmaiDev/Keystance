@@ -87,6 +87,28 @@ test("showing it again while a hide is still being retried stops the retries", f
     eq(b:IsShown(), true, "the player's last choice wins")
 end)
 
+test("with EllesmereUI's minimap, turning the button back on offers a reload (its tray needs one)", function()
+    start(nil)
+    wow.loadedAddons.EllesmereUIMinimap = true
+    slash("minimap")
+    eq(wow.popup, nil, "hiding needs no reload")
+    slash("minimap")
+    eq(wow.popup.which, "KEYSTANCE_RELOAD")
+    assert(wow.popup.text:find("minimap tray", 1, true), wow.popup.text)
+    StaticPopupDialogs.KEYSTANCE_RELOAD.OnAccept()
+    eq(wow.reloads, 1)
+    wow.runTimers()
+    assert(printed():find("Type /reload to see the minimap button again.", 1, true))
+end)
+
+test("without EllesmereUI's minimap, the button just comes back: no reload", function()
+    start(nil)
+    slash("minimap")
+    slash("minimap")
+    eq(wow.popup, nil)
+    eq(KeystanceMinimapButton:IsShown(), true)
+end)
+
 test("a hidden button is still made at load (hidden), so EllesmereUI's tray collects it", function()
     wow.load(FILES)
     KeystanceDB = { v = 1, settings = { minimapHidden = true }, chars = {} }

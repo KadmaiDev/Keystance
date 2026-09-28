@@ -399,6 +399,9 @@ function M.load(files)
     M.errors = {}
     geterrorhandler = function() return function(err) M.errors[#M.errors + 1] = err end end
     M.reloads = 0
+    -- Other addons loaded (M.loadedAddons["EllesmereUIMinimap"] = true...).
+    M.loadedAddons = {}
+    C_AddOns = { IsAddOnLoaded = function(name) return M.loadedAddons[name] == true end }
     ReloadUI = function() M.reloads = M.reloads + 1 end
     YES, NO = "Yes", "No"
 

@@ -60,21 +60,24 @@ local function RefreshAll()
 end
 ns.RefreshSettings = RefreshAll
 
--- Asks to reload now. The pop-up is added to Blizzard's StaticPopupDialogs only the first
--- time it's needed, and never by assigning the global itself (that taints it).
--- ReloadUI works from a click (ElvUI's pop-ups do the same on this client); an addon
--- can't reload on its own, and if the game refuses, the player is told to type /reload.
-local function AskReload()
-    if not (StaticPopup_Show and StaticPopupDialogs) then return end
+-- Asks to reload now, saying why (`message`); `later` is printed if the reload doesn't
+-- happen. The pop-up is added to Blizzard's StaticPopupDialogs only the first time it's
+-- needed, and never by assigning the global itself (that taints it). ReloadUI works from a
+-- click (confirmed in game 2026-09-28); an addon can't reload on its own.
+local laterText
+local function ReloadLater() ns.Print(laterText) end
+function ns.AskReload(message, later)
+    if not (StaticPopup_Show and StaticPopupDialogs) then return ns.Print(later) end
+    laterText = later
     if not StaticPopupDialogs.KEYSTANCE_RELOAD then
         StaticPopupDialogs.KEYSTANCE_RELOAD = {
-            text = L["Keystance's new look shows after the interface reloads. Reload now?"],
+            text = "%s",
             button1 = L["Reload now"],
             button2 = L["Later"],
             OnAccept = function()
                 -- A refused call doesn't throw (it fires an event), so if we're still here a
                 -- moment later, the reload didn't happen.
-                C_Timer.After(1, function() ns.Print(L["Type /reload to see the new look."]) end)
+                C_Timer.After(1, ReloadLater)
                 ReloadUI()
             end,
             timeout = 0,
@@ -83,14 +86,15 @@ local function AskReload()
             preferredIndex = 3,
         }
     end
-    StaticPopup_Show("KEYSTANCE_RELOAD")
+    StaticPopup_Show("KEYSTANCE_RELOAD", message)
 end
 
 -- Saves a look; if it differs from the one in use, offers to reload.
 function ns.ChooseSkin(choice)
     if not ns.SetSkin(choice) then return false end
     if ns.SkinNameFor(choice) ~= ns.SkinName() then
-        AskReload()
+        ns.AskReload(L["Keystance's new look shows after the interface reloads. Reload now?"],
+            L["Type /reload to see the new look."])
     else
         ns.Print(L["Look set to %s."]:format(LOOK_NAMES[choice]))
     end

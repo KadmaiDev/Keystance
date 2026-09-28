@@ -133,12 +133,25 @@ local function EnsureHidden(tries)
     end
 end
 
+-- EllesmereUI's tray puts a button back in its grid only when it rebuilds (after an addon
+-- loads, or a reload); until then a shown button stays invisible (seen in game 2026-09-28,
+-- and a reload brought it back). Its only rebuild hook for other addons would also re-show
+-- buttons other addons have hidden, so we offer a reload instead.
+local function EllesmereTray()
+    return C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("EllesmereUIMinimap") or false
+end
+
 function ns.SetMinimapButton(on)
+    local was = ns.MinimapButtonOn()
     ns.db.settings.minimapHidden = not on or nil
     ns.CreateMinimapButton()
     if not mmButton then return end
     if on then
         mmButton:Show()
+        if not was and EllesmereTray() then
+            ns.AskReload(L["EllesmereUI's minimap tray shows the Keystance button again after the interface reloads. Reload now?"],
+                L["Type /reload to see the minimap button again."])
+        end
     elseif not retrying then
         EnsureHidden(0)
     end
