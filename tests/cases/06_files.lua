@@ -81,6 +81,9 @@ function globalWrite(text)
         for name in names:gmatch("[%w_]+") do locals[name] = true end
     end
     for name in text:gmatch("local%s+function%s+([%w_]+)") do locals[name] = true end
+    for names in text:gmatch("local[ \t]+([%w_, \t]+)\n") do -- declared without a value
+        for name in names:gmatch("[%w_]+") do locals[name] = true end
+    end
     local n, depth = 0, 0 -- depth: how many table constructors { } are open (fields aren't globals)
     for line in (text .. "\n"):gmatch("([^\n]*)\n") do
         n = n + 1

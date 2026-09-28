@@ -17,6 +17,7 @@ local KNOWN_EVENTS = {
     EQUIPMENT_SWAP_FINISHED = true, EQUIPMENT_SETS_CHANGED = true, ACTIONBAR_PAGE_CHANGED = true, UPDATE_BONUS_ACTIONBAR = true,
     SPELLS_CHANGED = true, LEARNED_SPELL_IN_SKILL_LINE = true,
     PLAYER_EQUIPMENT_CHANGED = true, UNIT_INVENTORY_CHANGED = true,
+    ITEM_LOCK_CHANGED = true, BAG_UPDATE_DELAYED = true,
 }
 
 -- Functions the client blocks for addons in combat (measured 2026-09-28 with the phase 0
@@ -59,9 +60,19 @@ function M.load(files)
     M.spellbook = {}
     M.spellNames = {}  -- [spellID] = name (filled from the spellbook too)
     M.itemCount = {}   -- [itemID] = count in bags
-    M.inventory = {}   -- [inventory slot] = itemID equipped (16 main hand, 17 off hand)
-    M.equipLoc = { [2129] = "INVTYPE_SHIELD", [1680] = "INVTYPE_2HWEAPON", [2132] = "INVTYPE_WEAPON" }
-    M.itemNames = { [2129] = "Large Round Shield", [1680] = "Headchopper", [2132] = "Short Cutlass", [6948] = "Hearthstone" }
+    -- Items are an item ID, or an item string ("item:1000:15") for a particular copy.
+    M.inventory = {}   -- [inventory slot] = item equipped (16 main hand, 17 off hand)
+    -- Bags: M.bags[bag] = { size = n, [slot] = item }; the backpack (0) has 16 slots.
+    M.bags = { [0] = { size = 16 }, [1] = { size = 0 }, [2] = { size = 0 }, [3] = { size = 0 }, [4] = { size = 0 } }
+    M.bagFamily = {}   -- [bag] = family (0, or e.g. 1 for a quiver)
+    M.locked = {}      -- places the game is still moving: [slot] or ["bag:slot"] = true
+    M.lockMoves = false -- true: every move locks its places until wow.unlock()
+    M.dead = false
+    M.equipLoc = { [2129] = "INVTYPE_SHIELD", [1680] = "INVTYPE_2HWEAPON", [2132] = "INVTYPE_WEAPON",
+        [1000] = "INVTYPE_FINGER", [1001] = "INVTYPE_FINGER", [1100] = "INVTYPE_HEAD", [1101] = "INVTYPE_HEAD",
+        [1200] = "INVTYPE_TRINKET" }
+    M.itemNames = { [2129] = "Large Round Shield", [1680] = "Headchopper", [2132] = "Short Cutlass", [6948] = "Hearthstone",
+        [1000] = "Band of Flesh", [1001] = "Seal of Wrynn", [1100] = "Lionheart Helm", [1101] = "Coif", [1200] = "Lucky Charm" }
     M.sets = {}        -- { { name = "Healing", equipped = true }, ... }
 
     wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
@@ -269,7 +280,7 @@ function M.load(files)
     GetActionTexture = function(slot) return M.slots[slot] and 134400 or nil end
     GetCursorInfo = function() if M.cursor then return unpack(M.cursor) end end
     -- Not blocked in combat (measured: the probe cleared an item off the cursor in combat).
-    ClearCursor = function() M.cursor = nil end
+    ClearCursor = function() M.cursor, M.held = nil, nil end
     PickupAction = protect("PickupAction", function(slot)
         local old = M.slots[slot]
         M.slots[slot] = actionFrom(M.cursor)
@@ -293,7 +304,116 @@ function M.load(files)
     PickupMacro = protect("PickupMacro", function(index)
         if M.macros[index] then M.cursor = { "macro", index } end
     end)
-    GetInventoryItemID = function(_, slot) return M.inventory[slot] end
+    -- Gear and bags. Picking an item up leaves it in place (locked, in game) until it's put
+    -- down; putting it on a filled place swaps the two; ClearCursor puts it back. An item
+    -- goes only in a gear slot its equip location allows, and a two-hander in the main hand
+    -- sends the off hand to a free bag slot (or fails if there's none).
+    local function idOf(item)
+        if type(item) == "number" then return item end
+        if type(item) == "string" then return tonumber(item:match("item:(%d+)")) end
+    end
+    M.idOf = idOf
+    local function linkOf(item)
+        if not item then return nil end
+        local s = type(item) == "number" and ("item:" .. item .. ":0:0:0:0:0:0:0:20") or item
+        return "|cffffffff|H" .. s .. "|h[" .. tostring(M.itemNames[idOf(item)]) .. "]|h|r"
+    end
+    local FITS = {
+        INVTYPE_HEAD = { 1 }, INVTYPE_NECK = { 2 }, INVTYPE_SHOULDER = { 3 }, INVTYPE_BODY = { 4 }, INVTYPE_CHEST = { 5 },
+        INVTYPE_ROBE = { 5 }, INVTYPE_WAIST = { 6 }, INVTYPE_LEGS = { 7 }, INVTYPE_FEET = { 8 }, INVTYPE_WRIST = { 9 },
+        INVTYPE_HAND = { 10 }, INVTYPE_FINGER = { 11, 12 }, INVTYPE_TRINKET = { 13, 14 }, INVTYPE_CLOAK = { 15 },
+        INVTYPE_WEAPON = { 16, 17 }, INVTYPE_2HWEAPON = { 16 }, INVTYPE_WEAPONMAINHAND = { 16 },
+        INVTYPE_WEAPONOFFHAND = { 17 }, INVTYPE_SHIELD = { 17 }, INVTYPE_HOLDABLE = { 17 }, INVTYPE_RANGED = { 18 },
+        INVTYPE_TABARD = { 19 },
+    }
+    local function fits(item, slot)
+        for _, s in ipairs(FITS[M.equipLoc[idOf(item)] or ""] or {}) do if s == slot then return true end end
+        return false
+    end
+    -- A place: { "inv", slot } or { "bag", bag, slot }.
+    local function get(place)
+        if place[1] == "inv" then return M.inventory[place[2]] end
+        return M.bags[place[2]][place[3]]
+    end
+    local function set(place, item)
+        if place[1] == "inv" then
+            M.inventory[place[2]] = item
+        else
+            M.bags[place[2]][place[3]] = item
+        end
+    end
+    local function lockKey(place) return place[1] == "inv" and place[2] or (place[2] .. ":" .. place[3]) end
+    local function freeBagPlace(avoid)
+        for bag = 4, 0, -1 do
+            if (M.bagFamily[bag] or 0) == 0 then
+                for slot = 1, M.bags[bag].size do
+                    if not M.bags[bag][slot] and lockKey({ "bag", bag, slot }) ~= avoid then return { "bag", bag, slot } end
+                end
+            end
+        end
+    end
+    M.held = nil -- the place the item on the cursor came from
+    local function pickupAt(place)
+        if M.cursor and M.cursor[1] ~= "item" then return end
+        if not M.held then
+            local item = get(place)
+            if item and not M.locked[lockKey(place)] then
+                M.held = place
+                M.cursor = { "item", idOf(item), linkOf(item) }
+            end
+            return
+        end
+        -- Putting down what's held.
+        local from = M.held
+        local item, there = get(from), get(place)
+        if lockKey(from) == lockKey(place) then M.held, M.cursor = nil, nil; return end
+        if place[1] == "inv" and not fits(item, place[2]) then return end
+        if from[1] == "inv" and there and not fits(there, from[2]) then return end
+        if place[1] == "inv" and place[2] == 16 and M.equipLoc[idOf(item)] == "INVTYPE_2HWEAPON" and M.inventory[17]
+            and not (from[1] == "inv" and from[2] == 17) then
+            local free = freeBagPlace(lockKey(from))
+            if not free then return end -- "Inventory is full"
+            set(free, M.inventory[17])
+            M.inventory[17] = nil
+        end
+        set(place, item)
+        set(from, there)
+        M.held, M.cursor = nil, nil
+        if M.lockMoves then M.locked[lockKey(from)], M.locked[lockKey(place)] = true, true end
+        for _, p in ipairs({ from, place }) do
+            if p[1] == "inv" then M.fire("PLAYER_EQUIPMENT_CHANGED", p[2], get(p) == nil) end
+        end
+    end
+    function M.unlock()
+        M.locked = {}
+        M.fire("ITEM_LOCK_CHANGED")
+    end
+    GetInventoryItemID = function(_, slot) return idOf(M.inventory[slot]) end
+    GetInventoryItemLink = function(_, slot)
+        if M.linksNotReady then return nil end
+        return linkOf(M.inventory[slot])
+    end
+    IsInventoryItemLocked = function(slot) return M.locked[slot] == true end
+    PickupInventoryItem = function(slot) pickupAt({ "inv", slot }) end
+    CursorHasItem = function() return M.cursor ~= nil and M.cursor[1] == "item" end
+    UnitIsDeadOrGhost = function() return M.dead end
+    C_Container = {
+        GetContainerNumSlots = function(bag) return M.bags[bag] and M.bags[bag].size or 0 end,
+        GetContainerNumFreeSlots = function(bag)
+            local b, n = M.bags[bag], 0
+            if not b then return 0, 0 end
+            for slot = 1, b.size do if not b[slot] then n = n + 1 end end
+            return n, M.bagFamily[bag] or 0
+        end,
+        GetContainerItemInfo = function(bag, slot)
+            local item = M.bags[bag] and M.bags[bag][slot]
+            if not item then return nil end
+            return { itemID = idOf(item), hyperlink = linkOf(item), isLocked = M.locked[bag .. ":" .. slot] == true,
+                stackCount = 1 }
+        end,
+        GetContainerItemLink = function(bag, slot) return linkOf(M.bags[bag] and M.bags[bag][slot]) end,
+        PickupContainerItem = function(bag, slot) pickupAt({ "bag", bag, slot }) end,
+    }
     C_EquipmentSet = {
         GetEquipmentSetIDs = function()
             local ids = {}
@@ -306,7 +426,10 @@ function M.load(files)
         end,
     }
     C_Item = {
-        GetItemInfoInstant = function(id) return id, nil, nil, M.equipLoc[id], 100000 + id end,
+        GetItemInfoInstant = function(item)
+            local id = idOf(item)
+            return id, nil, nil, M.equipLoc[id], 100000 + (id or 0)
+        end,
         GetItemNameByID = function(id) return M.itemNames[id] end,
         PickupItem = function(id) if (M.itemCount[id] or 0) > 0 then M.cursor = { "item", id } end end,
         GetItemCount = function(id) return M.itemCount[id] or 0 end,
@@ -511,6 +634,7 @@ function M.load(files)
     M.withoutSettings = nil
 
     KeystanceDB = nil
+    ItemRack, ItemRackUser = nil, nil
     -- EllesmereUI's skinning API, only if a test asked for it (wow.withEllesmere) before
     -- loading. The callback is kept in M.skinCallback; the facade records every call.
     EllesmereUI, M.skinCallback, M.skinned = nil, nil, {}

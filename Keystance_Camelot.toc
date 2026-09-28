@@ -17,6 +17,7 @@ Skins.lua
 Actions.lua
 Snapshot.lua
 Apply.lua
+Gear.lua
 Profiles.lua
 Ranks.lua
 Rules.lua
