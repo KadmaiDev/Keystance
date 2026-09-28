@@ -6,8 +6,11 @@ local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
 
--- A placeholder until the logo is made: Blizzard's key icon, cropped to hide its bevel.
-local ICON = "Interface\\Icons\\INV_Misc_Key_03"
+-- Our logo without its outer gold ring (media/minimap.tga): the ring around the button
+-- comes from the minimap border or EllesmereUI's tray, and two rings show any small
+-- misalignment between them. Built from the folder name, so the dev copy finds its own.
+-- (The addon list uses the full logo, media/icon.tga, via the .toc.)
+local ICON = "Interface\\AddOns\\" .. ADDON .. "\\media\\minimap.tga"
 local DEFAULT_ANGLE = 200
 local mmButton
 
@@ -77,10 +80,9 @@ function ns.CreateMinimapButton()
     bg:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -4, 4)
     bg:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
     local icon = b:CreateTexture(nil, "ARTWORK")
-    icon:SetPoint("TOPLEFT", b, "TOPLEFT", 7, -6)
-    icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -6, 7)
-    icon:SetTexture(ICON)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    icon:SetPoint("TOPLEFT", b, "TOPLEFT", 5, -5)
+    icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -5, 5)
+    icon:SetTexture(ICON) -- round with transparent corners: no cropping needed
     local border = b:CreateTexture(nil, "OVERLAY")
     border:SetSize(53, 53)
     border:SetPoint("TOPLEFT")

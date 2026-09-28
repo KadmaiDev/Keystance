@@ -28,7 +28,7 @@ import urllib.error
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOCS = ["Keystance.toc", "Keystance_Camelot.toc"]
-EXTRA = ["LICENSE"]  # plus media (the logo) once there is one
+EXTRA = ["LICENSE", "media/icon.tga", "media/minimap.tga"]  # the logo: addon list, minimap button
 ALLOWED = (".toc", ".lua")
 
 PROJECT_ID = None  # the CurseForge project, once the owner has created it

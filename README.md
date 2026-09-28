@@ -1,3 +1,5 @@
+<p align="center"><img src="media/logo.png" alt="Keystance logo" width="200"></p>
+
 # Keystance
 
 *Working name.*

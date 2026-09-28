@@ -3,7 +3,7 @@
 ## Author: Kadmai
 ## Notes: See and manage your keybinds and action bars: profiles per role, switched by gear.
 ## Version: 0.1.0
-## IconTexture: Interface\Icons\INV_Misc_Key_03
+## IconTexture: Interface\AddOns\Keystance\media\icon.tga
 ## Category: Action Bars
 ## SavedVariables: KeystanceDB
 ## OptionalDeps: EllesmereUI, ElvUI

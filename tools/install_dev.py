@@ -15,7 +15,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOCS = ["Keystance.toc", "Keystance_Camelot.toc"]
-EXTRA = ["LICENSE"]
+EXTRA = ["LICENSE", "media/icon.tga", "media/minimap.tga"]
 
 
 def toc_files(text):
