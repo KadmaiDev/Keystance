@@ -16,7 +16,8 @@ function ns.ConfirmApply(name)
     local key = ns.FindProfile(name)
     if not (c and key) then return end
     local slots, keys = ns.CountChanges(c.profiles[key], "bars")
-    if slots + keys == 0 then return ns.Print(L["%s is already in place."]:format(key)) end
+    local gear = ns.ProfileGearChanges(c.profiles[key])
+    if slots + keys + gear == 0 then return ns.Print(L["%s is already in place."]:format(key)) end
     if keys > 0 and ns.SharedKeybinds() then return ns.AskSharedKeybinds(key) end
     if not StaticPopupDialogs.KEYSTANCE_APPLY then
         StaticPopupDialogs.KEYSTANCE_APPLY = {
@@ -27,8 +28,11 @@ function ns.ConfirmApply(name)
             timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
         }
     end
-    local what = keys == 0 and L["%d slots"]:format(slots) or slots == 0 and L["%d keys"]:format(keys)
-        or L["%d slots and %d keys"]:format(slots, keys)
+    local parts = {}
+    if slots > 0 then parts[#parts + 1] = L["%d slots"]:format(slots) end
+    if keys > 0 then parts[#parts + 1] = L["%d keys"]:format(keys) end
+    if gear > 0 then parts[#parts + 1] = L["your gear"] end
+    local what = #parts == 1 and parts[1] or (table.concat(parts, ", ", 1, #parts - 1) .. L[" and "] .. parts[#parts])
     StaticPopup_Show("KEYSTANCE_APPLY", key, what, key)
 end
 

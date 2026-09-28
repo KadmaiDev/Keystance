@@ -14,7 +14,7 @@ local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
 
-local pairs, ipairs, type, tonumber = pairs, ipairs, type, tonumber
+local pairs, ipairs, type, tonumber, next = pairs, ipairs, type, tonumber, next
 local GetInventoryItemLink, GetInventoryItemID = GetInventoryItemLink, GetInventoryItemID
 local IsInventoryItemLocked, PickupInventoryItem = IsInventoryItemLocked, PickupInventoryItem
 local CursorHasItem, ClearCursor, GetCursorInfo = CursorHasItem, ClearCursor, GetCursorInfo
@@ -294,4 +294,123 @@ function ns.GearReport(result)
     for slot, why in pairs(result.failed or {}) do
         ns.Print(L["Gear: %s: %s."]:format(ns.GEAR_SLOT_NAMES[slot], why))
     end
+end
+
+---------------------------------------------------------------------------
+-- ItemRack: its sets, when it's loaded (4.50 supports Forever). Nothing it offers is a
+-- documented API, so every call is checked and pcall'd; a broken ItemRack just means
+-- Keystance's own gear is used.
+---------------------------------------------------------------------------
+function ns.ItemRackReady()
+    return type(ItemRack) == "table" and type(ItemRack.EquipSet) == "function"
+        and type(ItemRackUser) == "table" and type(ItemRackUser.Sets) == "table"
+end
+
+-- The character's ItemRack sets, sorted (its own internal sets start with "~").
+function ns.ItemRackSets()
+    local names = {}
+    if ns.ItemRackReady() then
+        for name in pairs(ItemRackUser.Sets) do
+            if type(name) == "string" and name:sub(1, 1) ~= "~" then names[#names + 1] = name end
+        end
+    end
+    table.sort(names, function(a, b) return a:lower() < b:lower() end)
+    return names
+end
+
+function ns.ItemRackSetIcon(name)
+    local set = ns.ItemRackReady() and ItemRackUser.Sets[name]
+    return type(set) == "table" and set.icon or nil
+end
+
+-- True if the ItemRack set is what's worn.
+function ns.ItemRackEquipped(name)
+    if not ns.ItemRackReady() then return false end
+    if type(ItemRack.IsSetEquipped) == "function" then
+        local ok, equipped = pcall(ItemRack.IsSetEquipped, name)
+        if ok then return equipped and true or false end
+    end
+    return ItemRackUser.CurrentSet == name
+end
+
+-- Asks ItemRack to put a set on. Rules stay quiet until it has finished (its EndSetSwap).
+local itemRackPending = false
+function ns.ItemRackEquip(name)
+    if not (ns.ItemRackReady() and ItemRackUser.Sets[name]) then return false end
+    itemRackPending = true
+    Quiet(3)
+    local ok = pcall(ItemRack.EquipSet, name)
+    if not ok then itemRackPending = false end
+    return ok
+end
+
+-- ItemRack says when a set has gone on; ours keeps rules quiet a moment longer.
+ns.On("PLAYER_LOGIN", function()
+    if ns.ItemRackReady() and type(ItemRack.EndSetSwap) == "function" then
+        hooksecurefunc(ItemRack, "EndSetSwap", function()
+            if itemRackPending then
+                itemRackPending = false
+                Quiet()
+            end
+        end)
+    end
+end)
+
+---------------------------------------------------------------------------
+-- Which gear a profile puts on
+---------------------------------------------------------------------------
+-- "itemrack" or "keystance": the player's choice (settings.gearSource), ItemRack by default
+-- when it's loaded. Choosing ItemRack without it loaded falls back to Keystance's own.
+function ns.GearSource()
+    local want = ns.db and ns.db.settings.gearSource
+    if want == "keystance" or not ns.ItemRackReady() then return "keystance" end
+    return "itemrack"
+end
+
+-- What applying the profile puts on: "itemrack", set name; "items", { [slot] = item };
+-- or nil.
+function ns.ProfileGear(p)
+    if not p then return nil end
+    if ns.GearSource() == "itemrack" then
+        if p.itemrack then return "itemrack", p.itemrack end
+    elseif p.gear and next(p.gear) then
+        return "items", p.gear
+    end
+end
+
+-- How many gear slots applying it would change (an ItemRack set counts as one).
+function ns.ProfileGearChanges(p)
+    local kind, data = ns.ProfileGear(p)
+    if kind == "items" then return ns.GearChanges(data) end
+    if kind == "itemrack" then return ns.ItemRackEquipped(data) and 0 or 1 end
+    return 0
+end
+
+-- Starts putting on a profile's gear. Returns the gear it replaces ({ [slot] = item }, for
+-- Undo) and true if anything is changing.
+function ns.StartProfileGear(p)
+    if GetCursorInfo() then return nil, false end -- applying stops too; say it once, there
+    local kind, data = ns.ProfileGear(p)
+    if kind == "items" then
+        if ns.GearChanges(data) == 0 then return nil, false end
+        local slots = {}
+        for slot in pairs(data) do slots[slot] = true end
+        local before = ns.CaptureGear(slots)
+        local ok, why = ns.EquipGear(data, ns.GearReport)
+        if not ok then
+            ns.Print(L["Gear not changed: %s."]:format(why))
+            return nil, false
+        end
+        return before, true
+    elseif kind == "itemrack" then
+        if ns.ItemRackEquipped(data) then return nil, false end
+        local before = ns.CaptureGear()
+        if not ns.ItemRackEquip(data) then
+            ns.Print(L["ItemRack couldn't put on %s."]:format(data))
+            return nil, false
+        end
+        ns.Print(L["Gear: ItemRack is putting on %s."]:format(data))
+        return before, true
+    end
+    return nil, false
 end

@@ -590,6 +590,15 @@ function M.load(files)
     -- Errors passed to the error handler (BugGrabber in game).
     M.errors = {}
     geterrorhandler = function() return function(err) M.errors[#M.errors + 1] = err end end
+    hooksecurefunc = function(t, name, fn)
+        if type(t) == "string" then t, name, fn = _G, t, name end
+        local orig = t[name]
+        t[name] = function(...)
+            local r = { orig(...) }
+            fn(...)
+            return unpack(r)
+        end
+    end
     M.reloads = 0
     -- Sounds played, and the game's sound names (as listed on Forever).
     M.sounds = {}

@@ -5,7 +5,8 @@
 -- so it checks once, 0.3 s after the last one, and only switches when a different profile
 -- is wanted. Applying goes through ns.ApplyProfile, so in combat it waits for combat to
 -- end, and shared keybinds are asked about first. Off with /kst auto off; "Ask before
--- switching" makes each switch a question.
+-- switching" makes each switch a question. Gear changes Keystance makes itself (Gear.lua)
+-- are ignored, and a switch leaves the new profile's gear alone.
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
@@ -136,8 +137,9 @@ function ns.MatchingRule()
     end
 end
 
+-- The player (or ItemRack) changed gear, so the profile's own gear stays off.
 local function Switch(key)
-    ns.ApplyProfile(key)
+    ns.ApplyProfile(key, nil, nil, true)
 end
 
 local function AskSwitch(rule, key)
@@ -159,6 +161,8 @@ local function Evaluate()
     scheduled = false
     local c = Char()
     if not (c and ns.AutoOn()) then return end
+    -- Gear Keystance put on itself (a profile's gear, or Undo) isn't the player's choice.
+    if ns.GearQuiet() or ns.GearBusy() then return end
     local rule = ns.MatchingRule()
     if not rule then return end
     local key = ns.FindProfile(rule.profile)

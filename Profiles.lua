@@ -1,6 +1,8 @@
 -- Keystance profiles: a character's bars and bar keys saved under a name ("Ret", "Prot",
 -- "Holy"), applied on request, with one-step undo and a way back to the "Before Keystance"
--- snapshot. Profiles belong to one character (spells differ by class).
+-- snapshot. Profiles belong to one character (spells differ by class). A profile can also
+-- carry gear (Gear.lua): an ItemRack set (p.itemrack) or items of its own (p.gear), which go
+-- on first; Undo puts the previous gear back.
 --
 -- A profile holds action slots 1-180 and the keys of bar buttons (commands that fire an
 -- action slot); movement, windows and every other key are never part of it. Applying
@@ -11,7 +13,8 @@ local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
 
-local pairs, ipairs, type, time = pairs, ipairs, type, time
+local pairs, ipairs, type, time, next = pairs, ipairs, type, time, next
+local GetCursorInfo = GetCursorInfo
 
 local MAX_NAME = 24
 
@@ -77,7 +80,8 @@ function ns.SaveProfile(name, replace)
     if existing and not replace then return nil, L["There's already a profile called %s."]:format(existing) end
     local p = Capture()
     if existing then
-        p.created = c.profiles[existing].created
+        local old = c.profiles[existing]
+        p.created, p.gear, p.itemrack = old.created, old.gear, old.itemrack -- Update keeps its gear
         c.profiles[existing] = nil
     end
     c.profiles[clean] = p
@@ -116,6 +120,24 @@ function ns.DuplicateProfile(name, new)
     return clean
 end
 
+-- Sets a profile's gear: items of its own ({ [slot] = item string }, or nil for none), or
+-- an ItemRack set by name (nil for none).
+function ns.SetProfileGear(name, items)
+    local key = ns.FindProfile(name)
+    if not key then return nil, L["No profile called %s."]:format(tostring(name)) end
+    Char().profiles[key].gear = (items and next(items)) and items or nil
+    ns.RefreshWindow()
+    return key
+end
+
+function ns.SetProfileItemRack(name, set)
+    local key = ns.FindProfile(name)
+    if not key then return nil, L["No profile called %s."]:format(tostring(name)) end
+    Char().profiles[key].itemrack = set
+    ns.RefreshWindow()
+    return key
+end
+
 function ns.DeleteProfile(name)
     local c = Char()
     local key = ns.FindProfile(name)
@@ -140,6 +162,8 @@ end
 
 -- Applies a state now, recording the setup before it for Undo. `done` is said afterwards
 -- ("Prot applied"); `undo` names the change for the Undo button ("applying Prot").
+-- options.gearChanged says gear is going on too, and options.gearBefore is the gear it
+-- replaces, kept for Undo.
 local function Change(state, options, done, undo, onDone)
     local c = Char()
     local before = ns.CurrentState()
@@ -148,8 +172,8 @@ local function Change(state, options, done, undo, onDone)
         Print(L["Nothing changed: %s."]:format(slots))
         return false
     end
-    if slots + keys > 0 then
-        c.lastChange = { state = before, label = undo, at = time() }
+    if slots + keys > 0 or options.gearChanged then
+        c.lastChange = { state = before, gear = options.gearBefore, label = undo, at = time() }
     end
     if onDone then onDone() end
     Report(done, slots, keys, failures)
@@ -171,10 +195,12 @@ function ns.UndoLabel()
     return c and c.lastChange and c.lastChange.label
 end
 
--- Applies a profile, now or after combat. keys = false leaves keys alone ("bars only").
--- While this character shares the account's keybinds, changing keys would change them for
--- every character, so it asks first (owner's decision, PLAN.md) unless `asked`.
-function ns.ApplyProfile(name, keys, asked)
+-- Applies a profile, now or after combat: its gear first, then bars and keys. keys = false
+-- leaves keys alone ("bars only"); noGear leaves gear alone (a rule switching because the
+-- player changed gear mustn't undo that change). While this character shares the account's
+-- keybinds, changing keys would change them for every character, so it asks first (owner's
+-- decision, PLAN.md) unless `asked`.
+function ns.ApplyProfile(name, keys, asked, noGear)
     local c = Char()
     local key = ns.FindProfile(name)
     if not key then return Print(L["No profile called %s. /kst profiles lists them."]:format(tostring(name))) end
@@ -185,8 +211,10 @@ function ns.ApplyProfile(name, keys, asked)
     local now = ns.OutOfCombat("apply", function()
         local p = c.profiles[key]
         if not p then return end -- deleted meanwhile
-        Change(p, { keys = keys ~= false, scope = "bars" }, L["%s applied"]:format(key),
-            L["applying %s"]:format(key), function() c.active = key end)
+        local gearBefore, gearChanged
+        if not noGear then gearBefore, gearChanged = ns.StartProfileGear(p) end
+        Change(p, { keys = keys ~= false, scope = "bars", gearBefore = gearBefore, gearChanged = gearChanged },
+            L["%s applied"]:format(key), L["applying %s"]:format(key), function() c.active = key end)
     end)
     if not now then Print(L["%s will apply when combat ends."]:format(key)) end
 end
@@ -198,8 +226,18 @@ function ns.Undo()
     local now = ns.OutOfCombat("apply", function()
         local last = c.lastChange
         if not last then return end
-        Change(last.state, { scope = "all" }, L["Undid %s"]:format(last.label), L["the undo"],
-            function() c.active = nil end)
+        -- The gear from before goes back on (kept for a second Undo in turn).
+        local gearBefore, gearChanged
+        if last.gear and ns.GearChanges(last.gear) > 0 and not GetCursorInfo() then
+            local slots = {}
+            for slot in pairs(last.gear) do slots[slot] = true end
+            gearBefore = ns.CaptureGear(slots)
+            local ok, why = ns.EquipGear(last.gear, ns.GearReport)
+            gearChanged = ok
+            if not ok then Print(L["Gear not changed: %s."]:format(why)) end
+        end
+        Change(last.state, { scope = "all", gearBefore = gearBefore, gearChanged = gearChanged },
+            L["Undid %s"]:format(last.label), L["the undo"], function() c.active = nil end)
     end)
     if not now then Print(L["Undo will happen when combat ends."]) end
 end

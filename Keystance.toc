@@ -6,7 +6,7 @@
 ## IconTexture: Interface\AddOns\Keystance\media\icon.tga
 ## Category: Action Bars
 ## SavedVariables: KeystanceDB
-## OptionalDeps: EllesmereUI, ElvUI
+## OptionalDeps: EllesmereUI, ElvUI, ItemRack
 ## AddonCompartmentFunc: Keystance_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: Keystance_OnAddonCompartmentEnter
 ## AddonCompartmentFuncOnLeave: Keystance_OnAddonCompartmentLeave
