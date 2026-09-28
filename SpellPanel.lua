@@ -492,17 +492,37 @@ local function Create()
     f.Refresh = Refresh
     ns.SkinWindow(f)
     f:SetScript("OnShow", function(self)
+        Settings().spellPanelHidden = nil
         Place()
         self:Refresh()
     end)
     if UISpecialFrames then UISpecialFrames[#UISpecialFrames + 1] = "KeystanceSpellPanel" end
     f:Hide()
+    -- Closed by the player while the Keystance window is open: remembered, so opening the
+    -- window doesn't bring it back until the Spells button does. (Closing with the window,
+    -- or with Escape after the window, isn't the player turning it off.)
+    f:SetScript("OnHide", function(self)
+        if not self.closingWithWindow and ns.WindowShown() then Settings().spellPanelHidden = true end
+        self.closingWithWindow = nil
+    end)
 end
 
 -- Opens or closes the spell panel; `open` only ever opens it.
 function ns.ToggleSpellPanel(open)
     if not panel then Create() end
     if panel:IsShown() and not open then panel:Hide() else panel:Show() end
+end
+
+-- The panel opens with the Keystance window (docked beside it) unless the player closed it,
+-- and a docked panel closes with the window.
+function ns.WindowOpened()
+    if not Settings().spellPanelHidden then ns.ToggleSpellPanel(true) end
+end
+function ns.WindowClosed()
+    if panel and panel:IsShown() and panel.docked then
+        panel.closingWithWindow = true
+        panel:Hide()
+    end
 end
 
 function ns.SpellPanelShown() return panel and panel:IsShown() or false end

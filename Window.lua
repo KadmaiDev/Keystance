@@ -208,7 +208,11 @@ local function CreateWindow()
     f.credit:SetText(L["Keystance by Kadmai"])
 
     ns.SkinWindow(f)
-    f:SetScript("OnShow", Refresh)
+    f:SetScript("OnShow", function()
+        Refresh()
+        ns.WindowOpened() -- the spell panel opens beside it (SpellPanel.lua)
+    end)
+    f:SetScript("OnHide", function() ns.WindowClosed() end)
     -- Escape closes it, like Blizzard's own windows.
     if UISpecialFrames then UISpecialFrames[#UISpecialFrames + 1] = "KeystanceFrame" end
     f:Hide()
