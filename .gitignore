@@ -9,6 +9,9 @@ PLAN.md
 reference/
 dist/
 
+# The throwaway phase 0 probe addon.
+probe/
+
 # Editor and OS clutter.
 .vscode/
 .idea/
