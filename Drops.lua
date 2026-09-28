@@ -198,11 +198,12 @@ local endedAt -- when the last hold ended (so the right-click that ended it does
 
 function ns.HeldBinding() return held end
 
--- True for an action button: the game's bars (Blizzard's `action`, EllesmereUI's and
--- ElvUI's "action" attribute) or a slot on Keystance's Bars tab.
+-- True for an action button: Blizzard's bars and ElvUI's (LibActionButton) keep `action`
+-- (ElvUI also `_state_action`), EllesmereUI's the "action" attribute; or a slot on
+-- Keystance's Bars tab.
 local function IsActionButton(f)
     if type(f) ~= "table" then return false end
-    if f.slot or f.action then return true end
+    if f.slot or f.action or f._state_action then return true end
     if f.GetAttribute then
         local ok, action = pcall(f.GetAttribute, f, "action")
         return ok and action ~= nil

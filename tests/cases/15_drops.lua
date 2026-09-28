@@ -236,6 +236,16 @@ test("markers and profile switches say they go on keys: in the panel, on the hel
     wow.mouseFoci = { { action = 5 } }
     wow.fire("GLOBAL_MOUSE_DOWN", "LeftButton")
     assert(printed():find("Skull goes on a key, not on a bar", 1, true), printed())
+    -- EllesmereUI's buttons (an "action" attribute) and ElvUI's (_state_action) too.
+    for _, button in ipairs({ { GetAttribute = function(_, k) return k == "action" and 7 or nil end },
+        { _state_action = 9 } }) do
+        ns.CancelBinding()
+        click(panel.rows[8])
+        wow.printed = {}
+        wow.mouseFoci = { button }
+        wow.fire("GLOBAL_MOUSE_DOWN", "LeftButton")
+        assert(printed():find("not on a bar", 1, true), "an addon's bar button")
+    end
     wow.printed = {}
     wow.fire("GLOBAL_MOUSE_DOWN", "LeftButton")
     eq(printed(), "", "once per hold")
