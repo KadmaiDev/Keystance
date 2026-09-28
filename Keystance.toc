@@ -18,6 +18,7 @@ Actions.lua
 Snapshot.lua
 Apply.lua
 Profiles.lua
+Ranks.lua
 Layouts.lua
 Window.lua
 Keyboard.lua

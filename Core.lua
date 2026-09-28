@@ -212,7 +212,7 @@ function commands.mem()
 end
 
 function commands.help()
-    Print(L["by Kadmai. /kst opens Keystance. Profiles: /kst save Name | apply Name | undo | restore | profiles | ownkeys"])
+    Print(L["by Kadmai. /kst opens Keystance. Profiles: /kst save Name | apply Name | undo | restore | profiles | ownkeys | ranks"])
     Print(L["Also: /kst options | minimap | skin | mem | help"])
     Print(L["Or use the minimap button (right-click for options)."])
 end

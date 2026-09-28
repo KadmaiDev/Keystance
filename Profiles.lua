@@ -154,6 +154,8 @@ local function Change(state, options, done, undo, onDone)
     return true
 end
 
+ns.ApplyChange = Change
+
 -- What the Undo button would undo ("applying Prot"), or nil.
 function ns.UndoLabel()
     local c = Char()

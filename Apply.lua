@@ -55,6 +55,7 @@ local function ScanBook()
     end
     return book
 end
+ns.ScanBook = ScanBook
 
 ---------------------------------------------------------------------------
 -- Slots
