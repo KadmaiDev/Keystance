@@ -214,18 +214,18 @@ test("the panel never stays open without the window, even moved away from it", f
     eq(p:IsShown(), true)
 end)
 
-test("the Commands tab: Profiles and Raid markers in folding sections, and a note they go on keys", function()
+test("the Commands tab: Keystance and Raid markers in folding sections, and a note they go on keys", function()
     local c, ns = panelLogin()
     ns.SaveProfile("Ret")
     local p = openPanel()
     click(choice(p.kinds, "Commands"))
-    local want = "header:Profiles,profile:Ret,marker:Next profile,marker:Open Keystance,header:Raid markers,marker:Star"
+    local want = "header:Keystance,profile:Ret,marker:Next profile,marker:Open Keystance,header:Raid markers,marker:Star"
     eq(panelRows():sub(1, #want), want)
     eq(p.keysOnly:IsShown(), true)
-    click(rowNamed("Profiles")) -- folds
-    want = "header:Profiles,header:Raid markers"
+    click(rowNamed("Keystance")) -- folds
+    want = "header:Keystance,header:Raid markers"
     eq(panelRows():sub(1, #want), want)
-    click(rowNamed("Profiles"))
+    click(rowNamed("Keystance"))
     -- Search looks inside the sections.
     p.search:SetText("sku")
     p.search.scripts.OnTextChanged(p.search)

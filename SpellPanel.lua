@@ -6,7 +6,8 @@
 --    Right-click shows its other ranks; Shift-click links it in chat.
 --  * Macros: the account's and the character's macros.
 --  * Commands: things that only go on keys (keybindings, not actions), in folding sections:
---    Profiles (each profile's switch, Next profile, Open Keystance) and Raid markers.
+--    Keystance (each profile's switch, Next profile, Open Keystance; named as in the game's
+--    Key Bindings) and Raid markers.
 --    Clicking one holds it until a key in the Keyboard tab is clicked (Drops.lua); each
 --    shows the key it's on.
 -- Search as you type; filters for what's on a bar, not on a bar, or still to learn. Drag or
@@ -144,11 +145,11 @@ local function Command(command, name, icon)
     return { kind = "marker", command = command, name = name, icon = icon, key = GetBindingKey(command) }
 end
 
--- Profiles (each profile's switch, with its icon; Next profile; Open Keystance), then the
--- raid markers.
+-- Keystance's own commands, as its heading in the game's Key Bindings (each profile's
+-- switch with its icon, Next profile, Open Keystance), then the raid markers.
 local function CollectCommands(search)
     local c = ns.char
-    Section(L["Profiles"], search, function(add)
+    Section("Keystance", search, function(add)
         for _, name in ipairs(ns.ProfileNames()) do
             local n = ns.ProfileSlot(name)
             local icon, crop = ns.ProfileIcon(c.profiles[name])
