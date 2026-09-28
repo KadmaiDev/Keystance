@@ -24,6 +24,7 @@ local function ToggleMinimap() ns.SetMinimapButton(not ns.MinimapButtonOn()) end
 local function OpenWindow() ns.ToggleWindow(true) end
 local function OpenOptions() ns.OpenOptions() end
 local function ShowMemory() ns.RunCommand("mem") end
+local function OpenSpells() ns.ToggleSpellPanel(true) end
 
 function ns.ShowOptionsMenu(owner)
     if not (MenuUtil and MenuUtil.CreateContextMenu) then return ns.ShowHelp() end
@@ -32,6 +33,7 @@ function ns.ShowOptionsMenu(owner)
         if not ns.WindowShown() then
             root:CreateButton(L["Open Keystance"], OpenWindow)
         end
+        root:CreateButton(L["Spells"], OpenSpells)
         root:CreateButton(L["Settings"], OpenOptions)
         root:CreateCheckbox(L["Show minimap button"], MinimapSelected, ToggleMinimap)
         root:CreateButton(L["Memory use"], ShowMemory)

@@ -19,10 +19,13 @@ Snapshot.lua
 Apply.lua
 Profiles.lua
 Ranks.lua
+Spells.lua
+Drops.lua
 Layouts.lua
 Window.lua
 Keyboard.lua
 Bars.lua
 ProfilesTab.lua
+SpellPanel.lua
 Options.lua
 Minimap.lua

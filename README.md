@@ -12,7 +12,7 @@ A keybind and action bar manager for **World of Warcraft: Forever**, by **Kadmai
 - Finger-friendly suggestions: common abilities go on keys close to your movement keys, so you're not stretching for them.
 - Looks at home with the default UI, EllesmereUI or ElvUI.
 
-Status: early development, not released yet. So far: your keybinds on an on-screen keyboard (with Shift, Ctrl and Alt layers), your action bars with their keys, and profiles you can save, apply, undo and restore from, in a window that takes the look of your UI addon. Automatic switching, spell ranks and key suggestions arrive next.
+Status: early development, not released yet. So far: your keybinds on an on-screen keyboard (with Shift, Ctrl and Alt layers), your action bars with their keys, profiles you can save, apply, undo and restore from, new spell ranks replacing old ones on your bars, and a spell panel: every class spell (and the ones still to learn), your macros and the raid markers in one searchable list, to drag onto your bars or straight onto a key on the keyboard. All in a window that takes the look of your UI addon. Automatic switching and key suggestions arrive next.
 
 ## Your setup is safe
 
@@ -24,11 +24,11 @@ Status: early development, not released yet. So far: your keybinds on an on-scre
 
 ## Commands
 
-`/kst` (or `/keystance`) opens Keystance. Profiles: `/kst save Name`, `/kst apply Name` (works in macros), `/kst undo`, `/kst restore`, `/kst profiles`, `/kst ownkeys`. Also: `/kst options` opens its page in the game's Options > AddOns, `/kst minimap` shows or hides the minimap button, `/kst skin auto | classic | ellesmere | elvui` picks the look, `/kst mem` shows memory use, `/kst help` lists everything.
+`/kst` (or `/keystance`) opens Keystance. Profiles: `/kst save Name`, `/kst apply Name` (works in macros), `/kst undo`, `/kst restore`, `/kst profiles`, `/kst ownkeys`. `/kst spells` opens the spell panel, `/kst ranks` turns rank upgrades on or off. Also: `/kst options` opens its page in the game's Options > AddOns, `/kst minimap` shows or hides the minimap button, `/kst skin auto | classic | ellesmere | elvui` picks the look, `/kst mem` shows memory use, `/kst help` lists everything.
 
 ## Performance
 
-Keystance does nothing while you play: no code runs every frame, the window is only built the first time you open it, and while it's closed the game's events cost one check and create no garbage. It uses about 170 KB of memory (measured outside the game; `/kst mem` shows the real figure).
+Keystance does nothing while you play: no code runs every frame, the window is only built the first time you open it, and while it's closed the game's events cost one check and create no garbage. It uses about 220 KB of memory (measured outside the game; `/kst mem` shows the real figure).
 
 ## Development
 

@@ -13,7 +13,7 @@ local KNOWN_EVENTS = {
     PLAYER_REGEN_DISABLED = true, PLAYER_REGEN_ENABLED = true,
     ADDON_ACTION_BLOCKED = true, ADDON_ACTION_FORBIDDEN = true,
     ACTIONBAR_SLOT_CHANGED = true, UPDATE_BINDINGS = true, CURSOR_CHANGED = true,
-    MODIFIER_STATE_CHANGED = true, ACTIONBAR_PAGE_CHANGED = true, UPDATE_BONUS_ACTIONBAR = true,
+    MODIFIER_STATE_CHANGED = true, UPDATE_MACROS = true, ACTIONBAR_PAGE_CHANGED = true, UPDATE_BONUS_ACTIONBAR = true,
     SPELLS_CHANGED = true, LEARNED_SPELL_IN_SKILL_LINE = true,
     PLAYER_EQUIPMENT_CHANGED = true, UNIT_INVENTORY_CHANGED = true,
 }
@@ -279,14 +279,29 @@ function M.load(files)
     end
     C_Spell = {
         PickupSpell = protect("C_Spell.PickupSpell", function(id)
-            if spellInBook(id) then M.cursor = { "spell", 1, "spell", id } end
+            local s = spellInBook(id)
+            if s and not s.future then M.cursor = { "spell", 1, "spell", id } end
         end),
         GetSpellName = function(id) local s = spellInBook(id) return s and s[2] or M.spellNames[id] end,
         GetSpellSubtext = function(id) local s = spellInBook(id) return s and s[3] or nil end,
         GetSpellTexture = function(id) return 200000 + id end,
         GetOverrideSpell = function(id) return id end,
     }
-    IsSpellKnown = function(id) return spellInBook(id) ~= nil end
+    IsSpellKnown = function(id) local s = spellInBook(id) return s ~= nil and not s.future end
+    -- Spells still to learn are in the spellbook with future = true and the level they come at.
+    C_Spell.GetSpellLevelLearned = function(id) local s = spellInBook(id) return s and s.level or 0 end
+    C_Spell.GetSpellLink = function(id) return "|Hspell:" .. id .. "|h[" .. tostring(C_Spell.GetSpellName(id)) .. "]|h" end
+    M.links = {}
+    ChatEdit_InsertLink = function(link) M.links[#M.links + 1] = link end
+    M.modifiedClick = false
+    IsModifiedClick = function() return M.modifiedClick end
+    GetNumMacros = function()
+        local account, perChar = 0, 0
+        for index in pairs(M.macros) do
+            if index <= 120 then account = account + 1 else perChar = perChar + 1 end
+        end
+        return account, perChar
+    end
     local function bookItem(index)
         local n = 0
         for _, line in ipairs(M.spellbook) do
@@ -306,7 +321,8 @@ function M.load(files)
         end,
         GetSpellBookItemInfo = function(index)
             local s = bookItem(index)
-            return s and { itemType = s.flyout and 4 or 1, spellID = not s.flyout and s[1] or nil,
+            return s and { itemType = s.flyout and 4 or s.future and 2 or 1, spellID = not s.flyout and s[1] or nil,
+                iconID = 300000 + s[1],
                 actionID = s[1], name = s[2], subName = s[3] or "", isPassive = s.passive or false }
         end,
         PickupSpellBookItem = protect("C_SpellBook.PickupSpellBookItem", function(index)
@@ -495,6 +511,7 @@ function M.tooltip()
         AddLine = function(self, text) self.lines[#self.lines + 1] = { text } end,
         AddDoubleLine = function(self, l, r) self.lines[#self.lines + 1] = { l, r } end,
         SetAction = function(self, slot) self.action = slot; self.lines[#self.lines + 1] = { "action:" .. slot } end,
+        SetSpellByID = function(self, id) self.spell = id; self.lines[#self.lines + 1] = { "spell:" .. id } end,
         SetOwner = function(self, owner) self.owner, self.lines, self.shown, self.action = owner, {}, false, nil end,
         Show = function(self) self.shown = true end,
         Hide = function(self) self.shown, self.owner = false, nil end,

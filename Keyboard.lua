@@ -63,6 +63,8 @@ local function CommandName(command)
     return command
 end
 
+ns.CommandName = CommandName
+
 -- A key's name as the game shows it ("Num Pad 1" for NUMPAD1).
 local function KeyName(key)
     local text = GetBindingText and GetBindingText(key)
@@ -124,6 +126,23 @@ local function MakeCap(f, board, info, x, y)
     f.texts[#f.texts + 1] = name
     cap:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     cap:SetScript("OnEnter", CapTooltip)
+    -- Something dragged here (a spell from the spell panel or the spellbook, an action off a
+    -- bar) goes on this key; clicking while holding it does the same.
+    local function Drop(self)
+        if self.fullKey and GetCursorInfo() then ns.DropOnKey(self.fullKey, self.slot, self.command) end
+    end
+    cap:SetScript("OnReceiveDrag", Drop)
+    -- While a raid marker (or another command) waits for a key, a click binds it here and a
+    -- right-click cancels.
+    cap:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    cap:SetScript("OnClick", function(self, button)
+        if ns.HeldBinding() then
+            if button == "RightButton" then return ns.CancelBinding() end
+            if self.fullKey then ns.BindHeld(self.fullKey, self.command) end
+            return
+        end
+        Drop(self)
+    end)
     cap:SetScript("OnLeave", function() GameTooltip:Hide() end)
     cap.key, cap.mod, cap.blank = info[1], info.mod, info[1] == ""
     -- The full key name for each layer ("SHIFT-1"...), made once.
@@ -243,6 +262,9 @@ local function Refresh(page)
     end
     page.layerText:SetText(LAYER_NAMES[layer] .. (live and L[" (held)"] or ""))
     page.layoutRow:Refresh()
+    local held = ns.HeldBinding()
+    page.binding:SetShown(held ~= nil)
+    if held then page.binding:SetText(L["Click a key for %s (right-click cancels)"]:format(held.label)) end
     RefreshCaps(page, layer)
     RefreshOthers(page, layer)
 end
@@ -276,6 +298,12 @@ local function Build(page, f)
         end, 76)
     row:SetPoint("TOPRIGHT", page, "TOPRIGHT", -16, -14)
     page.layoutRow = row
+    local binding = page:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    binding:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -36)
+    binding:SetTextColor(0.4, 0.8, 1)
+    binding:Hide()
+    page.binding = binding
+    f.texts[#f.texts + 1] = binding
     local others = page:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     others:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -(48 + 6 * U + ROW_GAP + 12))
     others:SetPoint("RIGHT", page, "RIGHT", -16, 0)

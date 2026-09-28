@@ -1,0 +1,115 @@
+-- Tests: dropping spells, macros and items on keys (Keyboard tab) and slots (Bars tab).
+---------------------------------------------------------------------------
+-- Vespera with Blizzard's main bar showing, so there are free slots on screen.
+function dropLogin(shared)
+    local c, ns = profileLogin(shared)
+    CreateFrame("Frame", "MainActionBar")
+    for i = 1, 12 do CreateFrame("Button", "ActionButton" .. i).action = i end
+    return c, ns
+end
+
+function holding(id) wow.cursor = { "spell", 1, "spell", id } end
+
+test("dropped on a key that casts a slot, the spell goes in that slot and the old one onto the cursor", function()
+    local c, ns = dropLogin()
+    local page = keyboardPage()
+    holding(19834)
+    local one = capFor(page, "1")
+    one.scripts.OnReceiveDrag(one)
+    eq(wow.slots[1].id, 19834)
+    eq(wow.cursor[4], 1866, "Holy Strike, as the real bars do")
+    eq(ns.UndoLabel(), "placing Blessing of Might")
+end)
+
+test("dropped on an unbound key, it goes in the first empty slot on screen and the key is bound to it", function()
+    local c, ns = dropLogin()
+    local page = keyboardPage()
+    holding(19834)
+    local e = capFor(page, "E")
+    click(e)
+    eq(wow.slots[4].id, 19834, "slot 4: the main bar's first empty button")
+    eq(GetBindingAction("E"), "ACTIONBUTTON4")
+    eq(wow.cursor, nil)
+    assert(printed():find("Blessing of Might placed in Main bar, slot 4, on E.", 1, true), printed())
+    ns.Undo()
+    eq(wow.slots[4], nil); eq(GetBindingAction("E"), "")
+end)
+
+test("a key used for something else asks first, and cancelling keeps the spell on the cursor", function()
+    dropLogin()
+    local page = keyboardPage()
+    holding(19834)
+    click(capFor(page, "W"))
+    eq(wow.popup.which, "KEYSTANCE_BIND_KEY")
+    assert(wow.popup.text:find("W is Move Forward", 1, true), wow.popup.text)
+    eq(wow.cursor[4], 19834, "still held while asking")
+    StaticPopupDialogs.KEYSTANCE_BIND_KEY.OnCancel()
+    eq(GetBindingAction("W"), "MOVEFORWARD")
+    eq(wow.cursor[4], 19834, "nothing lost")
+    click(capFor(page, "W"))
+    StaticPopupDialogs.KEYSTANCE_BIND_KEY.OnAccept()
+    eq(GetBindingAction("W"), "ACTIONBUTTON4")
+end)
+
+test("with shared keybinds, binding a key asks and gives the character its own keybinds first", function()
+    dropLogin(true)
+    local page = keyboardPage()
+    holding(19834)
+    click(capFor(page, "E"))
+    eq(wow.popup.which, "KEYSTANCE_BIND_KEY")
+    StaticPopupDialogs.KEYSTANCE_BIND_KEY.OnAccept()
+    eq(GetCurrentBindingSet(), 2)
+    eq(GetBindingAction("E"), "ACTIONBUTTON4")
+end)
+
+test("with no empty slot on screen nothing changes, and the player is told", function()
+    dropLogin()
+    for i = 1, 12 do wow.slots[i] = wow.slots[i] or { kind = "spell", id = 647 } end
+    local page = keyboardPage()
+    holding(19834)
+    click(capFor(page, "E"))
+    eq(GetBindingAction("E"), "")
+    eq(wow.cursor[4], 19834)
+    assert(printed():find("No empty slot on your bars", 1, true))
+end)
+
+test("dropped on a slot in the Bars tab, it goes there", function()
+    local c, ns = dropLogin()
+    local page = barsPage()
+    holding(19834)
+    local slot4 = page.rows[1].slots[4]
+    slot4.scripts.OnReceiveDrag(slot4)
+    eq(wow.slots[4].id, 19834)
+    eq(wow.cursor, nil)
+end)
+
+test("in combat nothing is dropped, and the spell stays on the cursor", function()
+    dropLogin()
+    local page = keyboardPage()
+    holding(19834)
+    wow.enterCombat()
+    click(capFor(page, "E"))
+    local one = capFor(page, "1")
+    one.scripts.OnReceiveDrag(one)
+    click(tabNamed("Bars"))
+    local bars = KeystanceFrame.pages[2]
+    local slot4 = bars.rows[1].slots[4]
+    slot4.scripts.OnReceiveDrag(slot4)
+    eq(#wow.blocked, 0)
+    eq(wow.slots[1].id, 1866)
+    eq(wow.slots[4], nil)
+    eq(wow.cursor[4], 19834)
+    wow.leaveCombat()
+end)
+
+test("macros and items can be dropped on keys too", function()
+    dropLogin()
+    local page = keyboardPage()
+    wow.cursor = { "macro", 121 }
+    click(capFor(page, "E"))
+    eq(wow.slots[4].macro, 121)
+    wow.cursor = { "item", 6948 }
+    click(capFor(page, "R"))
+    eq(wow.slots[5].id, 6948)
+    eq(GetBindingAction("R"), "ACTIONBUTTON5")
+end)

@@ -143,7 +143,7 @@ local function CreateWindow()
 
     -- Header strip: the combat note (the active profile joins it with profiles).
     local combat = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    combat:SetPoint("TOPRIGHT", f, "TOPRIGHT", -16, -34)
+    combat:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -16, 10)
     combat:SetTextColor(1, 0.5, 0.25)
     combat:SetText(L["In combat: changes wait until combat ends"])
     combat:Hide()
@@ -189,6 +189,22 @@ local function CreateWindow()
 
     f.credit = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     f.credit:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 16, 10)
+
+    -- The spell panel, which sits against this window.
+    local spells = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    spells:SetSize(90, 22)
+    spells:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -30)
+    spells:SetText(L["Spells"])
+    spells:SetScript("OnClick", function() ns.ToggleSpellPanel() end)
+    spells:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(L["Spells"])
+        GameTooltip:AddLine(L["All your class's spells in one list, to drag onto your bars or onto a key."], 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    spells:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f.spellsButton = spells
+    f.buttons[#f.buttons + 1] = spells
     f.credit:SetText(L["Keystance by Kadmai"])
 
     ns.SkinWindow(f)

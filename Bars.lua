@@ -56,6 +56,12 @@ local function MakeRow(page, f, r)
         f.texts[#f.texts + 1] = key
         b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
         b:SetScript("OnEnter", SlotTooltip)
+        -- Something dragged here goes in this slot, as on the real bars.
+        local function Drop(self)
+            if self.slot and GetCursorInfo() then ns.DropOnSlot(self.slot) end
+        end
+        b:SetScript("OnReceiveDrag", Drop)
+        b:SetScript("OnClick", Drop)
         b:SetScript("OnLeave", function() GameTooltip:Hide() end)
         row.slots[i] = b
     end

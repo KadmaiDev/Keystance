@@ -213,6 +213,7 @@ end
 
 function commands.help()
     Print(L["by Kadmai. /kst opens Keystance. Profiles: /kst save Name | apply Name | undo | restore | profiles | ownkeys | ranks"])
+    Print(L["Spells: /kst spells opens the list of your class's spells, to drag onto bars or keys."])
     Print(L["Also: /kst options | minimap | skin | mem | help"])
     Print(L["Or use the minimap button (right-click for options)."])
 end

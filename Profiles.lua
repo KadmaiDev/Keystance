@@ -156,6 +156,12 @@ end
 
 ns.ApplyChange = Change
 
+-- Records the setup from before a change made elsewhere (a drop), for Undo.
+function ns.RecordChange(before, label)
+    local c = Char()
+    if c then c.lastChange = { state = before, label = label, at = time() } end
+end
+
 -- What the Undo button would undo ("applying Prot"), or nil.
 function ns.UndoLabel()
     local c = Char()
