@@ -163,3 +163,14 @@ test("the guide's text stops before its buttons, whichever are showing", functio
     click(bar.actions[2])
     eq(bar.text.point[2], bar.actions[1], "one button: before it")
 end)
+
+test("the strip along the bottom has its own band, clear of the pages above it", function()
+    profileLogin()
+    slash("")
+    local strip = KeystanceFrame.status
+    local stripTop = strip.point[5] + 22 -- its bottom offset plus its height
+    for _, page in ipairs(KeystanceFrame.pages) do
+        eq(page.point[1], "BOTTOMRIGHT")
+        assert(page.point[5] - stripTop >= 10, "10 px or more between a page and the strip")
+    end
+end)
