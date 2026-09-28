@@ -1,5 +1,6 @@
 -- Keystance main window: tabs across the top (Profiles, Keyboard, Bars, Rules, Settings)
--- and a header strip for the active profile and combat notes. Built the first time it's
+-- and a strip along the bottom: the profile in use (with "changed since saved" and Update),
+-- a button per profile to switch, and the combat note. Built the first time it's
 -- opened and only refreshed while shown, so a closed window costs nothing.
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
@@ -62,13 +63,133 @@ end
 ---------------------------------------------------------------------------
 -- Refresh: what the header and the open page show
 ---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+-- The status strip: the profile in use, whether the bars and keys still match it, and a
+-- button per profile. Worked out again only when bars, keys or profiles change (statusStale),
+-- so redraws stay free of garbage.
+---------------------------------------------------------------------------
+local MAX_QUICK = 8
+local statusStale = true
+
+local function QuickTooltip(b)
+    GameTooltip:SetOwner(b, "ANCHOR_TOP")
+    GameTooltip:AddLine(b.profile)
+    local key = ns.ProfileKey(b.profile)
+    if key then GameTooltip:AddDoubleLine(L["Key"], key, 0.6, 0.6, 0.6, 1, 1, 1) end
+    GameTooltip:AddLine(b.active and L["In use."] or L["Click to switch to it."], 0.6, 0.8, 1)
+    GameTooltip:Show()
+end
+
+local function BuildStatus(f)
+    local s = CreateFrame("Frame", nil, f)
+    s:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, 6)
+    s:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, 6)
+    s:SetHeight(22)
+    s.icon = s:CreateTexture(nil, "ARTWORK")
+    s.icon:SetSize(18, 18)
+    s.icon:SetPoint("LEFT")
+    s.text = Text(f, s, "GameFontNormal")
+    s.text:SetPoint("LEFT", s.icon, "RIGHT", 6, 0)
+    s.changed = Text(f, s, "GameFontNormalSmall", L["changed since saved"])
+    s.changed:SetTextColor(1, 0.6, 0.2)
+    s.changed:SetPoint("LEFT", s.text, "RIGHT", 8, 0)
+    s.update = CreateFrame("Button", nil, s, "UIPanelButtonTemplate")
+    s.update:SetSize(70, 20)
+    s.update:SetPoint("LEFT", s.changed, "RIGHT", 6, 0)
+    s.update:SetText(L["Update"])
+    s.update:SetScript("OnClick", function()
+        if ns.char and ns.char.active then ns.ConfirmUpdate(ns.char.active) end
+    end)
+    s.update:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine(L["Your bars or keys aren't as this profile saved them. Update saves them into it; applying it again puts the saved ones back."], 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    s.update:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f.buttons[#f.buttons + 1] = s.update
+    -- One button per profile, from the right.
+    s.quickFrame = CreateFrame("Frame", nil, s)
+    s.quickFrame:SetAllPoints()
+    s.quick = {}
+    for i = 1, MAX_QUICK do
+        local b = CreateFrame("Button", nil, s.quickFrame)
+        b:SetSize(20, 20)
+        b:SetPoint("RIGHT", s.quickFrame, "RIGHT", -(i - 1) * 24, 0)
+        b.icon = b:CreateTexture(nil, "ARTWORK")
+        b.icon:SetAllPoints()
+        b.ring = b:CreateTexture(nil, "OVERLAY")
+        b.ring:SetPoint("TOPLEFT", -3, 3)
+        b.ring:SetPoint("BOTTOMRIGHT", 3, -3)
+        b.ring:SetTexture("Interface\\Buttons\\CheckButtonHilight")
+        b.ring:SetBlendMode("ADD")
+        b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+        b:SetScript("OnClick", function(self) if self.profile then ns.ConfirmApply(self.profile) end end)
+        b:SetScript("OnEnter", QuickTooltip)
+        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        s.quick[i] = b
+    end
+    f.status = s
+end
+
+local function SetIcon(tex, p)
+    local icon, crop = ns.ProfileIcon(p)
+    tex:SetTexture(icon)
+    if crop then tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) else tex:SetTexCoord(0, 1, 0, 1) end
+end
+
+local function RefreshStatus()
+    local s, c = frame.status, ns.char
+    if not (statusStale and c) then return end
+    statusStale = false
+    local names = ns.ProfileNames()
+    local p = c.active and c.profiles[c.active]
+    if p then
+        SetIcon(s.icon, p)
+        s.icon:Show()
+        s.text:SetText(L["In use: %s"]:format(c.active))
+        local slots, keys = ns.CountChanges(p, "bars")
+        local changed = slots + keys > 0
+        s.changed:SetShown(changed)
+        s.update:SetShown(changed)
+    else
+        s.icon:Hide()
+        s.text:SetText(#names == 0 and L["No profiles yet"] or L["No profile in use"])
+        s.changed:Hide()
+        s.update:Hide()
+    end
+    s.text:ClearAllPoints()
+    s.text:SetPoint("LEFT", p and s.icon or s, p and "RIGHT" or "LEFT", p and 6 or 0, 0)
+    for i, b in ipairs(s.quick) do
+        local name = names[i]
+        b.profile, b.active = name, name ~= nil and name == c.active
+        if name then
+            SetIcon(b.icon, c.profiles[name])
+            b.ring:SetShown(b.active)
+            b:Show()
+        else
+            b:Hide()
+        end
+    end
+end
+
+-- Profiles changed (saved, applied, renamed, given an icon...): the strip is worked out again.
+function ns.StatusStale() statusStale = true end
+
 local function Refresh()
     if not frame or not frame:IsShown() then return end
-    frame.combat:SetShown(ns.InCombat())
+    local combat = ns.InCombat()
+    frame.combat:SetShown(combat)
+    frame.status.quickFrame:SetShown(not combat) -- switching waits in combat; the note says so
+    RefreshStatus()
     local page = frame.pages[frame.selected]
     if page and page.Refresh then page:Refresh() end
 end
 ns.RefreshWindow = Refresh
+
+function ns.ProfilesChanged()
+    statusStale = true
+    Refresh()
+end
 
 -- Refreshes the open window soon, once however many events asked (a bar change fires one
 -- event per slot). With a tab key, only if that tab is showing. A closed window costs a check.
@@ -194,8 +315,7 @@ local function CreateWindow()
     heading:SetPoint("TOPLEFT", 16, -16)
     ns.BuildSettings(settings, f, heading)
 
-    f.credit = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    f.credit:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 16, 10)
+    BuildStatus(f)
 
     -- The spell panel, which sits against this window.
     local spells = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
@@ -212,7 +332,6 @@ local function CreateWindow()
     spells:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.spellsButton = spells
     f.buttons[#f.buttons + 1] = spells
-    f.credit:SetText(L["Keystance by Kadmai"])
 
     ns.SkinWindow(f)
     f:SetScript("OnShow", function()
@@ -261,3 +380,9 @@ ns.On("PLAYER_REGEN_ENABLED", Refresh)
 for _, event in ipairs({ "ACTIONBAR_SLOT_CHANGED", "ACTIONBAR_PAGE_CHANGED", "UPDATE_BONUS_ACTIONBAR" }) do
     ns.On(event, function() ns.RequestRefresh() end)
 end
+-- Bars and keys changing may make them differ from the profile in use (or match it again).
+ns.On("ACTIONBAR_SLOT_CHANGED", function() statusStale = true end)
+ns.On("UPDATE_BINDINGS", function()
+    statusStale = true
+    ns.RequestRefresh()
+end)

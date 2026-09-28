@@ -50,6 +50,7 @@ CASES = {
     "19_gear_tab.lua",
     "20_profile_keys.lua",
     "21_profile_icons.lua",
+    "22_flow.lua",
 }
 do
     local where = {}

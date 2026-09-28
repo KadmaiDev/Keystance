@@ -31,7 +31,7 @@ test("with EllesmereUI, the window, its tabs, buttons and text take its look", f
     assert(skinnedWith("Shell", KeystanceFrame), "backdrop")
     eq(countSkinned("Tab"), 5)
     assert(skinnedWith("Button", pageFor("settings").lookRow.buttons[1]), "buttons")
-    assert(skinnedWith("Font", KeystanceFrame.credit), "window text")
+    assert(skinnedWith("Font", KeystanceFrame.status.text), "window text")
     assert(countSkinned("Font") > 5, "page text too")
 end)
 
@@ -62,7 +62,7 @@ test("with ElvUI, the window, its tabs and buttons take its look", function()
     assert(skinnedWith("HandleFrame", KeystanceFrame))
     eq(countSkinned("HandleTab"), 5)
     assert(skinnedWith("HandleButton", pageFor("settings").lookRow.buttons[1]))
-    assert(skinnedWith("FontTemplate", KeystanceFrame.credit))
+    assert(skinnedWith("FontTemplate", KeystanceFrame.status.text))
 end)
 
 test("before ElvUI has initialised the classic look is used", function()

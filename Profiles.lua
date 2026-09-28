@@ -87,7 +87,7 @@ function ns.SaveProfile(name, replace)
     end
     c.profiles[clean] = p
     ns.NameBindings()
-    ns.RefreshWindow()
+    ns.ProfilesChanged()
     return clean
 end
 
@@ -105,7 +105,7 @@ function ns.RenameProfile(old, new)
         if rule.profile == key then rule.profile = clean end -- rules follow the rename
     end
     ns.ProfileRenamed(key, clean) -- and its key
-    ns.RefreshWindow()
+    ns.ProfilesChanged()
     return clean
 end
 
@@ -120,7 +120,7 @@ function ns.DuplicateProfile(name, new)
     p.created, p.updated = time(), time()
     c.profiles[clean] = p
     ns.NameBindings()
-    ns.RefreshWindow()
+    ns.ProfilesChanged()
     return clean
 end
 
@@ -130,7 +130,7 @@ function ns.SetProfileGear(name, items)
     local key = ns.FindProfile(name)
     if not key then return nil, L["No profile called %s."]:format(tostring(name)) end
     Char().profiles[key].gear = (items and next(items)) and items or nil
-    ns.RefreshWindow()
+    ns.ProfilesChanged()
     return key
 end
 
@@ -139,7 +139,7 @@ function ns.SetProfileIcon(name, icon)
     local key = ns.FindProfile(name)
     if not key then return nil end
     Char().profiles[key].icon = icon
-    ns.RefreshWindow()
+    ns.ProfilesChanged()
     if ns.RefreshSpellPanel then ns.RefreshSpellPanel() end
     return key
 end
@@ -152,7 +152,7 @@ function ns.SetGearSlot(name, slot, item)
     p.gear = p.gear or {}
     p.gear[slot] = item
     if not next(p.gear) then p.gear = nil end
-    ns.RefreshWindow()
+    ns.ProfilesChanged()
     return key
 end
 
@@ -160,7 +160,7 @@ function ns.SetProfileItemRack(name, set)
     local key = ns.FindProfile(name)
     if not key then return nil, L["No profile called %s."]:format(tostring(name)) end
     Char().profiles[key].itemrack = set
-    ns.RefreshWindow()
+    ns.ProfilesChanged()
     return key
 end
 
@@ -171,7 +171,7 @@ function ns.DeleteProfile(name)
     c.profiles[key] = nil
     if c.active == key then c.active = nil end
     ns.ProfileDeleted(key)
-    ns.RefreshWindow()
+    ns.ProfilesChanged()
     return key
 end
 
@@ -204,7 +204,7 @@ local function Change(state, options, done, undo, onDone)
     end
     if onDone then onDone() end
     Report(done, slots, keys, failures)
-    ns.RefreshWindow()
+    ns.ProfilesChanged()
     return true
 end
 
@@ -296,7 +296,7 @@ function ns.UseOwnKeybinds()
     local now = ns.OutOfCombat("ownkeys", function()
         SaveBindings(2)
         Print(L["This character now has its own keybinds. Your other characters keep theirs."])
-        ns.RefreshWindow()
+        ns.ProfilesChanged()
     end)
     if not now then Print(L["This character gets its own keybinds when combat ends."]) end
 end
@@ -437,7 +437,7 @@ function ns.SetProfileKey(name, key)
     NameBindings()
     Print(L["%s is now on %s."]:format(profile, key))
     if was and was ~= "" then Print(L["(%s was %s.)"]:format(key, ns.CommandName(was))) end
-    ns.RefreshWindow()
+    ns.ProfilesChanged()
     return true
 end
 
@@ -465,7 +465,7 @@ function ns.ClearProfileKey(name)
     Slots()[n] = nil
     NameBindings()
     Print(L["%s has no key now."]:format(profile))
-    ns.RefreshWindow()
+    ns.ProfilesChanged()
     return true
 end
 

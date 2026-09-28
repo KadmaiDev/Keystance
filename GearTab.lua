@@ -139,7 +139,7 @@ function ns.BuildGearView(view, f, back)
         function() return ns.GearSource() end,
         function(value)
             ns.db.settings.gearSource = value
-            ns.RefreshWindow()
+            ns.ProfilesChanged() -- automatic icons can follow the source
         end, 90)
     source:SetPoint("LEFT", from, "RIGHT", 10, 0)
     view.source = source
