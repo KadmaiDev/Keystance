@@ -221,3 +221,30 @@ test("a long list of other keys stops after 24 with how many more", function()
     local page = keyboardPage()
     assert(page.others.text:find(", and 7 more", 1, true), page.others.text)
 end)
+
+test("the Controller layout is drawn on a controller, with round face buttons and square triggers", function()
+    loginWithSetup(nil)
+    local page = keyboardPage()
+    click(choice(page.layoutRow, "Controller"))
+    eq(page.board.drawing.texture, "Interface\\AddOns\\Keystance\\media\\controller.tga")
+    eq(capFor(page, "PAD1").round, true)
+    eq(capFor(page, "PAD1").bg.texture, "Interface\\AddOns\\Keystance\\media\\circle.tga")
+    eq(capFor(page, "PADLTRIGGER").round, nil)
+end)
+
+test("Automatic shows the keyboard while the controller is merely switched on, not in use", function()
+    loginWithSetup(nil)
+    wow.pad = false
+    local page = keyboardPage()
+    eq(page.layoutKey ~= "pad", true)
+end)
+
+test("the controller drawing and round cap ship with the addon, in a format the game loads", function()
+    for file, size in pairs({ ["media/controller.tga"] = { 512, 256 }, ["media/circle.tga"] = { 64, 64 } }) do
+        local header = readFile(file):sub(1, 18)
+        eq(header:byte(3), 2, file .. " uncompressed")
+        eq(header:byte(13) + header:byte(14) * 256, size[1], file .. " width")
+        eq(header:byte(15) + header:byte(16) * 256, size[2], file .. " height")
+        eq(header:byte(17), 32, file .. " 32-bit")
+    end
+end)

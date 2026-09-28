@@ -11,6 +11,8 @@ local GetBindingAction, GetActionTexture, HasAction = GetBindingAction, GetActio
 local IsShiftKeyDown, IsControlKeyDown, IsAltKeyDown = IsShiftKeyDown, IsControlKeyDown, IsAltKeyDown
 
 local U = 34 -- one key unit, in pixels
+local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\media\\"
+local CIRCLE = MEDIA .. "circle.tga" -- a white disc: round caps' background and icon mask
 local ROW_GAP = 8 -- extra space under the function row
 local NUMPAD_WIDTH = 830 -- the window's width while the numpad is drawn (keys stay full size)
 
@@ -103,13 +105,20 @@ local function MakeCap(f, board, info, x, y, unit)
     cap:SetPoint("TOPLEFT", board, "TOPLEFT", x, -y)
     local bg = cap:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints()
-    bg:SetColorTexture(0.1, 0.1, 0.12, 0.9)
+    cap.round = info.round -- a controller's round button: a tinted disc, not a square
+    if cap.round then
+        bg:SetTexture(CIRCLE)
+        bg:SetVertexColor(0.1, 0.1, 0.12, 0.9)
+    else
+        bg:SetColorTexture(0.1, 0.1, 0.12, 0.9)
+    end
     cap.bg = bg
     local icon = cap:CreateTexture(nil, "ARTWORK")
     icon:SetPoint("TOPLEFT", 2, -2)
     icon:SetPoint("BOTTOMRIGHT", -2, 2)
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     icon:Hide()
+    if cap.round and icon.SetMask then pcall(icon.SetMask, icon, CIRCLE) end
     cap.icon, cap.whole = icon, false
     local label = cap:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     label:SetPoint("TOPLEFT", 3, -2)
@@ -183,7 +192,12 @@ local function BuildBoard(page, f, layoutKey, numpad)
     local function RowY(r) return (r - 1) * u + (r > 1 and ROW_GAP or 0) end
     local layout = ns.LAYOUTS[layoutKey]
     if layout.pad then
-        -- A controller: its buttons where they sit on one; no mouse, no numpad.
+        -- A controller: its buttons on a drawing of one (media/controller.tga, drawn in these
+        -- units by tools/make_controller.py); no mouse, no numpad.
+        local drawing = board:CreateTexture(nil, "BACKGROUND")
+        drawing:SetAllPoints()
+        drawing:SetTexture(MEDIA .. "controller.tga")
+        board.drawing = drawing
         for _, info in ipairs(layout.keys) do Add(info, info.x * u, info.y * u) end
         board:SetSize(15.5 * u, 8 * u)
         board.caps, board.drawn = caps, drawn
@@ -224,6 +238,10 @@ end
 ---------------------------------------------------------------------------
 -- The page
 ---------------------------------------------------------------------------
+local function Tint(cap, r, g, b, a)
+    if cap.round then cap.bg:SetVertexColor(r, g, b, a) else cap.bg:SetColorTexture(r, g, b, a) end
+end
+
 local function RefreshCaps(page, layer, padMods)
     for _, cap in ipairs(page.board.caps) do
         -- A modifier: Shift, Ctrl or Alt, or the controller button set to act as one.
@@ -234,7 +252,7 @@ local function RefreshCaps(page, layer, padMods)
             cap.icon:Hide()
             -- A controller button acting as one says so (a keyboard's Shift key already does).
             cap.name:SetText(cap.mod and "" or (modAs == "SHIFT" and L["Shift"] or modAs == "CTRL" and L["Ctrl"] or L["Alt"]))
-            cap.bg:SetColorTexture(on and 0.45 or 0.1, on and 0.35 or 0.1, on and 0.1 or 0.12, 0.9)
+            Tint(cap, on and 0.45 or 0.1, on and 0.35 or 0.1, on and 0.1 or 0.12, 0.9)
             cap.fullKey, cap.command, cap.slot = nil, nil, nil
         elseif not cap.blank then
             local full = cap.full[layer]
@@ -257,7 +275,7 @@ local function RefreshCaps(page, layer, padMods)
                 cap.icon:Hide()
                 cap.name:SetText(slot and "" or (CommandName(command) or ""))
             end
-            cap.bg:SetColorTexture(0.1, 0.1, 0.12, (command ~= "") and 0.9 or 0.45)
+            Tint(cap, 0.1, 0.1, 0.12, (command ~= "") and 0.9 or 0.45)
         end
     end
 end

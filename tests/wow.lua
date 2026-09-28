@@ -201,6 +201,7 @@ function M.load(files)
     M.cvars = {}
     GetCVar = function(name) return M.cvars[name] end
     M.pad = false
+    IsUsingGamepad = function() return M.pad end
     C_GamePad = {
         IsEnabled = function() return M.pad end,
         GetActiveDeviceID = function() return M.pad and 1 or nil end,

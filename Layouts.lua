@@ -58,18 +58,19 @@ ns.LAYOUTS = {
 ns.LAYOUTS.pad = {
     name = L["Controller"], pad = true,
     keys = {
-        { "PADLTRIGGER", x = 1, y = 0, w = 2 }, { "PADRTRIGGER", x = 12, y = 0, w = 2 },
-        { "PADLSHOULDER", x = 1, y = 1, w = 2 }, { "PADRSHOULDER", x = 12, y = 1, w = 2 },
-        { "PADLSTICK", x = 2, y = 2.4 },
-        { "PADBACK", x = 6, y = 2 }, { "PADSYSTEM", x = 7, y = 1.6 }, { "PADFORWARD", x = 8, y = 2 },
-        { "PADSOCIAL", x = 7, y = 2.8 },
-        { "PAD4", x = 12, y = 2.4 }, { "PAD3", x = 11, y = 3.4 }, { "PAD2", x = 13, y = 3.4 }, { "PAD1", x = 12, y = 4.4 },
-        { "PAD5", x = 14.2, y = 2.4 }, { "PAD6", x = 14.2, y = 4.4 },
-        { "PADDUP", x = 5, y = 3.6 }, { "PADDLEFT", x = 4, y = 4.6 }, { "PADDRIGHT", x = 6, y = 4.6 },
-        { "PADDDOWN", x = 5, y = 5.6 },
-        { "PADRSTICK", x = 9.5, y = 4.8 },
-        { "PADPADDLE1", x = 3, y = 6.8 }, { "PADPADDLE2", x = 4, y = 6.8 },
-        { "PADPADDLE3", x = 10, y = 6.8 }, { "PADPADDLE4", x = 11, y = 6.8 },
+        { "PADLTRIGGER", x = 1.05, y = 0.2, w = 2 }, { "PADRTRIGGER", x = 12.05, y = 0.2, w = 2 },
+        { "PADLSHOULDER", x = 1.05, y = 1.25, w = 2 }, { "PADRSHOULDER", x = 12.05, y = 1.25, w = 2 },
+        { "PAD5", x = 9.75, y = 2.05, round = true }, { "PAD6", x = 9.75, y = 3.1, round = true },
+        { "PADLSTICK", x = 2.2, y = 2.5, round = true },
+        { "PADBACK", x = 5.6, y = 2.1, round = true }, { "PADSYSTEM", x = 7.0, y = 1.8, round = true },
+        { "PADFORWARD", x = 8.4, y = 2.1, round = true }, { "PADSOCIAL", x = 7.0, y = 2.95, round = true },
+        { "PAD4", x = 12.0, y = 2.0, round = true }, { "PAD3", x = 11.0, y = 2.95, round = true },
+        { "PAD2", x = 13.0, y = 2.95, round = true }, { "PAD1", x = 12.0, y = 3.9, round = true },
+        { "PADDUP", x = 4.6, y = 3.1, round = true }, { "PADDLEFT", x = 3.6, y = 4.1, round = true },
+        { "PADDRIGHT", x = 5.6, y = 4.1, round = true }, { "PADDDOWN", x = 4.6, y = 5.1, round = true },
+        { "PADRSTICK", x = 9.6, y = 4.3, round = true },
+        { "PADPADDLE1", x = 2.0, y = 6.0, round = true }, { "PADPADDLE2", x = 3.1, y = 6.5, round = true },
+        { "PADPADDLE3", x = 11.4, y = 6.5, round = true }, { "PADPADDLE4", x = 12.5, y = 6.0, round = true },
     },
 }
 ns.LAYOUT_ORDER = { "ansi", "iso", "pad" }
@@ -87,13 +88,14 @@ function ns.PadModifiers()
     return padMods
 end
 
--- True while a controller is in use.
+-- True while the player is playing with a controller (not merely one being set up:
+-- gamepad support on with a controller known was true while playing with the keyboard).
 local function PadActive()
-    if not (C_GamePad and C_GamePad.IsEnabled) then return false end
+    if not (C_GamePad and C_GamePad.IsEnabled and IsUsingGamepad) then return false end
     local ok, enabled = pcall(C_GamePad.IsEnabled)
     if not (ok and enabled) then return false end
-    local okID, id = pcall(C_GamePad.GetActiveDeviceID)
-    return okID and id ~= nil
+    local okUsing, using = pcall(IsUsingGamepad)
+    return okUsing and using and true or false
 end
 
 -- The navigation block and the numpad, drawn with the Numpad option. Keys are placed by
