@@ -1,5 +1,5 @@
--- Keystance Profiles tab: the character's profiles, each with Apply, Gear, Update, Rename,
--- Copy and Delete; New profile from the current setup; Undo; Restore original setup; and,
+-- Keystance Profiles tab: the character's profiles, each with its key (click, then press
+-- the key that switches to it), Apply, Gear, Update, Rename, Copy and Delete; New profile from the current setup; Undo; Restore original setup; and,
 -- while the character shares the account's keybinds, a note with the one-click switch.
 -- Anything that would change bars or keys is greyed out in combat. A profile's Gear button
 -- swaps the list for its gear editor (GearTab.lua) until Back.
@@ -7,10 +7,72 @@ local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
 
-local ipairs, pairs, CreateFrame = ipairs, pairs, CreateFrame
+local ipairs, pairs, pcall, CreateFrame = ipairs, pairs, pcall, CreateFrame
+local IsAltKeyDown, IsControlKeyDown, IsShiftKeyDown = IsAltKeyDown, IsControlKeyDown, IsShiftKeyDown
 
 local ROWS, ROW_HEIGHT = 6, 34
-local TEXT_WIDTH = 276 -- a row's text stops short of its buttons (cut off, never under them)
+local TEXT_WIDTH = 190 -- a row's text stops short of its buttons (cut off, never under them)
+local MODIFIER_KEYS = { LSHIFT = true, RSHIFT = true, LCTRL = true, RCTRL = true, LALT = true, RALT = true,
+    LMETA = true, RMETA = true, UNKNOWN = true }
+
+---------------------------------------------------------------------------
+-- Setting a profile's key: click its key button, press a key (Esc cancels)
+---------------------------------------------------------------------------
+-- The pressed key with the modifiers held, in the game's order ("ALT-CTRL-SHIFT-Q").
+local function FullKey(key)
+    return (IsAltKeyDown() and "ALT-" or "") .. (IsControlKeyDown() and "CTRL-" or "")
+        .. (IsShiftKeyDown() and "SHIFT-" or "") .. key
+end
+
+local function StopCapture(page)
+    if not page.capturing then return end
+    page.capturing = nil
+    page.catcher:EnableKeyboard(false)
+    if page.catcher.EnableGamePadButton then pcall(page.catcher.EnableGamePadButton, page.catcher, false) end
+    ns.RefreshWindow()
+end
+
+local function StartCapture(page, name)
+    if ns.InCombat() then return ns.Print(L["Not in combat: try again when combat ends."]) end
+    page.capturing = name
+    page.catcher:EnableKeyboard(true)
+    if page.catcher.EnableGamePadButton then pcall(page.catcher.EnableGamePadButton, page.catcher, true) end
+    ns.RefreshWindow()
+end
+
+local function Pressed(page, key)
+    local name = page.capturing
+    StopCapture(page)
+    if name then ns.SetProfileKey(name, FullKey(key)) end
+end
+
+-- With the account's shared keybinds, a key set here would be every character's: the
+-- character gets its own keybinds first (owner's decision: ask).
+local capturePage
+local function AskCapture(page, name)
+    if not ns.SharedKeybinds() then return StartCapture(page, name) end
+    capturePage = page
+    if not StaticPopupDialogs.KEYSTANCE_PROFILE_KEY then
+        StaticPopupDialogs.KEYSTANCE_PROFILE_KEY = {
+            text = L["Your keybinds are shared by all your characters, so a key set here would change them for everyone.\n\nGive this character its own keybinds first? Nothing changes on screen, and your other characters keep theirs."],
+            button1 = L["Own keybinds"],
+            button2 = CANCEL or "Cancel",
+            OnAccept = function(_, data)
+                ns.UseOwnKeybinds()
+                if capturePage then StartCapture(capturePage, data) end
+            end,
+            timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+        }
+    end
+    StaticPopup_Show("KEYSTANCE_PROFILE_KEY", nil, nil, name)
+end
+
+local function KeyTooltip(b)
+    GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(L["Key for %s"]:format(b.profile or ""))
+    GameTooltip:AddLine(L["Click, then press the key (with Shift, Ctrl or Alt if you like) that switches to this profile. Esc cancels; right-click takes the key off."], 1, 1, 1, true)
+    GameTooltip:Show()
+end
 
 -- Apply from the tab: says what will change first (the shared-keybinds question covers it).
 function ns.ConfirmApply(name)
@@ -85,6 +147,21 @@ local function MakeRow(page, f, i)
     row.update = RowButton(L["Update"], 64, ns.ConfirmUpdate)
     row.gear = RowButton(L["Gear"], 56, function(name) ns.ShowGear(page, name) end)
     row.apply = RowButton(L["Apply"], 64, ns.ConfirmApply)
+    row.key = RowButton("", 84, function() end)
+    row.key:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    row.key:SetScript("OnClick", function(self, button)
+        if button == "RightButton" then
+            StopCapture(page)
+            return ns.ClearProfileKey(row.profile)
+        end
+        if page.capturing == row.profile then return StopCapture(page) end
+        AskCapture(page, row.profile)
+    end)
+    row.key:SetScript("OnEnter", function(self)
+        self.profile = row.profile
+        KeyTooltip(self)
+    end)
+    row.key:SetScript("OnLeave", function() GameTooltip:Hide() end)
     row.update:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine(L["Update"])
@@ -92,15 +169,16 @@ local function MakeRow(page, f, i)
         GameTooltip:Show()
     end)
     row.update:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    for _, b in ipairs({ row.delete, row.copy, row.rename, row.update, row.gear, row.apply }) do ns.SkinButton(b) end
+    for _, b in ipairs({ row.delete, row.copy, row.rename, row.update, row.gear, row.apply, row.key }) do
+        ns.SkinButton(b)
+    end
     ns.SkinText(name)
     ns.SkinText(detail)
     return row
 end
 
--- A grey note after a profile's name: its gear ("ItemRack: Tank" or "12 items") and the key
--- that switches to it ("key F2"), or "".
-local function Note(p, i)
+-- A grey note after a profile's name: its gear ("ItemRack: Tank" or "12 items"), or "".
+local function Note(p)
     local parts = {}
     local kind, data = ns.ProfileGear(p)
     if kind == "itemrack" then
@@ -110,8 +188,6 @@ local function Note(p, i)
         for _ in pairs(data) do n = n + 1 end
         parts[#parts + 1] = L["%d items"]:format(n)
     end
-    local key = ns.ProfileKey(i)
-    if key then parts[#parts + 1] = L["key %s"]:format(key) end
     if #parts == 0 then return "" end
     return "  |cff9d9d9d" .. table.concat(parts, "  ·  ") .. "|r"
 end
@@ -156,9 +232,13 @@ local function Refresh(page)
             end
             local p = c.profiles[name]
             row.profile = name
-            row.name:SetText((name == c.active and ("|cff55ff55" .. name .. "|r") or name) .. Note(p, i))
+            row.name:SetText((name == c.active and ("|cff55ff55" .. name .. "|r") or name) .. Note(p))
+            local key = ns.ProfileKey(name)
+            row.key:SetText(page.capturing == name and ("|cff66ccff" .. L["Press a key"] .. "|r")
+                or key or ("|cff9d9d9d" .. L["Set key"] .. "|r"))
+            row.key:SetEnabled(not combat)
             row.detail:SetText(L["%d slots, %d keys, saved %s"]:format(p.nSlots or 0, p.nBinds or 0,
-                date("%d %b %Y", p.updated or p.created or 0)))
+                date("%d %b", p.updated or p.created or 0)))
             row.apply:SetEnabled(not combat)
             row:Show()
         elseif row then
@@ -215,6 +295,19 @@ local function Build(page, f)
     local more = Text(f, list, "GameFontDisableSmall")
     more:SetPoint("TOPLEFT", page, "TOPLEFT", 24, -112 - ROWS * ROW_HEIGHT - 6)
     page.more = more
+    -- Takes the key press while a profile's key is being set.
+    local catcher = CreateFrame("Frame", nil, list)
+    catcher:SetAllPoints()
+    catcher:EnableKeyboard(false)
+    catcher:SetScript("OnKeyDown", function(_, key)
+        if key == "ESCAPE" then return StopCapture(page) end
+        if MODIFIER_KEYS[key] then return end
+        Pressed(page, key)
+    end)
+    catcher:SetScript("OnGamePadButtonDown", function(_, button) Pressed(page, button) end)
+    page.catcher = catcher
+    page:HookScript("OnHide", function() StopCapture(page) end)
+    ns.On("PLAYER_REGEN_DISABLED", function() StopCapture(page) end)
     page.Refresh = Refresh
 end
 

@@ -1,6 +1,6 @@
--- Tests: keybinds that switch profiles (Bindings.xml).
+-- Tests: keys that switch profiles (Bindings.xml), set from the Profiles tab.
 
--- Three profiles, Holy, Prot and Ret, differing in slot 1.
+-- Three profiles, Holy, Prot and Ret, differing in slot 1; Ret in use.
 local function threeProfiles()
     local c, ns = profileLogin()
     for _, p in ipairs({ { "Ret", 1866 }, { "Prot", 647 }, { "Holy", 19834 } }) do
@@ -12,6 +12,21 @@ local function threeProfiles()
     return c, ns
 end
 
+-- The row for a profile on the Profiles tab.
+local function rowFor(page, name)
+    for _, row in ipairs(page.rows) do
+        if row.profile == name and row:IsShown() then return row end
+    end
+end
+
+-- Sets a profile's key from its row: click the key button, press `key` (with `mods`).
+local function setKey(page, name, key, mods)
+    click(rowFor(page, name).key)
+    for m in pairs(mods or {}) do wow.mods[m] = true end
+    page.catcher.scripts.OnKeyDown(page.catcher, key)
+    wow.mods = {}
+end
+
 -- The binding commands and the Lua each runs, from Bindings.xml.
 local function bindings()
     local list = {}
@@ -21,15 +36,117 @@ local function bindings()
     return list
 end
 
-test("Profile 1-6 keybinds apply profiles in name order, as the Profiles tab lists them", function()
+test("a profile's key is set from its row: click, press a key, and that key switches to it", function()
     local c, ns = threeProfiles()
-    Keystance_Binding(2)
+    local page = profilesPage()
+    local row = rowFor(page, "Prot")
+    assert(row.key.text:find("Set key", 1, true), row.key.text)
+    click(row.key)
+    assert(row.key.text:find("Press a key", 1, true), row.key.text)
+    eq(page.catcher.keyboard, true, "the keyboard goes to Keystance while it waits")
+    page.catcher.scripts.OnKeyDown(page.catcher, "LSHIFT") -- a modifier alone is waited past
+    eq(page.capturing, "Prot")
+    wow.mods.shift = true
+    page.catcher.scripts.OnKeyDown(page.catcher, "F2")
+    wow.mods = {}
+    eq(page.capturing, nil)
+    eq(page.catcher.keyboard, false)
+    eq(GetBindingAction("SHIFT-F2"), "KEYSTANCE_PROFILE1")
+    eq(row.key.text, "SHIFT-F2")
+    assert(printed():find("Prot is now on SHIFT-F2.", 1, true), printed())
+    Keystance_Binding(1)
     eq(c.active, "Prot")
     eq(slotId(1), 647)
+end)
+
+test("a profile keeps its key when profiles are added, renamed or deleted", function()
+    local c, ns = threeProfiles()
+    local page = profilesPage()
+    setKey(page, "Ret", "F3")
+    ns.SaveProfile("Arms") -- sorts first; Ret's key doesn't move
+    eq(ns.ProfileKey("Ret"), "F3")
+    eq(ns.ProfileKey("Arms"), nil)
+    ns.RenameProfile("Ret", "Retri")
+    eq(ns.ProfileKey("Retri"), "F3")
+    eq(BINDING_NAME_KEYSTANCE_PROFILE1, "Profile 1: Retri")
+    ns.DeleteProfile("Retri")
+    eq(BINDING_NAME_KEYSTANCE_PROFILE1, "Profile 1")
     Keystance_Binding(1)
-    eq(c.active, "Holy")
-    Keystance_Binding(5)
-    assert(printed():find("No profile 5 yet", 1, true), printed())
+    assert(printed():find("No profile is on this key yet", 1, true))
+    -- The freed keybind goes to the next profile given a key, without the old key.
+    setKey(page, "Holy", "F4")
+    eq(ns.ProfileSlot("Holy"), 1)
+    eq(GetBindingAction("F3"), "", "the deleted profile's key doesn't carry over")
+    eq(GetBindingAction("F4"), "KEYSTANCE_PROFILE1")
+end)
+
+test("a new key replaces the profile's old one; a taken key says what it was; Undo puts it back", function()
+    local c, ns = threeProfiles()
+    local page = profilesPage()
+    wow.bindings.F5 = "TOGGLEAUTORUN"
+    setKey(page, "Prot", "F6")
+    setKey(page, "Prot", "F5")
+    eq(GetBindingAction("F6"), "", "one key per profile")
+    eq(GetBindingAction("F5"), "KEYSTANCE_PROFILE1")
+    assert(printed():find("(F5 was Toggle Autorun.)", 1, true), printed())
+    ns.Undo()
+    eq(GetBindingAction("F5"), "TOGGLEAUTORUN")
+    eq(GetBindingAction("F6"), "KEYSTANCE_PROFILE1")
+end)
+
+test("right-click takes a profile's key off; Esc stops waiting without changing anything", function()
+    local c, ns = threeProfiles()
+    local page = profilesPage()
+    setKey(page, "Prot", "F2")
+    click(rowFor(page, "Prot").key)
+    page.catcher.scripts.OnKeyDown(page.catcher, "ESCAPE")
+    eq(page.capturing, nil)
+    eq(GetBindingAction("F2"), "KEYSTANCE_PROFILE1")
+    click(rowFor(page, "Prot").key, "RightButton")
+    eq(GetBindingAction("F2"), "")
+    eq(ns.ProfileSlot("Prot"), nil)
+    assert(rowFor(page, "Prot").key.text:find("Set key", 1, true))
+end)
+
+test("in combat a profile's key can't be set, and nothing is attempted", function()
+    local c, ns = threeProfiles()
+    local page = profilesPage()
+    wow.enterCombat()
+    eq(ns.SetProfileKey("Prot", "F2"), false)
+    click(rowFor(page, "Prot").key)
+    eq(page.capturing, nil)
+    eq(#wow.blocked, 0)
+    wow.leaveCombat()
+end)
+
+test("with shared keybinds, setting a key asks to give the character its own first", function()
+    local c, ns = threeProfiles()
+    wow.bindingSet = 1
+    local page = profilesPage()
+    click(rowFor(page, "Prot").key)
+    eq(wow.popup.which, "KEYSTANCE_PROFILE_KEY")
+    eq(page.capturing, nil)
+    StaticPopupDialogs.KEYSTANCE_PROFILE_KEY.OnAccept(nil, wow.popup.data)
+    eq(wow.bindingSet, 2)
+    eq(page.capturing, "Prot")
+end)
+
+test("six profiles can have keys; a seventh is told why not", function()
+    local c, ns = threeProfiles()
+    for _, name in ipairs({ "A", "B", "C", "D" }) do ns.SaveProfile(name) end
+    for i, name in ipairs({ "A", "B", "C", "D", "Holy", "Prot" }) do eq(ns.SetProfileKey(name, "F" .. i), true) end
+    eq(ns.SetProfileKey("Ret", "F7"), false)
+    assert(printed():find("Up to 6 profiles can have keys", 1, true), printed())
+end)
+
+test("keys bound before profiles owned them stay with the profiles they pointed at", function()
+    local c, ns = threeProfiles()
+    c.keySlots = nil -- as saved before this change: Profile N was the Nth in name order
+    wow.bindings.F2 = "KEYSTANCE_PROFILE2"
+    ns.NameBindings()
+    eq(c.keySlots[2], "Prot")
+    eq(c.keySlots[1], nil, "no key, no owner")
+    eq(ns.ProfileKey("Prot"), "F2")
 end)
 
 test("Next profile goes round the profiles in name order", function()
@@ -45,45 +162,25 @@ end)
 
 test("a profile keybind in combat waits for combat to end", function()
     local c, ns = threeProfiles()
+    ns.SetProfileKey("Prot", "F2")
     wow.enterCombat()
-    Keystance_Binding(2)
+    Keystance_Binding(1)
     eq(slotId(1), 1866)
     eq(#wow.blocked, 0)
     wow.leaveCombat()
     eq(slotId(1), 647)
 end)
 
-test("Key Bindings names each numbered keybind after its profile, and follows changes", function()
-    local c, ns = threeProfiles()
-    eq(BINDING_HEADER_KEYSTANCE, "Keystance")
-    eq(BINDING_NAME_KEYSTANCE_PROFILE1, "Profile 1: Holy")
-    eq(BINDING_NAME_KEYSTANCE_PROFILE3, "Profile 3: Ret")
-    eq(BINDING_NAME_KEYSTANCE_PROFILE4, "Profile 4")
-    ns.RenameProfile("Holy", "Tank")
-    eq(BINDING_NAME_KEYSTANCE_PROFILE1, "Profile 1: Prot")
-    eq(BINDING_NAME_KEYSTANCE_PROFILE3, "Profile 3: Tank")
-    ns.DeleteProfile("Tank")
-    eq(BINDING_NAME_KEYSTANCE_PROFILE3, "Profile 3")
-end)
-
 test("every keybind in Bindings.xml has a name and runs", function()
     local c, ns = threeProfiles()
+    eq(BINDING_HEADER_KEYSTANCE, "Keystance")
     local list = bindings()
     eq(#list, 8)
     for _, b in ipairs(list) do
         assert(_G["BINDING_NAME_" .. b[1]], "no name for " .. b[1])
         assert(loadstring(b[2]))()
     end
-    eq(c.active, "Ret", "the last profile keybind (Profile 6) had no profile; Next went round to Ret")
     eq(KeystanceFrame:IsShown(), true, "Open Keystance opened the window")
-end)
-
-test("a profile's row shows the key that switches to it", function()
-    local c, ns = threeProfiles()
-    wow.bindings.F2 = "KEYSTANCE_PROFILE2"
-    local page = profilesPage()
-    assert(page.rows[2].name.text:find("key F2", 1, true), page.rows[2].name.text)
-    assert(not page.rows[1].name.text:find("key", 1, true))
 end)
 
 test("the keybinds file ships with the addon and the dev copy", function()

@@ -15,6 +15,7 @@ local L = ns.L
 
 local pairs, ipairs, type, time, next = pairs, ipairs, type, time, next
 local GetCursorInfo = GetCursorInfo
+local GetBindingAction, GetBindingKey, GetBindingText = GetBindingAction, GetBindingKey, GetBindingText
 
 local MAX_NAME = 24
 
@@ -103,7 +104,7 @@ function ns.RenameProfile(old, new)
     for _, rule in ipairs(c.rules) do
         if rule.profile == key then rule.profile = clean end -- rules follow the rename
     end
-    ns.NameBindings()
+    ns.ProfileRenamed(key, clean) -- and its key
     ns.RefreshWindow()
     return clean
 end
@@ -159,7 +160,7 @@ function ns.DeleteProfile(name)
     if not key then return nil, L["No profile called %s."]:format(tostring(name)) end
     c.profiles[key] = nil
     if c.active == key then c.active = nil end
-    ns.NameBindings()
+    ns.ProfileDeleted(key)
     ns.RefreshWindow()
     return key
 end
@@ -292,9 +293,50 @@ end
 
 ---------------------------------------------------------------------------
 -- Keybinds (Bindings.xml, under Keystance in the game's Key Bindings): Next profile,
--- Profile 1-6 (profiles in name order, as on the Profiles tab) and Open Keystance.
+-- Profile 1-6 and Open Keystance. Each Profile N keybind belongs to one profile
+-- (c.keySlots[N] = name), so a profile keeps its key when others are added or renamed.
+-- A key is set from the profile's row (or the spell panel), or in Key Bindings.
 ---------------------------------------------------------------------------
 local BINDABLE = 6
+
+local function SlotCommand(n) return "KEYSTANCE_PROFILE" .. n end
+ns.ProfileSlotCommand = SlotCommand
+
+-- The character's keybind slots: { [N] = profile name }. Made at first use from the keys
+-- already bound, which followed name order before (keeps what the player set up).
+local function Slots()
+    local c = Char()
+    if not c then return {} end
+    if not c.keySlots then
+        c.keySlots = {}
+        local names = ns.ProfileNames()
+        for n = 1, BINDABLE do
+            if names[n] and GetBindingKey(SlotCommand(n)) then c.keySlots[n] = names[n] end
+        end
+    end
+    return c.keySlots
+end
+ns.ProfileKeySlots = Slots
+
+-- The keybind slot a profile has, or nil.
+function ns.ProfileSlot(name)
+    for n, owner in pairs(Slots()) do
+        if owner == name then return n end
+    end
+end
+
+-- The profile's slot, giving it a free one if it has none (nil when all six are taken).
+function ns.AssignProfileSlot(name)
+    local have = ns.ProfileSlot(name)
+    if have then return have end
+    local slots = Slots()
+    for n = 1, BINDABLE do
+        if not slots[n] then
+            slots[n] = name
+            return n, true
+        end
+    end
+end
 
 -- Applies the profile after the one in use (in name order, wrapping round).
 function ns.NextProfile()
@@ -308,37 +350,124 @@ function ns.NextProfile()
 end
 
 -- Names the numbered keybinds after their profiles ("Profile 1: Prot") in Key Bindings.
-local function BindingLabel(i, names)
-    return names[i] and L["Profile %d: %s"]:format(i, names[i]) or L["Profile %d"]:format(i)
+local function BindingLabel(n, slots)
+    return slots[n] and L["Profile %d: %s"]:format(n, slots[n]) or L["Profile %d"]:format(n)
 end
 local function NameBindings()
-    local names = ns.ProfileNames()
+    local slots = Char() and Slots() or {}
     BINDING_NAME_KEYSTANCE_PROFILE1, BINDING_NAME_KEYSTANCE_PROFILE2, BINDING_NAME_KEYSTANCE_PROFILE3 =
-        BindingLabel(1, names), BindingLabel(2, names), BindingLabel(3, names)
+        BindingLabel(1, slots), BindingLabel(2, slots), BindingLabel(3, slots)
     BINDING_NAME_KEYSTANCE_PROFILE4, BINDING_NAME_KEYSTANCE_PROFILE5, BINDING_NAME_KEYSTANCE_PROFILE6 =
-        BindingLabel(4, names), BindingLabel(5, names), BindingLabel(6, names)
+        BindingLabel(4, slots), BindingLabel(5, slots), BindingLabel(6, slots)
 end
 ns.NameBindings = NameBindings
 BINDING_HEADER_KEYSTANCE = "Keystance"
 BINDING_NAME_KEYSTANCE_NEXT = L["Next profile"]
 BINDING_NAME_KEYSTANCE_TOGGLE = L["Open Keystance"]
 NameBindings()
-ns.On("PLAYER_LOGIN", NameBindings)
 
--- The key bound to Profile i (for the Profiles tab), or nil.
-function ns.ProfileKey(i)
-    if i > BINDABLE then return nil end
-    local key = GetBindingKey("KEYSTANCE_PROFILE" .. i)
+-- Keeps the slots in step with the profiles (a rename carries its slot; a deleted
+-- profile's slot is freed).
+function ns.ProfileRenamed(old, new)
+    local n = ns.ProfileSlot(old)
+    if n then Slots()[n] = new end
+    NameBindings()
+end
+function ns.ProfileDeleted(name)
+    local n = ns.ProfileSlot(name)
+    if n then Slots()[n] = nil end
+    NameBindings()
+end
+
+-- The key that switches to a profile, as the game shows it ("F2"), or nil.
+function ns.ProfileKey(name)
+    local n = ns.ProfileSlot(name)
+    local key = n and GetBindingKey(SlotCommand(n))
     return key and GetBindingText(key) or nil
 end
+
+-- Makes `key` ("SHIFT-F2") the one key that switches to the profile, undoably. A key doing
+-- something else is taken (and said); a slot reused from a deleted profile loses its old
+-- keys. Not in combat.
+function ns.SetProfileKey(name, key)
+    local profile = ns.FindProfile(name)
+    if not profile then return false end
+    if ns.InCombat() then
+        Print(L["Not in combat: try again when combat ends."])
+        return false
+    end
+    local n, fresh = ns.AssignProfileSlot(profile)
+    if not n then
+        Print(L["Up to %d profiles can have keys. Take one off another profile first."]:format(BINDABLE))
+        return false
+    end
+    local command = SlotCommand(n)
+    local was = GetBindingAction(key)
+    if was == command then
+        Print(L["%s is already on %s."]:format(profile, key))
+        return false
+    end
+    if ns.SharedKeybinds() then SaveBindings(2) end -- this character's own keybinds first
+    local before = ns.CurrentState()
+    local state = ns.CurrentState()
+    for cmd, keys in pairs(state.binds) do
+        for i = #keys, 1, -1 do
+            if keys[i] == key then table.remove(keys, i) end
+        end
+        if #keys == 0 then state.binds[cmd] = nil end
+    end
+    state.binds[command] = { key }
+    local ok, why = ns.ApplyState(state, { scope = "all" })
+    if not ok then
+        if fresh then Slots()[n] = nil end
+        Print(L["Nothing changed: %s."]:format(why))
+        return false
+    end
+    ns.RecordChange(before, L["putting %s on %s"]:format(profile, key))
+    NameBindings()
+    Print(L["%s is now on %s."]:format(profile, key))
+    if was and was ~= "" then Print(L["(%s was %s.)"]:format(key, ns.CommandName(was))) end
+    ns.RefreshWindow()
+    return true
+end
+
+-- Takes a profile's key off (undoably) and frees its slot. Not in combat.
+function ns.ClearProfileKey(name)
+    local profile = ns.FindProfile(name)
+    local n = profile and ns.ProfileSlot(profile)
+    if not n then return false end
+    if ns.InCombat() then
+        Print(L["Not in combat: try again when combat ends."])
+        return false
+    end
+    local before = ns.CurrentState()
+    local state = ns.CurrentState()
+    if state.binds[SlotCommand(n)] then
+        if ns.SharedKeybinds() then SaveBindings(2) end
+        state.binds[SlotCommand(n)] = nil
+        local ok, why = ns.ApplyState(state, { scope = "all" })
+        if not ok then
+            Print(L["Nothing changed: %s."]:format(why))
+            return false
+        end
+        ns.RecordChange(before, L["taking %s's key off"]:format(profile))
+    end
+    Slots()[n] = nil
+    NameBindings()
+    Print(L["%s has no key now."]:format(profile))
+    ns.RefreshWindow()
+    return true
+end
+
+ns.On("PLAYER_LOGIN", NameBindings)
 
 -- What the keybinds run (Bindings.xml).
 function Keystance_Binding(what)
     if what == "next" then return ns.NextProfile() end
     if what == "window" then return ns.ToggleWindow() end
-    local name = ns.ProfileNames()[what]
-    if not name then
-        return Print(L["No profile %d yet: profiles are numbered in name order on the Profiles tab."]:format(what))
+    local name = Slots()[what]
+    if not (name and ns.FindProfile(name)) then
+        return Print(L["No profile is on this key yet: set one from the Profiles tab."])
     end
     ns.ApplyProfile(name)
 end
