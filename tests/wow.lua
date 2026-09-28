@@ -421,7 +421,8 @@ function M.load(files)
     if not M.withoutSettings then
         Settings = {
             RegisterCanvasLayoutCategory = function(frame, name)
-                frame:Hide() -- a registered canvas stays hidden until its page is opened
+                -- The game doesn't hide the frame: a new frame counts as shown, so showing
+                -- it later fires no OnShow unless the addon hid it (Alts Forever, 2026-09-28).
                 return { frame = frame, name = name, GetID = function() return "cat:" .. name end }
             end,
             RegisterAddOnCategory = function(cat) M.settingsCategories[#M.settingsCategories + 1] = cat end,

@@ -178,6 +178,9 @@ end
 local function RegisterCanvas()
     if category or not (Settings and Settings.RegisterCanvasLayoutCategory and Settings.RegisterAddOnCategory) then return end
     local f = CreateFrame("Frame", "KeystanceOptionsPanel")
+    -- Hidden until the Options window shows it: a new frame counts as shown, so without this
+    -- the first visit fired no OnShow and the page stayed blank (found in Alts Forever).
+    f:Hide()
     f:SetScript("OnShow", function(self)
         if not self.built then
             self.built = true
