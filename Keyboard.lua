@@ -110,7 +110,7 @@ local function MakeCap(f, board, info, x, y, unit)
     icon:SetPoint("BOTTOMRIGHT", -2, 2)
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     icon:Hide()
-    cap.icon = icon
+    cap.icon, cap.whole = icon, false
     local label = cap:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     label:SetPoint("TOPLEFT", 3, -2)
     label:SetText(ns.KeyLabel(info[1]))
@@ -242,8 +242,15 @@ local function RefreshCaps(page, layer, padMods)
             local slot = ns.CommandSlot(command)
             local texture = slot and GetActionTexture(slot)
             cap.fullKey, cap.command, cap.slot = full, command, slot
-            if texture then
-                cap.icon:SetTexture(texture)
+            -- A raid marker shows its own picture, uncropped (spell icons have a border to trim).
+            local picture = not texture and ns.CommandIcon(command)
+            if texture or picture then
+                local whole = picture and true or false
+                if cap.whole ~= whole then -- only when it changes: redraws stay allocation-free
+                    cap.whole = whole
+                    if whole then cap.icon:SetTexCoord(0, 1, 0, 1) else cap.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+                end
+                cap.icon:SetTexture(texture or picture)
                 cap.icon:Show()
                 cap.name:SetText("")
             else
@@ -265,7 +272,8 @@ local function Part(key, command)
     end
     local part = byCommand[command]
     if not part then
-        part = KeyName(key) .. ": " .. (CommandName(command) or command)
+        local picture = ns.CommandIcon(command)
+        part = KeyName(key) .. ": " .. (picture and ("|T" .. picture .. ":14|t ") or "") .. (CommandName(command) or command)
         byCommand[command] = part
     end
     return part
@@ -287,6 +295,7 @@ local function RefreshOthers(page, layer)
     page.others:SetText(n > 0 and (L["Also bound: "] .. table.concat(otherParts, ", ")) or "")
 end
 
+local padButton = {} -- [SHIFT/CTRL/ALT] = the controller button acting as it (reused)
 local function Refresh(page)
     local key = ns.LayoutKey(ns.db.settings.layout)
     local pad = ns.LAYOUTS[key].pad
@@ -308,8 +317,8 @@ local function Refresh(page)
     if numpad then page.numpad:LockHighlight() else page.numpad:UnlockHighlight() end
     -- On a controller, the layer buttons say which controller button is Shift, Ctrl or Alt.
     local padMods = pad and ns.PadModifiers() or nil
-    local padButton = {}
-    for button, mod in pairs(padMods or {}) do padButton[mod] = button end
+    for k in pairs(padButton) do padButton[k] = nil end
+    if padMods then for button, mod in pairs(padMods) do padButton[mod] = button end end
     page.numpad:SetText((numpad and "|cffffd100" or "") .. L["Numpad"] .. (numpad and "|r" or ""))
     local layer, live = CurrentLayer()
     for _, t in ipairs(page.toggles) do

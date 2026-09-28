@@ -89,6 +89,21 @@ function ns.CommandSlot(cmd)
     return nil
 end
 
+-- A picture for a binding command that isn't an action: the raid markers' own icons.
+-- Returns the texture and whether it's a full picture (not an icon to crop).
+local MARKER_ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_"
+local markerIcons = {}
+function ns.CommandIcon(command)
+    if type(command) ~= "string" then return nil end
+    local icon = markerIcons[command]
+    if icon == nil then
+        local n = command:match("^RAIDTARGET(%d)$")
+        icon = n and (MARKER_ICON .. n) or (command == "RAIDTARGETNONE" and "Interface\\Buttons\\UI-GroupLoot-Pass-Up") or false
+        markerIcons[command] = icon
+    end
+    return icon or nil
+end
+
 -- A slot's action as saved data, or nil for an empty slot:
 --   { t = "spell", id = 19834, name = "Blessing of Might", rank = "Rank 2" }
 --   { t = "macro", name = "Attack", body = "...", icon = 132349, perChar = true, spell = 6603 }

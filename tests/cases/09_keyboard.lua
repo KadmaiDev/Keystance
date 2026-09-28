@@ -190,3 +190,16 @@ test("Automatic shows the controller while one is in use", function()
     local page = keyboardPage()
     eq(page.layoutKey, "pad")
 end)
+
+test("a key bound to a raid marker shows the marker's picture, uncropped", function()
+    loginWithSetup(nil)
+    wow.bindings.E = "RAIDTARGET8"
+    wow.bindings.R = "ACTIONBUTTON1"
+    local page = keyboardPage()
+    local e = capFor(page, "E")
+    eq(e.icon:IsShown(), true)
+    assert(e.icon.texture:find("UI%-RaidTargetingIcon_8"), e.icon.texture)
+    eq(e.name.text, "", "the picture instead of the words")
+    eq(e.icon.texCoord[2], 1, "the whole picture")
+    eq(capFor(page, "R").icon.texCoord[1], 0.08, "a spell icon keeps its border trimmed")
+end)

@@ -139,6 +139,7 @@ function M.load(files)
     function frameMethods:SetSize(w, h) self.width, self.height = w, h end
     function frameMethods:SetWidth(w) self.width = w end
     function frameMethods:SetAlpha(a) self.alpha = a end
+    function frameMethods:SetTexCoord(...) self.texCoord = { ... } end
     function frameMethods:IsProtected() return false end
     function frameMethods:GetAlpha() return self.alpha or 1 end
     function frameMethods:GetID() return self.id end
