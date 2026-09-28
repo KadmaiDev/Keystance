@@ -104,3 +104,15 @@ test("if the game refuses to open the Options page, the error is reported, not h
     eq(#wow.errors, 1)
     assert(tostring(wow.errors[1]):find("refused", 1, true))
 end)
+
+test("the Options page's help line sits under its last button, not behind one", function()
+    loginWithSetup(nil)
+    wow.bindingSet = 1
+    Settings.OpenToCategory("cat:Keystance")
+    local f = KeystanceOptionsPanel
+    eq(f.help.point[2], f.ownKeysNote, "under the own-keybinds note while that shows")
+    f:Hide()
+    wow.bindingSet = 2
+    f:Show()
+    eq(f.help.point[2], f.restore, "under Restore when it doesn't")
+end)

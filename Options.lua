@@ -57,6 +57,11 @@ local function RefreshPage(page)
     page.ownKeys:SetShown(shared)
     page.ownKeysNote:SetShown(shared)
     page.ownKeys:SetEnabled(not combat)
+    if page.help then
+        -- Under the last thing shown, never behind a button.
+        page.help:ClearAllPoints()
+        page.help:SetPoint("TOPLEFT", shared and page.ownKeysNote or page.restore, "BOTTOMLEFT", 0, -16)
+    end
 end
 
 local function RefreshAll()
@@ -189,8 +194,7 @@ local function BuildCanvas(f)
     open:SetScript("OnClick", OpenWindowFromOptions)
     f.open = open
     ns.BuildSettings(f, f, open)
-    local help = Text(f, f, "GameFontHighlightSmall", L["Type /kst help for every command."])
-    help:SetPoint("TOPLEFT", f.snapshot, "BOTTOMLEFT", 0, -16)
+    f.help = Text(f, f, "GameFontHighlightSmall", L["Type /kst help for every command."]) -- placed by RefreshPage
     for _, b in ipairs(f.buttons) do ns.SkinButton(b) end
     for _, fs in ipairs(f.texts) do ns.SkinText(fs) end
 end
