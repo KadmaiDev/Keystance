@@ -27,7 +27,12 @@ local function LayerIndex(shift, ctrl, alt)
     return 1 + (shift and 1 or 0) + (ctrl and 2 or 0) + (alt and 4 or 0)
 end
 
-local toggles = { shift = false, ctrl = false, alt = false }
+-- The Shift, Ctrl and Alt toggles, kept apart for the keyboard and the controller (the
+-- owner's request: a layer picked on one doesn't carry over to the other). `toggles` is the
+-- shown view's set.
+local keyToggles = { shift = false, ctrl = false, alt = false }
+local padToggles = { shift = false, ctrl = false, alt = false }
+local toggles = keyToggles
 
 -- The layer shown: the real modifiers while any is held, else the toggles.
 local function CurrentLayer()
@@ -419,6 +424,7 @@ local function Refresh(page)
     local key = ns.LayoutKey(ns.db.settings.layout)
     local pad = ns.LAYOUTS[key].pad
     local numpad = not pad and ns.db.settings.numpad and true or false
+    toggles = pad and padToggles or keyToggles
     local boardKey = key .. (numpad and "+numpad" or "")
     if page.boardKey ~= boardKey then
         if page.board then page.board:Hide() end

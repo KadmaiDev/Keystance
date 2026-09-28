@@ -283,3 +283,20 @@ test("the controller drawing and round cap ship with the addon, in a format the 
         eq(header:byte(17), 32, file .. " 32-bit")
     end
 end)
+
+test("a layer toggled on the controller doesn't carry over to the keyboard, nor back", function()
+    loginWithSetup(nil)
+    local page = keyboardPage()
+    click(choice(page.layoutRow, "Controller"))
+    click(page.toggles[1]) -- Shift, on the controller
+    eq(page.toggles[1].highlightLocked, true)
+    eq(capFor(page, "PAD1").fullKey, "SHIFT-PAD1")
+    click(choice(page.layoutRow, "US"))
+    eq(page.toggles[1].highlightLocked, false, "the keyboard's Shift is still off")
+    eq(capFor(page, "Q").fullKey, "Q")
+    click(page.toggles[3]) -- Alt, on the keyboard
+    click(choice(page.layoutRow, "Controller"))
+    eq(page.toggles[1].highlightLocked, true, "the controller kept its Shift")
+    eq(page.toggles[3].highlightLocked, false, "and didn't get the keyboard's Alt")
+    eq(capFor(page, "PAD1").fullKey, "SHIFT-PAD1")
+end)
