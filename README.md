@@ -12,17 +12,23 @@ A keybind and action bar manager for **World of Warcraft: Forever**, by **Kadmai
 - Finger-friendly suggestions: common abilities go on keys close to your movement keys, so you're not stretching for them.
 - Looks at home with the default UI, EllesmereUI or ElvUI.
 
-Status: early development, not released yet. So far you can see your keybinds on an on-screen keyboard (with Shift, Ctrl and Alt layers) and your action bars with their keys, in a window that takes the look of your UI addon; the rest arrives in stages.
+Status: early development, not released yet. So far: your keybinds on an on-screen keyboard (with Shift, Ctrl and Alt layers), your action bars with their keys, and profiles you can save, apply, undo and restore from, in a window that takes the look of your UI addon. Automatic switching, spell ranks and key suggestions arrive next.
 
-Your setup is safe: Keystance only reads your bars and keys for now. Shortly after your first login with it, it saves a copy of your bars and keybinds as they were, so that once it can change them you can always put everything back.
+## Your setup is safe
+
+- Shortly after your first login with Keystance, before it has changed anything, it saves a copy of your bars and every keybind. **Restore original setup** (Profiles tab, Settings, or `/kst restore`) puts them all back.
+- **Before uninstalling Keystance, click Restore original setup.** Changes to bars and keys are kept by the game itself, so they stay after an addon is removed.
+- Every change can be undone with one click, nothing changes in combat (changes wait until combat ends), and anything that can't be set is reported and left as it was.
+- A profile holds your bars and the keys of your bar buttons only; movement and every other key are left alone.
+- If your keybinds are shared by all your characters, Keystance asks before a profile changes them, and offers to give the character its own keybinds (nothing changes on screen, and your other characters keep theirs).
 
 ## Commands
 
-`/kst` (or `/keystance`) opens Keystance. Also: `/kst options` opens its page in the game's Options > AddOns, `/kst minimap` shows or hides the minimap button, `/kst skin auto | classic | ellesmere | elvui` picks the look, `/kst mem` shows memory use, `/kst help` lists everything.
+`/kst` (or `/keystance`) opens Keystance. Profiles: `/kst save Name`, `/kst apply Name` (works in macros), `/kst undo`, `/kst restore`, `/kst profiles`, `/kst ownkeys`. Also: `/kst options` opens its page in the game's Options > AddOns, `/kst minimap` shows or hides the minimap button, `/kst skin auto | classic | ellesmere | elvui` picks the look, `/kst mem` shows memory use, `/kst help` lists everything.
 
 ## Performance
 
-Keystance does nothing while you play: no code runs every frame, the window is only built the first time you open it, and while it's closed the game's events cost one check and create no garbage. It uses about 120 KB of memory (measured outside the game; `/kst mem` shows the real figure).
+Keystance does nothing while you play: no code runs every frame, the window is only built the first time you open it, and while it's closed the game's events cost one check and create no garbage. It uses about 170 KB of memory (measured outside the game; `/kst mem` shows the real figure).
 
 ## Development
 

@@ -22,5 +22,6 @@ Layouts.lua
 Window.lua
 Keyboard.lua
 Bars.lua
+ProfilesTab.lua
 Options.lua
 Minimap.lua

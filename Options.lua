@@ -48,9 +48,15 @@ local function RefreshPage(page)
         or L["In use: %s until you reload."]:format(LOOK_NAMES[inUse]))
     page.minimap:SetText(ns.MinimapButtonOn() and L["Minimap button: shown"] or L["Minimap button: hidden"])
     local snap = ns.char and ns.char.snapshot
-    page.snapshot:SetText(snap and L["Your bars and keys as they were before Keystance were saved on %s (%d slots, %d keys). You'll be able to put them back from here."]
+    page.snapshot:SetText(snap and L["Your bars and keys as they were before Keystance were saved on %s (%d slots, %d keys). Restore puts them back; before uninstalling Keystance, use it to get your original setup back."]
         :format(date("%d %b %Y", snap.at), snap.nSlots, snap.nBinds)
         or L["Keystance saves your bars and keys as they are now, shortly after you log in, so you can always get them back."])
+    local combat = ns.InCombat()
+    page.restore:SetEnabled(snap ~= nil and not combat)
+    local shared = ns.SharedKeybinds and ns.SharedKeybinds()
+    page.ownKeys:SetShown(shared)
+    page.ownKeysNote:SetShown(shared)
+    page.ownKeys:SetEnabled(not combat)
 end
 
 local function RefreshAll()
@@ -136,6 +142,20 @@ function ns.BuildSettings(page, owner, top)
     snapshot:SetWidth(460)
     snapshot:SetJustifyH("LEFT")
     page.snapshot = snapshot
+    local restore = Button(owner, page, L["Restore original setup"])
+    restore:SetPoint("TOPLEFT", snapshot, "BOTTOMLEFT", 0, -8)
+    restore:SetScript("OnClick", function() ns.ConfirmRestore() end)
+    page.restore = restore
+    local ownKeys = Button(owner, page, L["Give this character its own keybinds"], 260)
+    ownKeys:SetPoint("TOPLEFT", restore, "BOTTOMLEFT", 0, -16)
+    ownKeys:SetScript("OnClick", function() ns.UseOwnKeybinds() end)
+    page.ownKeys = ownKeys
+    local ownKeysNote = Text(owner, page, "GameFontDisableSmall")
+    ownKeysNote:SetPoint("TOPLEFT", ownKeys, "BOTTOMLEFT", 0, -4)
+    ownKeysNote:SetWidth(460)
+    ownKeysNote:SetJustifyH("LEFT")
+    ownKeysNote:SetText(L["Recommended: your keybinds are shared by all your characters, so a profile's keys would change them everywhere. Nothing changes on screen, and your other characters keep theirs."])
+    page.ownKeysNote = ownKeysNote
     page.Refresh = RefreshPage
     pages[#pages + 1] = page
 end
