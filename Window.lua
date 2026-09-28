@@ -1,6 +1,6 @@
 -- Keystance main window: tabs across the top (Profiles, Keyboard, Bars, Rules, Settings)
 -- and a strip along the bottom: the profile in use (with "changed since saved" and Update),
--- a button per profile to switch, and the combat note. Built the first time it's
+-- Undo when there's something to undo, a button per profile to switch, and the combat note. Built the first time it's
 -- opened and only refreshed while shown, so a closed window costs nothing.
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
@@ -128,6 +128,19 @@ local function BuildStatus(f)
         b:SetScript("OnLeave", function() GameTooltip:Hide() end)
         s.quick[i] = b
     end
+    -- Undo, beside the profile buttons, when there's a change to undo (its tooltip says which).
+    s.undo = CreateFrame("Button", nil, s.quickFrame, "UIPanelButtonTemplate")
+    s.undo:SetSize(60, 20)
+    s.undo:SetText(L["Undo"])
+    s.undo:SetScript("OnClick", function() ns.Undo() end)
+    s.undo:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine(self.label or L["Undo"])
+        GameTooltip:AddLine(L["Puts back your bars, keys and gear as they were before it. Undo again to redo."], 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    s.undo:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f.buttons[#f.buttons + 1] = s.undo
     f.status = s
 end
 
@@ -160,6 +173,7 @@ local function RefreshStatus()
     s.text:ClearAllPoints()
     s.text:SetPoint("LEFT", p and s.icon or s, p and "RIGHT" or "LEFT", p and 6 or 0, 0)
     ns.RefreshGuide(frame) -- the next getting-started step (Guide.lua)
+    local shown = 0
     for i, b in ipairs(s.quick) do
         local name = names[i]
         b.profile, b.active = name, name ~= nil and name == c.active
@@ -167,10 +181,16 @@ local function RefreshStatus()
             SetIcon(b.icon, c.profiles[name])
             b.ring:SetShown(b.active)
             b:Show()
+            shown = i
         else
             b:Hide()
         end
     end
+    local undo = ns.UndoLabel()
+    s.undo.label = undo and L["Undo %s"]:format(undo)
+    s.undo:SetShown(undo ~= nil)
+    s.undo:ClearAllPoints()
+    s.undo:SetPoint("RIGHT", s.quickFrame, "RIGHT", -shown * 24 - (shown > 0 and 6 or 0), 0)
 end
 
 -- Profiles changed (saved, applied, renamed, given an icon...): the strip is worked out again.

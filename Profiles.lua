@@ -201,6 +201,7 @@ local function Change(state, options, done, undo, onDone)
     end
     if slots + keys > 0 or options.gearChanged then
         c.lastChange = { state = before, gear = options.gearBefore, label = undo, at = time() }
+        if ns.StatusStale then ns.StatusStale() end
     end
     if onDone then onDone() end
     Report(done, slots, keys, failures)
@@ -214,6 +215,7 @@ ns.ApplyChange = Change
 function ns.RecordChange(before, label)
     local c = Char()
     if c then c.lastChange = { state = before, label = label, at = time() } end
+    if ns.StatusStale then ns.StatusStale() end -- the strip's Undo follows
 end
 
 -- What the Undo button would undo ("applying Prot"), or nil.
