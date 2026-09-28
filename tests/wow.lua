@@ -195,6 +195,15 @@ function M.load(files)
     -- Combat.
     InCombatLockdown = function() return M.combat end
 
+    -- Console settings (GetCVar) and a game controller (M.pad = true while one is in use).
+    M.cvars = {}
+    GetCVar = function(name) return M.cvars[name] end
+    M.pad = false
+    C_GamePad = {
+        IsEnabled = function() return M.pad end,
+        GetActiveDeviceID = function() return M.pad and 1 or nil end,
+    }
+
     -- Modifier keys held (M.mods.shift...), the bar page and the stance/form bar offset.
     M.mods = { shift = false, ctrl = false, alt = false }
     IsShiftKeyDown = function() return M.mods.shift end

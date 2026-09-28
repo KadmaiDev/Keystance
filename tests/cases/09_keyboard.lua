@@ -155,3 +155,38 @@ test("numpad keys are named N1, N2... on bar buttons, so they don't look like th
     eq(ns.ShortKey("NUMPAD1"), "N1")
     eq(ns.ShortKey("SHIFT-NUMPADPLUS"), "sN+")
 end)
+
+test("the Controller layout draws a gamepad's buttons with what they cast", function()
+    loginWithSetup(nil)
+    wow.bindings.PAD1 = "ACTIONBUTTON1"
+    wow.bindings.PADLSHOULDER = "ACTIONBUTTON2"
+    local page = keyboardPage()
+    click(choice(page.layoutRow, "Controller"))
+    eq(page.layoutKey, "pad")
+    eq(capFor(page, "PAD1").slot, 1)
+    eq(capFor(page, "PADLSHOULDER").slot, 2)
+    eq(capFor(page, "Q"), nil, "no keyboard")
+    eq(page.numpad:IsShown(), false, "no numpad option for a controller")
+end)
+
+test("a controller button set to act as Shift is drawn as a modifier, and names the Shift layer", function()
+    loginWithSetup(nil)
+    wow.cvars.GamePadEmulateShift = "PADLTRIGGER"
+    wow.bindings["SHIFT-PAD1"] = "ACTIONBUTTON2"
+    local page = keyboardPage()
+    click(choice(page.layoutRow, "Controller"))
+    local lt = capFor(page, "PADLTRIGGER")
+    eq(lt.name.text, "Shift")
+    eq(lt.fullKey, nil, "a modifier, not something to bind")
+    eq(page.toggles[1].text, "Shift PADLTRIGGER")
+    click(page.toggles[1])
+    eq(capFor(page, "PAD1").fullKey, "SHIFT-PAD1")
+    eq(capFor(page, "PAD1").slot, 2)
+end)
+
+test("Automatic shows the controller while one is in use", function()
+    loginWithSetup(nil)
+    wow.pad = true
+    local page = keyboardPage()
+    eq(page.layoutKey, "pad")
+end)

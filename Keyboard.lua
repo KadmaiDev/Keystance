@@ -181,7 +181,15 @@ local function BuildBoard(page, f, layoutKey, numpad)
         drawn[info[1]] = true
     end
     local function RowY(r) return (r - 1) * u + (r > 1 and ROW_GAP or 0) end
-    for r, row in ipairs(ns.LAYOUTS[layoutKey].rows) do
+    local layout = ns.LAYOUTS[layoutKey]
+    if layout.pad then
+        -- A controller: its buttons where they sit on one; no mouse, no numpad.
+        for _, info in ipairs(layout.keys) do Add(info, info.x * u, info.y * u) end
+        board:SetSize(15.5 * u, 8 * u)
+        board.caps, board.drawn = caps, drawn
+        return board
+    end
+    for r, row in ipairs(layout.rows) do
         local x = 0
         for _, info in ipairs(row) do
             x = x + (info.gap or 0) * u
@@ -216,11 +224,16 @@ end
 ---------------------------------------------------------------------------
 -- The page
 ---------------------------------------------------------------------------
-local function RefreshCaps(page, layer)
+local function RefreshCaps(page, layer, padMods)
     for _, cap in ipairs(page.board.caps) do
-        if cap.mod then
-            local on = (cap.key == "SHIFT" and (layer - 1) % 2 == 1) or (cap.key == "CTRL" and math.floor((layer - 1) / 2) % 2 == 1)
-                or (cap.key == "ALT" and layer > 4)
+        -- A modifier: Shift, Ctrl or Alt, or the controller button set to act as one.
+        local modAs = cap.mod and cap.key or (padMods and padMods[cap.key])
+        if modAs then
+            local on = (modAs == "SHIFT" and (layer - 1) % 2 == 1) or (modAs == "CTRL" and math.floor((layer - 1) / 2) % 2 == 1)
+                or (modAs == "ALT" and layer > 4)
+            cap.icon:Hide()
+            -- A controller button acting as one says so (a keyboard's Shift key already does).
+            cap.name:SetText(cap.mod and "" or (modAs == "SHIFT" and L["Shift"] or modAs == "CTRL" and L["Ctrl"] or L["Alt"]))
             cap.bg:SetColorTexture(on and 0.45 or 0.1, on and 0.35 or 0.1, on and 0.1 or 0.12, 0.9)
             cap.fullKey, cap.command, cap.slot = nil, nil, nil
         elseif not cap.blank then
@@ -276,7 +289,8 @@ end
 
 local function Refresh(page)
     local key = ns.LayoutKey(ns.db.settings.layout)
-    local numpad = ns.db.settings.numpad and true or false
+    local pad = ns.LAYOUTS[key].pad
+    local numpad = not pad and ns.db.settings.numpad and true or false
     local boardKey = key .. (numpad and "+numpad" or "")
     if page.boardKey ~= boardKey then
         if page.board then page.board:Hide() end
@@ -290,20 +304,27 @@ local function Refresh(page)
         page.others:SetPoint("RIGHT", page, "RIGHT", -16, 0)
         for _, fs in ipairs(page.window.texts) do ns.SkinText(fs) end
     end
+    page.numpad:SetShown(not pad)
     if numpad then page.numpad:LockHighlight() else page.numpad:UnlockHighlight() end
+    -- On a controller, the layer buttons say which controller button is Shift, Ctrl or Alt.
+    local padMods = pad and ns.PadModifiers() or nil
+    local padButton = {}
+    for button, mod in pairs(padMods or {}) do padButton[mod] = button end
     page.numpad:SetText((numpad and "|cffffd100" or "") .. L["Numpad"] .. (numpad and "|r" or ""))
     local layer, live = CurrentLayer()
     for _, t in ipairs(page.toggles) do
         local on = toggles[t.mod]
         if on then t:LockHighlight() else t:UnlockHighlight() end
-        t:SetText((on and "|cffffd100" or "") .. t.title .. (on and "|r" or ""))
+        local button = padButton[t.mod:upper()]
+        local title = button and (t.title .. " " .. ns.KeyLabel(button)) or t.title
+        t:SetText((on and "|cffffd100" or "") .. title .. (on and "|r" or ""))
     end
     page.layerText:SetText(LAYER_NAMES[layer] .. (live and L[" (held)"] or ""))
     page.layoutRow:Refresh()
     local held = ns.HeldBinding()
     page.binding:SetShown(held ~= nil)
     if held then page.binding:SetText(L["Click a key for %s (right-click drops it)"]:format(held.label)) end
-    RefreshCaps(page, layer)
+    RefreshCaps(page, layer, padMods)
     RefreshOthers(page, layer)
 end
 
@@ -328,13 +349,14 @@ local function Build(page, f)
     page.layerText = layerText
     f.texts[#f.texts + 1] = layerText
     -- The keyboard drawn: automatic (from the game's language), US or UK.
-    local row = ns.ChoiceRow(f, page, { { "auto", L["Automatic"] }, { "ansi", L["US"] }, { "iso", L["UK"] } },
+    local row = ns.ChoiceRow(f, page, { { "auto", L["Automatic"] }, { "ansi", L["US"] }, { "iso", L["UK"] },
+        { "pad", L["Controller"] } },
         function() return ns.db.settings.layout or "auto" end,
         function(value)
             ns.db.settings.layout = value
             ns.RefreshWindow()
         end, 76)
-    row:SetPoint("TOPRIGHT", page, "TOPRIGHT", -16, -14)
+    row:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -16, 8)
     page.layoutRow = row
     -- Also draw the navigation block (Insert, Home, arrows...) and the numpad.
     local numpad = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
