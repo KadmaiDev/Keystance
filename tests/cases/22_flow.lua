@@ -144,3 +144,22 @@ test("a new character is told once where to start", function()
     wow.runTimers()
     assert(not printed():find("Type /kst", 1, true), "once")
 end)
+
+test("the guide's text stops before its buttons, whichever are showing", function()
+    local c, ns = profileLogin()
+    ns.SaveProfile("Ret")
+    slash("")
+    local bar = KeystanceGuideBar
+    eq(bar.title.text, "Set up another role")
+    eq(bar.text.point[1], "RIGHT")
+    eq(bar.text.point[2], bar.actions[2], "two buttons: before the second (leftmost)")
+    ns.ToggleWindow() -- closed
+    wow.slots[1] = { kind = "spell", id = 647 }
+    ns.SaveProfile("Prot")
+    ns.SetProfileKey("Prot", "F2")
+    slash("")
+    eq(bar.title.text, "Gear too (optional)")
+    eq(bar.text.point[2], bar.actions[2], "Gear and Skip")
+    click(bar.actions[2])
+    eq(bar.text.point[2], bar.actions[1], "one button: before it")
+end)

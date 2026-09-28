@@ -148,7 +148,7 @@ local function BuildBar(window)
     f.buttons, f.texts = {}, {}
     f:SetPoint("TOPLEFT", window, "BOTTOMLEFT", 0, -2)
     f:SetPoint("TOPRIGHT", window, "BOTTOMRIGHT", 0, -2)
-    f:SetHeight(58)
+    f:SetHeight(66) -- room for three lines of text beside the buttons
     if f.SetBackdrop then
         pcall(f.SetBackdrop, f, {
             bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -164,7 +164,7 @@ local function BuildBar(window)
     f.title:SetPoint("LEFT", f.step, "RIGHT", 8, 0)
     f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.text:SetPoint("TOPLEFT", f.step, "BOTTOMLEFT", 0, -5)
-    f.text:SetWidth(430)
+    f.text:SetJustifyV("TOP")
     f.text:SetJustifyH("LEFT")
     f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     f.close:SetSize(22, 22)
@@ -225,6 +225,15 @@ function ns.RefreshGuide(window)
         end
         b:Show()
     end
+    -- The text stops before the leftmost button, however wide the window is (the Keyboard
+    -- tab widens it for the numpad; it ran under the buttons at the normal width).
+    local leftmost = bar.all
+    for _, b in ipairs(bar.actions) do
+        if b:IsShown() then leftmost = b end
+    end
+    bar.text:ClearAllPoints()
+    bar.text:SetPoint("TOPLEFT", bar.step, "BOTTOMLEFT", 0, -5)
+    bar.text:SetPoint("RIGHT", leftmost, "LEFT", -12, 0)
     bar:Show()
 end
 
