@@ -677,6 +677,8 @@ function M.load(files)
     -- Globals the addon defines; cleared so a previous load is freed.
     Keystance_OnAddonCompartmentClick, Keystance_OnAddonCompartmentEnter = nil, nil
     Keystance_OnAddonCompartmentLeave = nil
+    Keystance_Binding, BINDING_HEADER_KEYSTANCE, BINDING_NAME_KEYSTANCE_NEXT, BINDING_NAME_KEYSTANCE_TOGGLE = nil, nil, nil, nil
+    for i = 1, 6 do _G["BINDING_NAME_KEYSTANCE_PROFILE" .. i] = nil end
     KeystanceMinimapButton, KeystanceFrame, KeystanceRunning = nil, nil, nil
     -- EllesmereUI's minimap tray list and regrid function, only if a test makes them.
     _EBS_AddonVisible, _EMIN_RefreshFlyout, OtherAddonMinimapButton = nil, nil, nil

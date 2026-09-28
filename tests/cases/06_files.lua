@@ -71,7 +71,11 @@ end)
 local OWN_GLOBALS = {
     KeystanceDB = true, KeystanceRunning = true, SLASH_KEYSTANCE1 = true, SLASH_KEYSTANCE2 = true,
     Keystance_OnAddonCompartmentClick = true, Keystance_OnAddonCompartmentEnter = true,
-    Keystance_OnAddonCompartmentLeave = true,
+    Keystance_OnAddonCompartmentLeave = true, Keystance_Binding = true, BINDING_HEADER_KEYSTANCE = true,
+    BINDING_NAME_KEYSTANCE_NEXT = true, BINDING_NAME_KEYSTANCE_TOGGLE = true,
+    BINDING_NAME_KEYSTANCE_PROFILE1 = true, BINDING_NAME_KEYSTANCE_PROFILE2 = true,
+    BINDING_NAME_KEYSTANCE_PROFILE3 = true, BINDING_NAME_KEYSTANCE_PROFILE4 = true,
+    BINDING_NAME_KEYSTANCE_PROFILE5 = true, BINDING_NAME_KEYSTANCE_PROFILE6 = true,
 }
 
 -- The first global the text assigns that it doesn't own, as "line: name", or nil.

@@ -1,0 +1,26 @@
+<Bindings>
+	<Binding name="KEYSTANCE_NEXT" header="KEYSTANCE" category="ADDONS">
+		Keystance_Binding("next")
+	</Binding>
+	<Binding name="KEYSTANCE_PROFILE1" category="ADDONS">
+		Keystance_Binding(1)
+	</Binding>
+	<Binding name="KEYSTANCE_PROFILE2" category="ADDONS">
+		Keystance_Binding(2)
+	</Binding>
+	<Binding name="KEYSTANCE_PROFILE3" category="ADDONS">
+		Keystance_Binding(3)
+	</Binding>
+	<Binding name="KEYSTANCE_PROFILE4" category="ADDONS">
+		Keystance_Binding(4)
+	</Binding>
+	<Binding name="KEYSTANCE_PROFILE5" category="ADDONS">
+		Keystance_Binding(5)
+	</Binding>
+	<Binding name="KEYSTANCE_PROFILE6" category="ADDONS">
+		Keystance_Binding(6)
+	</Binding>
+	<Binding name="KEYSTANCE_TOGGLE" category="ADDONS">
+		Keystance_Binding("window")
+	</Binding>
+</Bindings>

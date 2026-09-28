@@ -85,6 +85,7 @@ function ns.SaveProfile(name, replace)
         c.profiles[existing] = nil
     end
     c.profiles[clean] = p
+    ns.NameBindings()
     ns.RefreshWindow()
     return clean
 end
@@ -102,6 +103,7 @@ function ns.RenameProfile(old, new)
     for _, rule in ipairs(c.rules) do
         if rule.profile == key then rule.profile = clean end -- rules follow the rename
     end
+    ns.NameBindings()
     ns.RefreshWindow()
     return clean
 end
@@ -116,6 +118,7 @@ function ns.DuplicateProfile(name, new)
     local p = Copy(c.profiles[key])
     p.created, p.updated = time(), time()
     c.profiles[clean] = p
+    ns.NameBindings()
     ns.RefreshWindow()
     return clean
 end
@@ -156,6 +159,7 @@ function ns.DeleteProfile(name)
     if not key then return nil, L["No profile called %s."]:format(tostring(name)) end
     c.profiles[key] = nil
     if c.active == key then c.active = nil end
+    ns.NameBindings()
     ns.RefreshWindow()
     return key
 end
@@ -284,6 +288,59 @@ function ns.UseOwnKeybinds()
         ns.RefreshWindow()
     end)
     if not now then Print(L["This character gets its own keybinds when combat ends."]) end
+end
+
+---------------------------------------------------------------------------
+-- Keybinds (Bindings.xml, under Keystance in the game's Key Bindings): Next profile,
+-- Profile 1-6 (profiles in name order, as on the Profiles tab) and Open Keystance.
+---------------------------------------------------------------------------
+local BINDABLE = 6
+
+-- Applies the profile after the one in use (in name order, wrapping round).
+function ns.NextProfile()
+    local names = ns.ProfileNames()
+    if #names == 0 then return Print(L["No profiles yet. /kst save Name saves your current bars and keys."]) end
+    local c, at = Char(), 0
+    for i, name in ipairs(names) do
+        if name == c.active then at = i end
+    end
+    ns.ApplyProfile(names[at % #names + 1])
+end
+
+-- Names the numbered keybinds after their profiles ("Profile 1: Prot") in Key Bindings.
+local function BindingLabel(i, names)
+    return names[i] and L["Profile %d: %s"]:format(i, names[i]) or L["Profile %d"]:format(i)
+end
+local function NameBindings()
+    local names = ns.ProfileNames()
+    BINDING_NAME_KEYSTANCE_PROFILE1, BINDING_NAME_KEYSTANCE_PROFILE2, BINDING_NAME_KEYSTANCE_PROFILE3 =
+        BindingLabel(1, names), BindingLabel(2, names), BindingLabel(3, names)
+    BINDING_NAME_KEYSTANCE_PROFILE4, BINDING_NAME_KEYSTANCE_PROFILE5, BINDING_NAME_KEYSTANCE_PROFILE6 =
+        BindingLabel(4, names), BindingLabel(5, names), BindingLabel(6, names)
+end
+ns.NameBindings = NameBindings
+BINDING_HEADER_KEYSTANCE = "Keystance"
+BINDING_NAME_KEYSTANCE_NEXT = L["Next profile"]
+BINDING_NAME_KEYSTANCE_TOGGLE = L["Open Keystance"]
+NameBindings()
+ns.On("PLAYER_LOGIN", NameBindings)
+
+-- The key bound to Profile i (for the Profiles tab), or nil.
+function ns.ProfileKey(i)
+    if i > BINDABLE then return nil end
+    local key = GetBindingKey("KEYSTANCE_PROFILE" .. i)
+    return key and GetBindingText(key) or nil
+end
+
+-- What the keybinds run (Bindings.xml).
+function Keystance_Binding(what)
+    if what == "next" then return ns.NextProfile() end
+    if what == "window" then return ns.ToggleWindow() end
+    local name = ns.ProfileNames()[what]
+    if not name then
+        return Print(L["No profile %d yet: profiles are numbered in name order on the Profiles tab."]:format(what))
+    end
+    ns.ApplyProfile(name)
 end
 
 ---------------------------------------------------------------------------

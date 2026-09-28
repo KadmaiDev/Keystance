@@ -146,8 +146,10 @@ local function Refresh(page)
             local p = c.profiles[name]
             row.profile = name
             row.name:SetText(name == c.active and ("|cff55ff55" .. name .. "|r") or name)
+            local key = ns.ProfileKey(i)
             row.detail:SetText(L["%d slots, %d keys, saved %s"]:format(p.nSlots or 0, p.nBinds or 0,
-                date("%d %b %Y", p.updated or p.created or 0)) .. GearNote(p))
+                date("%d %b %Y", p.updated or p.created or 0)) .. GearNote(p)
+                .. (key and L["; switch with %s"]:format(key) or ""))
             row.apply:SetEnabled(not combat)
             row:Show()
         elseif row then
