@@ -136,6 +136,8 @@ function M.load(files)
     function frameMethods:SetText(text) self.text = text end
     function frameMethods:GetText() return self.text end
     function frameMethods:SetID(id) self.id = id end
+    function frameMethods:SetSize(w, h) self.width, self.height = w, h end
+    function frameMethods:SetWidth(w) self.width = w end
     function frameMethods:SetAlpha(a) self.alpha = a end
     function frameMethods:IsProtected() return false end
     function frameMethods:GetAlpha() return self.alpha or 1 end

@@ -85,6 +85,9 @@ end
 local function SelectTab(i)
     frame.selected = i
     ns.db.settings.tab = TABS[i].key
+    -- Only the keyboard (with the numpad) needs more width; it asks again when shown.
+    frame:SetWidth(WIDTH)
+    frame.pages[i].boardKey = nil
     for j, tab in ipairs(frame.tabs) do
         local on = j == i
         if tab.topTab and PanelTemplates_SelectTab then
@@ -222,6 +225,11 @@ local function CreateWindow()
         if info.key == ns.db.settings.tab then first = i end
     end
     SelectTab(first)
+end
+
+-- Widens the window for what a tab draws (the keyboard with the numpad), or back to normal.
+function ns.SetWindowWidth(width)
+    if frame then frame:SetWidth(width or WIDTH) end
 end
 
 -- Shows the tab with this key ("settings"...), if the window is open.

@@ -11,8 +11,8 @@ local GetBindingAction, GetActionTexture, HasAction = GetBindingAction, GetActio
 local IsShiftKeyDown, IsControlKeyDown, IsAltKeyDown = IsShiftKeyDown, IsControlKeyDown, IsAltKeyDown
 
 local U = 34 -- one key unit, in pixels
-local SMALL_U = 28 -- with the navigation block and numpad, so it all fits the window
 local ROW_GAP = 8 -- extra space under the function row
+local NUMPAD_WIDTH = 830 -- the window's width while the numpad is drawn (keys stay full size)
 
 -- The eight modifier layers, in the game's prefix order.
 local PREFIXES = { "", "SHIFT-", "CTRL-", "CTRL-SHIFT-", "ALT-", "ALT-SHIFT-", "ALT-CTRL-", "ALT-CTRL-SHIFT-" }
@@ -167,10 +167,10 @@ local function MakeCap(f, board, info, x, y, unit)
 end
 
 -- Draws a layout (once) and returns its caps and the set of keys it has. With `numpad`, the
--- keys are smaller, the navigation block and the numpad sit to the right, and the mouse
--- keys move to a row underneath.
+-- navigation block and the numpad sit to the right (the window widens to fit), and the
+-- mouse keys move to a row underneath.
 local function BuildBoard(page, f, layoutKey, numpad)
-    local u = numpad and SMALL_U or U
+    local u = U
     local board = CreateFrame("Frame", nil, page)
     board:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -48)
     local caps, drawn = {}, {}
@@ -284,6 +284,7 @@ local function Refresh(page)
         page.board = page.boards[boardKey]
         page.board:Show()
         page.layoutKey, page.boardKey = key, boardKey
+        ns.SetWindowWidth(numpad and NUMPAD_WIDTH or nil)
         page.others:ClearAllPoints()
         page.others:SetPoint("TOPLEFT", page.board, "BOTTOMLEFT", 0, -12)
         page.others:SetPoint("RIGHT", page, "RIGHT", -16, 0)
