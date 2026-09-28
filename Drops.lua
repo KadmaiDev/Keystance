@@ -198,6 +198,26 @@ local endedAt -- when the last hold ended (so the right-click that ended it does
 
 function ns.HeldBinding() return held end
 
+-- True for an action button: the game's bars (Blizzard's `action`, EllesmereUI's and
+-- ElvUI's "action" attribute) or a slot on Keystance's Bars tab.
+local function IsActionButton(f)
+    if type(f) ~= "table" then return false end
+    if f.slot or f.action then return true end
+    if f.GetAttribute then
+        local ok, action = pcall(f.GetAttribute, f, "action")
+        return ok and action ~= nil
+    end
+    return false
+end
+
+-- A marker or profile switch clicked on a bar: it goes on keys, not bars. Said once per hold.
+local function HintKeysOnly()
+    if not held or held.hinted then return end
+    held.hinted = true
+    ns.Print(L["%s goes on a key, not on a bar: click a key on Keystance's Keyboard tab. Right-click drops it."]:format(held.label))
+end
+ns.HintKeysOnly = HintKeysOnly
+
 local function Follow(self)
     local x, y = GetCursorPosition()
     local scale = UIParent:GetEffectiveScale()
@@ -234,6 +254,10 @@ function ns.StartBinding(command, label, icon, profile)
         ghost:EnableMouse(false) -- so the key under it is what's clicked
         ghost.icon = ghost:CreateTexture(nil, "OVERLAY")
         ghost.icon:SetAllPoints()
+        -- What to do with it: it goes on a key (not on a bar, as a spell would).
+        ghost.caption = ghost:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        ghost.caption:SetPoint("TOP", ghost, "BOTTOM", 0, -2)
+        ghost.caption:SetText(L["Click a key"])
     end
     ghost.icon:SetTexture(icon)
     Follow(ghost)
@@ -243,7 +267,11 @@ function ns.StartBinding(command, label, icon, profile)
     if not listener then
         listener = CreateFrame("Frame")
         listener:SetScript("OnEvent", function(_, _, button)
-            if button == "RightButton" and held then ns.CancelBinding() end
+            if not held then return end
+            if button == "RightButton" then return ns.CancelBinding() end
+            local foci = GetMouseFoci and GetMouseFoci()
+            local target = type(foci) == "table" and foci[1]
+            if IsActionButton(target) then HintKeysOnly() end
         end)
     end
     pcall(listener.RegisterEvent, listener, "GLOBAL_MOUSE_DOWN")

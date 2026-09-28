@@ -379,6 +379,7 @@ local function Refresh(self)
     self.filters:Refresh()
     local kind = Kind()
     self.filters:SetShown(kind ~= "markers" and kind ~= "profiles")
+    self.keysOnly:SetShown(kind == "markers" or kind == "profiles")
     self.filters.buttons[4]:SetShown(kind == "spells")
     self.combat:SetShown(combat)
     self.empty:SetShown(#items == 0)
@@ -460,6 +461,17 @@ local function Create()
         f:Refresh()
     end, 72)
     f.filters:SetPoint("TOPLEFT", search, "BOTTOMLEFT", -4, -8)
+    -- Markers and profile switches are keybindings, not actions: where the filters would be,
+    -- they say so (they can't go on a bar).
+    local keysOnly = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    keysOnly:SetPoint("TOPLEFT", search, "BOTTOMLEFT", -2, -6)
+    keysOnly:SetWidth(WIDTH - 40)
+    keysOnly:SetJustifyH("LEFT")
+    keysOnly:SetTextColor(0.6, 0.8, 1)
+    keysOnly:SetText(L["These go on keys, not on bars. Pick one up, then click a key on the Keyboard tab."])
+    keysOnly:Hide()
+    f.keysOnly = keysOnly
+    f.texts[#f.texts + 1] = keysOnly
 
     local list = CreateFrame("Frame", nil, f)
     list:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -118)

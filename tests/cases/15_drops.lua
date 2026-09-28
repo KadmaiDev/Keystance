@@ -217,3 +217,35 @@ test("in combat nothing is picked up or removed", function()
     eq(wow.slots[1].id, 1866)
     wow.leaveCombat()
 end)
+
+test("markers and profile switches say they go on keys: in the panel, on the held icon, and if clicked on a bar", function()
+    local c, ns = profileLogin()
+    ns.ToggleSpellPanel()
+    local panel = KeystanceSpellPanel
+    click(choice(panel.kinds, "Spells"))
+    eq(panel.keysOnly:IsShown(), false)
+    click(choice(panel.kinds, "Markers"))
+    eq(panel.keysOnly:IsShown(), true)
+    eq(panel.filters:IsShown(), false)
+    click(choice(panel.kinds, "Profiles"))
+    eq(panel.keysOnly:IsShown(), true)
+    click(choice(panel.kinds, "Markers"))
+    click(panel.rows[8]) -- Skull
+    eq(KeystanceDragIcon.caption.text, "Click a key")
+    -- Clicked on one of the game's action buttons (or a Bars tab slot): told once.
+    wow.mouseFoci = { { action = 5 } }
+    wow.fire("GLOBAL_MOUSE_DOWN", "LeftButton")
+    assert(printed():find("Skull goes on a key, not on a bar", 1, true), printed())
+    wow.printed = {}
+    wow.fire("GLOBAL_MOUSE_DOWN", "LeftButton")
+    eq(printed(), "", "once per hold")
+    eq(ns.HeldBinding().label, "Skull", "still held")
+    -- A click on a key or anywhere else says nothing.
+    ns.CancelBinding()
+    click(panel.rows[8])
+    wow.mouseFoci = { { isKeyCap = true } }
+    wow.fire("GLOBAL_MOUSE_DOWN", "LeftButton")
+    eq(printed(), "")
+    wow.mouseFoci = {}
+    ns.CancelBinding()
+end)
