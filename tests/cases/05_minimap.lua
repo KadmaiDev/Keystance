@@ -42,6 +42,20 @@ test("the minimap button can be hidden from the menu, and stays hidden next sess
     eq(KeystanceMinimapButton:IsShown(), true, "turned back on: made now")
 end)
 
+test("hiding and showing the button goes through Hide and Show, which EllesmereUI's tray hooks", function()
+    start(nil)
+    local b = KeystanceMinimapButton
+    local calls = {}
+    local hide, show = b.Hide, b.Show
+    b.Hide = function(self) calls[#calls + 1] = "Hide"; return hide(self) end
+    b.Show = function(self) calls[#calls + 1] = "Show"; return show(self) end
+    b.SetShown = function() error("SetShown skips EllesmereUI's Show/Hide hooks") end
+    slash("minimap")
+    slash("minimap")
+    eq(table.concat(calls, ","), "Hide,Show")
+    eq(b:IsShown(), true)
+end)
+
 test("the addon compartment entry opens the window, and its tooltip says how", function()
     start(nil)
     Keystance_OnAddonCompartmentClick("Keystance", "LeftButton", UIParent)

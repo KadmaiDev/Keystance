@@ -103,7 +103,11 @@ end
 function ns.SetMinimapButton(on)
     ns.db.settings.minimapHidden = not on or nil
     if on then ns.CreateMinimapButton() end
-    if mmButton then mmButton:SetShown(on) end
+    if not mmButton then return end
+    -- Show() and Hide(), never SetShown: EllesmereUI's minimap tray learns whether an addon
+    -- wants its button from hooks on Show and Hide, and SetShown doesn't go through them
+    -- (the button stayed in its tray after being hidden, 2026-09-28).
+    if on then mmButton:Show() else mmButton:Hide() end
 end
 
 ---------------------------------------------------------------------------
