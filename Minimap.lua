@@ -70,8 +70,10 @@ local function ButtonTooltip(self)
     GameTooltip:Show()
 end
 
+-- Made at load even when the player has hidden it: EllesmereUI's minimap tray only collects
+-- buttons that exist at its login scan, so one made later sat loose on the minimap.
 function ns.CreateMinimapButton()
-    if mmButton or not Minimap or not ns.MinimapButtonOn() then return end
+    if mmButton or not Minimap then return end
     local b = CreateFrame("Button", "KeystanceMinimapButton", Minimap)
     b:SetSize(31, 31)
     b:SetFrameStrata("MEDIUM")
@@ -107,15 +109,39 @@ function ns.CreateMinimapButton()
     b:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
     mmButton = b
     Place(ns.db.settings.minimapAngle or DEFAULT_ANGLE)
+    -- Hidden before EllesmereUI's scan, which then records it as not wanted.
+    if not ns.MinimapButtonOn() then b:Hide() end
+end
+
+-- EllesmereUI's minimap tray learns whether we want the button only from hooks on its Show
+-- and Hide (EllesmereUIMinimap.lua, HideMinimapChild):
+--  * SetShown doesn't reach those hooks, so a button hidden that way came back the next
+--    time the tray rebuilt its grid (seen 2026-09-28);
+--  * but while the tray's grid is open its Hide hook shows the button again at once.
+-- So we hide with Hide() and, if the open grid undid it, try again every half second until
+-- it sticks: the grid closes on the next click anywhere else. Without EllesmereUI the first
+-- Hide() simply works.
+local RETRIES, RETRY_WAIT = 40, 0.5
+local retrying = false
+local function EnsureHidden(tries)
+    retrying = false
+    if not mmButton or ns.MinimapButtonOn() or not mmButton:IsShown() then return end
+    mmButton:Hide()
+    if mmButton:IsShown() and tries < RETRIES then
+        retrying = true
+        C_Timer.After(RETRY_WAIT, function() EnsureHidden(tries + 1) end)
+    end
 end
 
 function ns.SetMinimapButton(on)
     ns.db.settings.minimapHidden = not on or nil
-    if on then ns.CreateMinimapButton() end
-    -- SetShown, as Alts Forever does (reliable in game): EllesmereUI's minimap tray hooks
-    -- the button's Hide and, while its tray is open, shows the button again, so Hide() from
-    -- the tray's own menu could be undone at once. SetShown doesn't go through that hook.
-    if mmButton then mmButton:SetShown(on) end
+    ns.CreateMinimapButton()
+    if not mmButton then return end
+    if on then
+        mmButton:Show()
+    elseif not retrying then
+        EnsureHidden(0)
+    end
 end
 
 ---------------------------------------------------------------------------

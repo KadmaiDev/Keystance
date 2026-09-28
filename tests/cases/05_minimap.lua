@@ -38,21 +38,61 @@ test("the minimap button can be hidden from the menu, and stays hidden next sess
     eq(KeystanceDB.settings.minimapHidden, true)
     local saved = KeystanceDB
     start(saved)
-    eq(KeystanceMinimapButton, nil, "not even made")
+    eq(KeystanceMinimapButton:IsShown(), false, "made hidden")
     slash("minimap")
-    eq(KeystanceMinimapButton:IsShown(), true, "turned back on: made now")
+    eq(KeystanceMinimapButton:IsShown(), true, "turned back on")
 end)
 
-test("hiding the button uses SetShown, not Hide, which EllesmereUI's open tray undoes", function()
+-- EllesmereUI's tray, as its code behaves: it learns what we want from hooks on Show and
+-- Hide (SetShown doesn't reach them), and while its grid is open its Hide hook shows the
+-- button again. Returns the tray's record and a function to open or close the grid.
+function ellesmereTray(b)
+    local tray = { open = false, wanted = {} }
+    local show, hide = b.Show, b.Hide
+    b.Show = function(self) show(self); tray.wanted[self] = true end
+    b.Hide = function(self)
+        hide(self)
+        if tray.open then show(self) else tray.wanted[self] = false end
+    end
+    return tray
+end
+
+test("hiding tells EllesmereUI's tray, retrying while its grid is open until it sticks", function()
     start(nil)
     local b = KeystanceMinimapButton
-    -- EllesmereUI hooks Hide and, while its tray is open, shows the button again.
-    local show = b.Show
-    b.Hide = function(self) show(self) end
+    local tray = ellesmereTray(b)
+    tray.open = true -- hidden from the tray's own menu, grid still open
     slash("minimap")
-    eq(b:IsShown(), false, "hidden, whatever EllesmereUI's Hide hook does")
+    eq(b:IsShown(), true, "the open grid put it back")
+    wow.runTimers()
+    eq(b:IsShown(), true, "still open: tried again, still undone")
+    tray.open = false -- the next click closed the grid
+    wow.runTimers()
+    eq(b:IsShown(), false)
+    eq(tray.wanted[b], false, "the tray knows, so a rebuild won't bring it back")
     slash("minimap")
     eq(b:IsShown(), true)
+    eq(tray.wanted[b], true)
+end)
+
+test("showing it again while a hide is still being retried stops the retries", function()
+    start(nil)
+    local b = KeystanceMinimapButton
+    local tray = ellesmereTray(b)
+    tray.open = true
+    slash("minimap")
+    slash("minimap")
+    tray.open = false
+    wow.runTimers()
+    eq(b:IsShown(), true, "the player's last choice wins")
+end)
+
+test("a hidden button is still made at load (hidden), so EllesmereUI's tray collects it", function()
+    wow.load(FILES)
+    KeystanceDB = { v = 1, settings = { minimapHidden = true }, chars = {} }
+    wow.fire("ADDON_LOADED", "Keystance")
+    assert(KeystanceMinimapButton, "made before the tray's login scan")
+    eq(KeystanceMinimapButton:IsShown(), false)
 end)
 
 test("the addon compartment entry opens the window, and its tooltip says how", function()
