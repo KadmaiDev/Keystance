@@ -27,6 +27,19 @@ local function Text(f, parent, template, text)
     return fs
 end
 
+-- The sets a rule can watch: the game's equipment sets by name, then ItemRack's as
+-- "itemrack:Name".
+local ITEMRACK = "itemrack:"
+local function SetChoices()
+    local list = ns.EquipmentSetNames()
+    for _, name in ipairs(ns.ItemRackSets()) do list[#list + 1] = ITEMRACK .. name end
+    return list
+end
+local function SetLabel(choice)
+    if choice:sub(1, #ITEMRACK) == ITEMRACK then return L["%s (ItemRack)"]:format(choice:sub(#ITEMRACK + 1)) end
+    return choice
+end
+
 -- The next item of a list after `current` (wrapping), for the click-through buttons.
 local function Has(list, value)
     for _, v in ipairs(list) do if v == value then return true end end
@@ -81,10 +94,10 @@ local function Refresh(page)
         page.item.icon:SetTexture(nil)
         page.item:SetText(L["Drop an item here"])
     end
-    local sets = ns.EquipmentSetNames()
+    local sets = SetChoices()
     if page.new.set and not Has(sets, page.new.set) then page.new.set = nil end
     page.new.set = page.new.set or sets[1]
-    page.set:SetText(page.new.set and L["Set: %s"]:format(page.new.set) or L["No equipment sets"])
+    page.set:SetText(page.new.set and L["Set: %s"]:format(SetLabel(page.new.set)) or L["No equipment sets"])
     local profiles = ns.ProfileNames()
     if page.new.profile and not ns.FindProfile(page.new.profile) then page.new.profile = nil end
     page.new.profile = page.new.profile or profiles[1]
@@ -164,7 +177,7 @@ local function Build(page, f)
     item:SetScript("OnLeave", function() GameTooltip:Hide() end)
     page.item = item
     page.set = Button(f, page, "", 220, function()
-        page.new.set = NextOf(ns.EquipmentSetNames(), page.new.set)
+        page.new.set = NextOf(SetChoices(), page.new.set)
         ns.RefreshWindow()
     end)
     page.set:SetPoint("TOPLEFT", newLabel, "BOTTOMLEFT", 0, -14)
@@ -177,6 +190,9 @@ local function Build(page, f)
         local n = page.new
         local rule = { when = n.when, profile = n.profile, id = n.when == "item" and n.item or nil,
             set = n.when == "set" and n.set or nil }
+        if rule.set and rule.set:sub(1, #ITEMRACK) == ITEMRACK then
+            rule.set, rule.from = rule.set:sub(#ITEMRACK + 1), "itemrack"
+        end
         local ok, why = ns.AddRule(rule)
         if not ok then ns.Print(why) end
     end)

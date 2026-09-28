@@ -243,3 +243,36 @@ test("a set equipped through ItemRack by Keystance doesn't set off rules", funct
     eq(c.active, "Ret")
     wow.clock = nil
 end)
+
+test("a rule can watch an ItemRack set: equipping it in ItemRack switches the profile", function()
+    local c, ns = gearLogin({ Tank = { [1] = 1100 } })
+    ns.SaveProfile("Ret")
+    wow.slots[1] = { kind = "spell", id = 647 }
+    ns.SaveProfile("Prot")
+    wow.slots[1] = { kind = "spell", id = 1866 }
+    c.active = "Ret"
+    local page = rulesPage()
+    click(choice(page.when, "a set"))
+    eq(page.set.text, "Set: Tank (ItemRack)")
+    click(page.add)
+    eq(c.rules[1].set, "Tank")
+    eq(c.rules[1].from, "itemrack")
+    eq(ns.RuleText(c.rules[1]), "When the ItemRack set Tank is equipped, use Prot.")
+    ItemRack.EquipSet("Tank") -- the player, in ItemRack
+    wow.runTimers()
+    eq(c.active, "Prot")
+    eq(slotId(1), 647)
+end)
+
+test("ItemRack finishing a set checks the rules again, after its slower swaps", function()
+    local c, ns = gearLogin({ Tank = { [1] = 1100 } })
+    ns.SaveProfile("Ret")
+    wow.slots[1] = { kind = "spell", id = 647 }
+    ns.SaveProfile("Prot")
+    c.active = "Ret"
+    ns.AddRule({ when = "set", set = "Tank", from = "itemrack", profile = "Prot" })
+    ItemRackUser.CurrentSet = "Tank" -- already on, with no gear event of its own
+    ItemRack.EndSetSwap("Tank")
+    wow.runTimers()
+    eq(c.active, "Prot")
+end)

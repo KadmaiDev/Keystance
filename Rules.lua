@@ -1,6 +1,7 @@
 -- Keystance rules: apply a profile automatically when gear changes. A rule is
 --   { when = "shield" }, { when = "twohand" }, { when = "item", id = itemID } or
---   { when = "set", set = "Healing" }, each with profile = "Prot".
+--   { when = "set", set = "Healing" } (an equipment set; from = "itemrack" for one of
+--   ItemRack's), each with profile = "Prot".
 -- The first matching rule wins (the player orders them). Gear swaps fire several events,
 -- so it checks once, 0.3 s after the last one, and only switches when a different profile
 -- is wanted. Applying goes through ns.ApplyProfile, so in combat it waits for combat to
@@ -52,6 +53,7 @@ local TESTS = {
         return false
     end,
     set = function(rule)
+        if rule.from == "itemrack" then return ns.ItemRackEquipped(rule.set) end
         if not (C_EquipmentSet and C_EquipmentSet.GetEquipmentSetIDs) then return false end
         for _, id in ipairs(C_EquipmentSet.GetEquipmentSetIDs() or {}) do
             local name, _, _, isEquipped = C_EquipmentSet.GetEquipmentSetInfo(id)
@@ -86,6 +88,9 @@ function ns.RuleCondition(rule)
     if rule.when == "shield" then return L["a shield is equipped"] end
     if rule.when == "twohand" then return L["a two-handed weapon is equipped"] end
     if rule.when == "item" then return L["%s is equipped"]:format(ItemName(rule.id)) end
+    if rule.when == "set" and rule.from == "itemrack" then
+        return L["the ItemRack set %s is equipped"]:format(tostring(rule.set))
+    end
     if rule.when == "set" then return L["the %s set is equipped"]:format(tostring(rule.set)) end
     return tostring(rule.when)
 end
@@ -181,6 +186,12 @@ local function GearChanged()
 end
 ns.On("PLAYER_EQUIPMENT_CHANGED", GearChanged)
 ns.On("EQUIPMENT_SWAP_FINISHED", GearChanged)
+-- ItemRack swaps one item at a time; it says when a whole set is on.
+ns.On("PLAYER_LOGIN", function()
+    if ns.ItemRackReady() and type(ItemRack.EndSetSwap) == "function" then
+        hooksecurefunc(ItemRack, "EndSetSwap", GearChanged)
+    end
+end)
 
 ns.AddCommand("auto", function(arg)
     arg = (arg or ""):lower()
