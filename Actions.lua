@@ -89,12 +89,23 @@ function ns.CommandSlot(cmd)
     return nil
 end
 
--- A picture for a binding command that isn't an action: the raid markers' own icons.
--- Returns the texture and whether it's a full picture (not an icon to crop).
+-- A picture for a binding command that isn't an action: the raid markers' own icons, a
+-- profile's icon for its key, Keystance's logo for Next profile and Open Keystance.
+-- Returns the texture and true if it's a game icon with a border to crop.
 local MARKER_ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_"
 local markerIcons = {}
+local PROFILE_COMMANDS = {}
+for n = 1, 6 do PROFILE_COMMANDS["KEYSTANCE_PROFILE" .. n] = n end
 function ns.CommandIcon(command)
     if type(command) ~= "string" then return nil end
+    local n = PROFILE_COMMANDS[command]
+    if n then
+        local name = ns.char and ns.ProfileKeySlots()[n]
+        local p = name and ns.char.profiles[name]
+        if p then return ns.ProfileIcon(p) end
+        return ns.LOGO_ICON
+    end
+    if command == "KEYSTANCE_NEXT" or command == "KEYSTANCE_TOGGLE" then return ns.LOGO_ICON end
     local icon = markerIcons[command]
     if icon == nil then
         local n = command:match("^RAIDTARGET(%d)$")

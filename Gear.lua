@@ -19,6 +19,7 @@ local GetInventoryItemLink, GetInventoryItemID = GetInventoryItemLink, GetInvent
 local IsInventoryItemLocked, PickupInventoryItem = IsInventoryItemLocked, PickupInventoryItem
 local CursorHasItem, ClearCursor, GetCursorInfo = CursorHasItem, ClearCursor, GetCursorInfo
 local InCombatLockdown, UnitIsDeadOrGhost, GetTime = InCombatLockdown, UnitIsDeadOrGhost, GetTime
+local GetMacroInfo = GetMacroInfo
 
 local MAIN_HAND, OFF_HAND = 16, 17
 local FIRST_BAG, LAST_BAG = 0, NUM_BAG_SLOTS or 4
@@ -376,6 +377,63 @@ function ns.ProfileGear(p)
     elseif p.gear and next(p.gear) then
         return "items", p.gear
     end
+end
+
+---------------------------------------------------------------------------
+-- A profile's picture: the one the player chose (p.icon), or automatic
+---------------------------------------------------------------------------
+ns.LOGO_ICON = "Interface\\AddOns\\" .. ADDON .. "\\media\\icon.tga"
+
+-- The icon of a saved slot action ({ t = "spell", id = ... }), or nil.
+local function ActionIcon(a)
+    if a.t == "spell" then return C_Spell.GetSpellTexture(a.id) end
+    if a.t == "item" then return C_Item.GetItemIconByID(a.id) end
+    if a.t == "macro" and a.name then
+        local _, icon = GetMacroInfo(a.name)
+        return icon
+    end
+end
+
+-- Automatic: its ItemRack set's icon (with ItemRack as the source), else its main-hand
+-- weapon, else the first action on its bars, else Keystance's logo.
+function ns.AutoProfileIcon(p)
+    if p.itemrack and ns.GearSource() == "itemrack" then
+        local icon = ns.ItemRackSetIcon(p.itemrack)
+        if icon then return icon end
+    end
+    local weapon = p.gear and ns.ItemStringID(p.gear[16])
+    if weapon then return C_Item.GetItemIconByID(weapon) or ns.LOGO_ICON end
+    for slot = 1, ns.MANAGED_SLOTS do
+        local a = p.slots and p.slots[slot]
+        local icon = a and ActionIcon(a)
+        if icon then return icon end
+    end
+    return ns.LOGO_ICON
+end
+
+-- The profile's icon, and whether it's a game icon (with a border to crop) rather than the logo.
+function ns.ProfileIcon(p)
+    local icon = p.icon or ns.AutoProfileIcon(p)
+    return icon, icon ~= ns.LOGO_ICON
+end
+
+-- The icons a profile itself suggests, for the picker: its gear, its ItemRack set, then
+-- the actions on its bars.
+function ns.ProfileIcons(p)
+    local list = {}
+    for _, slot in ipairs(ns.GEAR_ORDER) do
+        local id = p.gear and ns.ItemStringID(p.gear[slot])
+        local icon = id and C_Item.GetItemIconByID(id)
+        if icon then list[#list + 1] = icon end
+    end
+    local set = p.itemrack and ns.ItemRackSetIcon(p.itemrack)
+    if set then list[#list + 1] = set end
+    for slot = 1, ns.MANAGED_SLOTS do
+        local a = p.slots and p.slots[slot]
+        local icon = a and ActionIcon(a)
+        if icon then list[#list + 1] = icon end
+    end
+    return list
 end
 
 -- How many gear slots applying it would change (an ItemRack set counts as one).

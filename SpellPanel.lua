@@ -136,8 +136,8 @@ local function CollectProfiles(search)
         if search == "" or name:lower():find(search, 1, true) then
             local p = c.profiles[name]
             local n = ns.ProfileSlot(name)
-            items[#items + 1] = { kind = "profile", name = name,
-                icon = (p.itemrack and ns.ItemRackSetIcon(p.itemrack)) or PROFILE_ICON,
+            local icon, crop = ns.ProfileIcon(p)
+            items[#items + 1] = { kind = "profile", name = name, icon = icon, crop = crop,
                 key = n and GetBindingKey(ns.ProfileSlotCommand(n)) }
         end
     end
@@ -332,7 +332,7 @@ local function ShowRow(row, item, combat)
         row.check:SetShown(item.onBar)
         return
     elseif item.kind == "marker" or item.kind == "profile" then
-        row.icon:SetTexCoord(0, 1, 0, 1)
+        if item.crop then row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) else row.icon:SetTexCoord(0, 1, 0, 1) end
         row.icon:SetTexture(item.icon)
         row.icon:SetDesaturated(false)
         row.name:SetText(item.name)
@@ -532,6 +532,10 @@ local function Create()
 end
 
 -- Opens or closes the spell panel; `open` only ever opens it.
+function ns.RefreshSpellPanel()
+    if panel and panel:IsShown() then panel:Refresh() end
+end
+
 function ns.ToggleSpellPanel(open)
     if not panel then Create() end
     if panel:IsShown() and not open then panel:Hide() else panel:Show() end

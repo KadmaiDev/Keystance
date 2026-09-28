@@ -1,0 +1,76 @@
+-- Tests: a profile's icon (automatic or chosen), on its row, the keyboard and the spell panel.
+
+local function gearString(id) return "item:" .. id .. ":0:0:0:0:0:0:0:20" end
+
+test("a profile's icon is automatic: its ItemRack set, else its main hand, else its first spell", function()
+    local c, ns = gearLogin({ Tank = { [1] = 1100 } })
+    ns.SaveProfile("Prot")
+    local p = c.profiles.Prot
+    eq(ns.AutoProfileIcon(p), 201866, "the first spell on its bars (Holy Strike, slot 1)")
+    ns.SetProfileGear("Prot", { [16] = gearString(2132) })
+    eq(ns.AutoProfileIcon(p), 102132, "its main-hand weapon")
+    ns.SetProfileItemRack("Prot", "Tank")
+    eq(ns.AutoProfileIcon(p), 132341, "its ItemRack set's icon")
+    KeystanceDB.settings.gearSource = "keystance"
+    eq(ns.AutoProfileIcon(p), 102132, "not the set's while ItemRack isn't the gear source")
+    local icon, crop = ns.ProfileIcon(p)
+    eq(icon, 102132)
+    eq(crop, true)
+    p.slots, p.gear = {}, nil
+    icon, crop = ns.ProfileIcon(p)
+    eq(icon, ns.LOGO_ICON, "nothing to go on: the logo")
+    eq(crop, false)
+end)
+
+test("the picker offers Automatic, the profile's own icons, then every icon; a pick sticks", function()
+    local c, ns = gearLogin()
+    ns.SaveProfile("Prot")
+    ns.SetProfileGear("Prot", { [16] = gearString(2132) })
+    local page = profilesPage()
+    click(page.rows[1].icon)
+    local picker = KeystanceIconPicker
+    eq(picker:IsShown(), true)
+    eq(picker.title.text, "Icon for Prot")
+    local cells = picker.cells
+    eq(cells[1].entry, "auto")
+    eq(cells[1].chosen, true)
+    eq(cells[2].entry, 102132, "its weapon first")
+    eq(cells[3].entry, 201866, "then its spells")
+    -- Every icon follows; the wheel scrolls through them.
+    picker.grid.scripts.OnMouseWheel(picker.grid, -1)
+    assert(cells[1].entry ~= "auto", "scrolled")
+    picker.grid.scripts.OnMouseWheel(picker.grid, 1)
+    click(cells[3])
+    eq(c.profiles.Prot.icon, 201866)
+    eq(picker:IsShown(), false)
+    eq(page.rows[1].icon.tex.texture, 201866)
+    click(page.rows[1].icon)
+    eq(cells[3].chosen, true)
+    click(cells[1])
+    eq(c.profiles.Prot.icon, nil, "back to automatic")
+end)
+
+test("a key bound to a profile shows the profile's icon on the keyboard", function()
+    local c, ns = gearLogin()
+    ns.SaveProfile("Prot")
+    ns.SetProfileIcon("Prot", 201866)
+    ns.SetProfileKey("Prot", "F")
+    wow.bindings.G = "KEYSTANCE_NEXT"
+    local page = keyboardPage()
+    local f = capFor(page, "F")
+    eq(f.icon.texture, 201866)
+    eq(f.icon.shown, true)
+    eq(f.whole, false, "a game icon, cropped like spells")
+    local g = capFor(page, "G")
+    eq(g.icon.texture, ns.LOGO_ICON)
+    eq(g.whole, true, "the logo whole")
+end)
+
+test("the spell panel's Profiles tab shows each profile's icon", function()
+    local c, ns = gearLogin()
+    ns.SaveProfile("Prot")
+    ns.SetProfileIcon("Prot", 201866)
+    ns.ToggleSpellPanel()
+    click(choice(KeystanceSpellPanel.kinds, "Profiles"))
+    eq(KeystanceSpellPanel.rows[1].icon.texture, 201866)
+end)

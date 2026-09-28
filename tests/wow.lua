@@ -534,6 +534,9 @@ function M.load(files)
             if index == nameOrIndex or m.name == nameOrIndex then return m.name, m.icon or 134400, m.body end
         end
     end
+    -- The game's icon lists for macros: they add file IDs to the table given.
+    GetMacroIcons = function(t) for i = 1, 60 do t[#t + 1] = 700000 + i end end
+    GetMacroItemIcons = function(t) for i = 1, 20 do t[#t + 1] = 800000 + i end end
     GetMacroIndexByName = function(name)
         for index, m in pairs(M.macros) do if m.name == name then return index end end
         return 0

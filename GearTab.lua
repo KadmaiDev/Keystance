@@ -111,8 +111,17 @@ end
 
 function ns.BuildGearView(view, f, back)
     view.window = f
+    -- The profile's icon, to choose another.
+    local icon = CreateFrame("Button", nil, view)
+    icon:SetSize(28, 28)
+    icon:SetPoint("TOPLEFT", 16, -8)
+    icon.tex = icon:CreateTexture(nil, "ARTWORK")
+    icon.tex:SetAllPoints()
+    icon:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+    icon:SetScript("OnClick", function(self) ns.PickProfileIcon(view.profile, self) end)
+    view.icon = icon
     local title = view:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", 16, -14)
+    title:SetPoint("LEFT", icon, "RIGHT", 8, 0)
     view.title = title
     local backButton = CreateFrame("Button", nil, view, "UIPanelButtonTemplate")
     backButton:SetSize(90, 22)
@@ -227,6 +236,9 @@ function ns.RefreshGearView(view, name)
     local p = Profile(view)
     if not p then return end
     view.title:SetText(L["Gear for %s"]:format(name))
+    local icon, crop = ns.ProfileIcon(p)
+    view.icon.tex:SetTexture(icon)
+    if crop then view.icon.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) else view.icon.tex:SetTexCoord(0, 1, 0, 1) end
     local itemRack = ns.ItemRackReady()
     view.from:SetShown(itemRack)
     view.source:SetShown(itemRack)

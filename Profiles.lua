@@ -134,6 +134,16 @@ function ns.SetProfileGear(name, items)
     return key
 end
 
+-- Sets a profile's icon (nil: automatic).
+function ns.SetProfileIcon(name, icon)
+    local key = ns.FindProfile(name)
+    if not key then return nil end
+    Char().profiles[key].icon = icon
+    ns.RefreshWindow()
+    if ns.RefreshSpellPanel then ns.RefreshSpellPanel() end
+    return key
+end
+
 -- Sets one slot of a profile's own gear (nil: leave that slot alone).
 function ns.SetGearSlot(name, slot, item)
     local key = ns.FindProfile(name)

@@ -351,10 +351,12 @@ local function RefreshCaps(page, layer, padMods)
             local slot = ns.CommandSlot(command)
             local texture = slot and GetActionTexture(slot)
             cap.fullKey, cap.command, cap.slot = full, command, slot
-            -- A raid marker shows its own picture, uncropped (spell icons have a border to trim).
-            local picture = not texture and ns.CommandIcon(command)
+            -- A raid marker shows its own picture, uncropped (spell icons have a border to trim);
+            -- a profile's key shows the profile's icon.
+            local picture, crop
+            if not texture then picture, crop = ns.CommandIcon(command) end
             if texture or picture then
-                local whole = picture and true or false
+                local whole = (picture and not crop) and true or false
                 if cap.whole ~= whole then -- only when it changes: redraws stay allocation-free
                     cap.whole = whole
                     if whole then cap.icon:SetTexCoord(0, 1, 0, 1) else cap.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) end

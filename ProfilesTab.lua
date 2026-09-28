@@ -11,7 +11,8 @@ local ipairs, pairs, pcall, CreateFrame = ipairs, pairs, pcall, CreateFrame
 local IsAltKeyDown, IsControlKeyDown, IsShiftKeyDown = IsAltKeyDown, IsControlKeyDown, IsShiftKeyDown
 
 local ROWS, ROW_HEIGHT = 6, 34
-local TEXT_WIDTH = 190 -- a row's text stops short of its buttons (cut off, never under them)
+local TEXT_WIDTH = 160 -- a row's text stops short of its buttons (cut off, never under them)
+local ICON = 26
 local MODIFIER_KEYS = { LSHIFT = true, RSHIFT = true, LCTRL = true, RCTRL = true, LALT = true, RALT = true,
     LMETA = true, RMETA = true, UNKNOWN = true }
 
@@ -122,8 +123,23 @@ local function MakeRow(page, f, i)
     local bg = row:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints()
     bg:SetColorTexture(1, 1, 1, i % 2 == 0 and 0.03 or 0.06)
+    -- The profile's icon: click to choose another (IconPicker.lua).
+    local icon = CreateFrame("Button", nil, row)
+    icon:SetSize(ICON, ICON)
+    icon:SetPoint("LEFT", 6, 0)
+    icon.tex = icon:CreateTexture(nil, "ARTWORK")
+    icon.tex:SetAllPoints()
+    icon:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+    icon:SetScript("OnClick", function(self) ns.PickProfileIcon(row.profile, self) end)
+    icon:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(L["Click to choose this profile's icon."], 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    icon:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    row.icon = icon
     local name = Text(f, row, "GameFontNormal")
-    name:SetPoint("TOPLEFT", 8, -4)
+    name:SetPoint("TOPLEFT", ICON + 12, -4)
     name:SetWidth(TEXT_WIDTH)
     name:SetWordWrap(false)
     name:SetJustifyH("LEFT")
@@ -233,6 +249,9 @@ local function Refresh(page)
             local p = c.profiles[name]
             row.profile = name
             row.name:SetText((name == c.active and ("|cff55ff55" .. name .. "|r") or name) .. Note(p))
+            local icon, crop = ns.ProfileIcon(p)
+            row.icon.tex:SetTexture(icon)
+            if crop then row.icon.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92) else row.icon.tex:SetTexCoord(0, 1, 0, 1) end
             local key = ns.ProfileKey(name)
             row.key:SetText(page.capturing == name and ("|cff66ccff" .. L["Press a key"] .. "|r")
                 or key or ("|cff9d9d9d" .. L["Set key"] .. "|r"))
