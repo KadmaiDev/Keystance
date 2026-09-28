@@ -47,6 +47,10 @@ local function RefreshPage(page)
     page.lookNote:SetText(inUse == chosen and L["In use: %s."]:format(LOOK_NAMES[inUse])
         or L["In use: %s until you reload."]:format(LOOK_NAMES[inUse]))
     page.minimap:SetText(ns.MinimapButtonOn() and L["Minimap button: shown"] or L["Minimap button: hidden"])
+    local snap = ns.char and ns.char.snapshot
+    page.snapshot:SetText(snap and L["Your bars and keys as they were before Keystance were saved on %s (%d slots, %d keys). You'll be able to put them back from here."]
+        :format(date("%d %b %Y", snap.at), snap.nSlots, snap.nBinds)
+        or L["Keystance saves your bars and keys as they are now, shortly after you log in, so you can always get them back."])
 end
 
 local function RefreshAll()
@@ -131,6 +135,11 @@ function ns.BuildSettings(page, owner, top)
         RefreshAll()
     end)
     page.minimap = minimap
+    local snapshot = Text(owner, page, "GameFontHighlightSmall")
+    snapshot:SetPoint("TOPLEFT", minimap, "BOTTOMLEFT", 0, -16)
+    snapshot:SetWidth(460)
+    snapshot:SetJustifyH("LEFT")
+    page.snapshot = snapshot
     page.Refresh = RefreshPage
     pages[#pages + 1] = page
 end
@@ -165,7 +174,7 @@ local function BuildCanvas(f)
     f.open = open
     ns.BuildSettings(f, f, open)
     local help = Text(f, f, "GameFontHighlightSmall", L["Type /kst help for every command."])
-    help:SetPoint("TOPLEFT", f.minimap, "BOTTOMLEFT", 0, -16)
+    help:SetPoint("TOPLEFT", f.snapshot, "BOTTOMLEFT", 0, -16)
     for _, b in ipairs(f.buttons) do ns.SkinButton(b) end
     for _, fs in ipairs(f.texts) do ns.SkinText(fs) end
 end

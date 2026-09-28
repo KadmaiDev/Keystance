@@ -23,6 +23,9 @@ KeystanceRunning = ADDON
 
 local DB_VERSION = 1
 
+-- Builders for the window's tabs, by tab key: fn(page, window). Filled by the tab files.
+ns.pageBuilders = {}
+
 local pcall, type, pairs, ipairs, print = pcall, type, pairs, ipairs, print
 local issecretvalue = issecretvalue or function() return false end
 local UnitName, UnitClass, InCombatLockdown = UnitName, UnitClass, InCombatLockdown
@@ -63,6 +66,7 @@ end)
 -- choices are never replaced.
 local DEFAULTS = {
     skin = "auto", -- "auto" (EllesmereUI, then ElvUI, then classic), "classic", "ellesmere", "elvui"
+    layout = "auto", -- keyboard drawn: "auto" (UK for an English (UK) client, else US), "ansi", "iso"
 }
 
 -- UPGRADES[v] turns version v data into version v + 1 in place. Saved data is repaired,

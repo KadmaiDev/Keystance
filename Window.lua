@@ -11,8 +11,8 @@ local WIDTH, HEIGHT = 720, 460
 local frame
 
 local TABS = {
-    { key = "keyboard", name = L["Keyboard"], blurb = L["Your keyboard, showing what every key does. Coming soon."] },
-    { key = "bars", name = L["Bars"], blurb = L["Your action bars and their keys. Coming soon."] },
+    { key = "keyboard", name = L["Keyboard"] },
+    { key = "bars", name = L["Bars"] },
     { key = "profiles", name = L["Profiles"], blurb = L["Save your bars and keys per role, and switch with one click. Coming soon."] },
     { key = "rules", name = L["Rules"], blurb = L["Switch profiles automatically when you equip a shield, a two-hander or a set. Coming soon."] },
     { key = "settings", name = L["Settings"] },
@@ -35,6 +35,20 @@ local function Refresh()
     if page and page.Refresh then page:Refresh() end
 end
 ns.RefreshWindow = Refresh
+
+-- Refreshes the open window soon, once however many events asked (a bar change fires one
+-- event per slot). With a tab key, only if that tab is showing. A closed window costs a check.
+local pending = false
+local function RunPending()
+    pending = false
+    Refresh()
+end
+function ns.RequestRefresh(key)
+    if pending or not frame or not frame:IsShown() then return end
+    if key and TABS[frame.selected].key ~= key then return end
+    pending = true
+    C_Timer.After(0.05, RunPending)
+end
 
 local function SelectTab(i)
     frame.selected = i
@@ -127,7 +141,10 @@ local function CreateWindow()
         page:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -8, 30)
         page:Hide()
         page.key = info.key
-        if info.blurb then
+        local build = ns.pageBuilders[info.key]
+        if build then
+            build(page, f)
+        elseif info.blurb then
             local fs = Text(f, page, "GameFontHighlightMedium", info.blurb)
             fs:SetPoint("CENTER")
         end
@@ -176,3 +193,7 @@ end
 -- The combat note follows combat while the window is open.
 ns.On("PLAYER_REGEN_DISABLED", Refresh)
 ns.On("PLAYER_REGEN_ENABLED", Refresh)
+-- What's on the bars and which page they show.
+for _, event in ipairs({ "ACTIONBAR_SLOT_CHANGED", "ACTIONBAR_PAGE_CHANGED", "UPDATE_BONUS_ACTIONBAR" }) do
+    ns.On(event, function() ns.RequestRefresh() end)
+end

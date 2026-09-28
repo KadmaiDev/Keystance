@@ -4,7 +4,8 @@
 -- the real figure.
 package.path = "tests/?.lua;" .. package.path
 local wow = require("wow")
-local FILES = { "Locales.lua", "Core.lua", "Skins.lua", "Window.lua", "Options.lua", "Minimap.lua" }
+local FILES = { "Locales.lua", "Core.lua", "Skins.lua", "Actions.lua", "Snapshot.lua", "Layouts.lua", "Window.lua",
+    "Keyboard.lua", "Bars.lua", "Options.lua", "Minimap.lua" }
 
 local function out(fmt, ...) io.write(fmt:format(...), "\n") end
 local function settle()
@@ -51,10 +52,53 @@ out("  addon, logged in, window never opened:  %6.1f KB  (%.0f-%.0f)", median(lo
 
 out("")
 out("Garbage per call (only allocations by the addon itself)")
-garbage("entering and leaving combat, window closed", 5000, function()
-    wow.enterCombat() wow.leaveCombat()
-end)
+-- A full setup: 60 slots in use and 40 keys bound, logged in with the snapshot taken.
+local function setup()
+    wow.spellbook = { { name = "Class", spells = {} } }
+    for i = 1, 60 do
+        wow.spellbook[1].spells[i] = { 1000 + i, "Spell " .. i, "Rank 1" }
+        wow.slots[i] = { kind = "spell", id = 1000 + i }
+    end
+    local keys = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "Q", "E", "R", "T", "F", "G", "Z", "X", "C", "V" }
+    for i, key in ipairs(keys) do
+        wow.bindings[key] = "ACTIONBUTTON" .. ((i - 1) % 12 + 1)
+        wow.bindings["SHIFT-" .. key] = "MULTIACTIONBAR1BUTTON" .. ((i - 1) % 12 + 1)
+    end
+end
+wow.load({})
+setup()
+local ns = {}
+for _, file in ipairs(FILES) do assert(loadfile(file))("Keystance", ns) end
+-- Blizzard's main bar and bottom-left bar on screen.
+CreateFrame("Frame", "MainActionBar")
+CreateFrame("Frame", "MultiBarBottomLeft")
+for i = 1, 12 do
+    CreateFrame("Button", "ActionButton" .. i).action = i
+    CreateFrame("Button", "MultiBarBottomLeftButton" .. i).action = 60 + i
+end
+wow.fire("ADDON_LOADED", "Keystance")
+wow.fire("PLAYER_LOGIN")
+wow.fire("PLAYER_ENTERING_WORLD", true, false)
+wow.runTimers()
+wow.timers = {}
+
+-- The fake API allocates where the real one doesn't (GetBindingKey builds and sorts a
+-- list); make it free first so only the addon's own garbage is counted.
+local firstKey = {}
+for key, cmd in pairs(wow.bindings) do
+    if not firstKey[cmd] or key < firstKey[cmd] then firstKey[cmd] = key end
+end
+GetBindingKey = function(cmd) return firstKey[cmd] end
+
+out(" window closed (what runs while you play):")
+garbage("  entering and leaving combat", 5000, function() wow.enterCombat() wow.leaveCombat() end)
+garbage("  a modifier key pressed", 5000, function() wow.fire("MODIFIER_STATE_CHANGED", "LSHIFT", 1) end)
+garbage("  an action bar slot changed", 5000, function() wow.fire("ACTIONBAR_SLOT_CHANGED", 1) end)
+garbage("  keybindings changed", 5000, function() wow.fire("UPDATE_BINDINGS") end)
+
+out(" window open:")
 SlashCmdList.KEYSTANCE("")
-garbage("entering and leaving combat, window open", 5000, function()
-    wow.enterCombat() wow.leaveCombat()
-end)
+ns.ShowTab("keyboard")
+garbage("  Keyboard tab redrawn (74 keys)", 2000, function() ns.RefreshWindow() end)
+ns.ShowTab("bars")
+garbage("  Bars tab redrawn (2 bars)", 2000, function() ns.RefreshWindow() end)

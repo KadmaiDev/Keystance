@@ -13,6 +13,7 @@ local KNOWN_EVENTS = {
     PLAYER_REGEN_DISABLED = true, PLAYER_REGEN_ENABLED = true,
     ADDON_ACTION_BLOCKED = true, ADDON_ACTION_FORBIDDEN = true,
     ACTIONBAR_SLOT_CHANGED = true, UPDATE_BINDINGS = true, CURSOR_CHANGED = true,
+    MODIFIER_STATE_CHANGED = true, ACTIONBAR_PAGE_CHANGED = true, UPDATE_BONUS_ACTIONBAR = true,
     SPELLS_CHANGED = true, LEARNED_SPELL_IN_SKILL_LINE = true,
     PLAYER_EQUIPMENT_CHANGED = true, UNIT_INVENTORY_CHANGED = true,
 }
@@ -37,6 +38,10 @@ end
 
 -- Resets every global and loads the addon files fresh. Returns the addon namespace.
 function M.load(files)
+    -- Named frames from the previous load are gone, as after a /reload.
+    for _, f in ipairs(M.frames or {}) do
+        if f.name and _G[f.name] == f then _G[f.name] = nil end
+    end
     M.frames = {}
     M.printed = {}
     M.player = { name = "Vespera Ashward", class = "PALADIN", level = 20 }
@@ -124,6 +129,8 @@ function M.load(files)
     function frameMethods:GetText() return self.text end
     function frameMethods:SetID(id) self.id = id end
     function frameMethods:GetID() return self.id end
+    function frameMethods:SetAttribute(k, v) self.attributes = self.attributes or {}; self.attributes[k] = v end
+    function frameMethods:GetAttribute(k) return self.attributes and self.attributes[k] end
     function frameMethods:SetPoint(point, rel, relPoint, x, y) self.point = { point, rel, relPoint, x, y } end
     function frameMethods:LockHighlight() self.highlightLocked = true end
     function frameMethods:UnlockHighlight() self.highlightLocked = false end
@@ -140,7 +147,7 @@ function M.load(files)
     CreateFrame = function(kind, name, parent, template)
         if template and M.missingTemplates[template] then error("Couldn't find inherited node \"" .. template .. "\"") end
         local f = newObject(kind, name)
-        f.template, f.parent = template, parent
+        f.template, f.parent, f.name = template, parent, name
         M.frames[#M.frames + 1] = f
         return f
     end
@@ -173,6 +180,15 @@ function M.load(files)
 
     -- Combat.
     InCombatLockdown = function() return M.combat end
+
+    -- Modifier keys held (M.mods.shift...), the bar page and the stance/form bar offset.
+    M.mods = { shift = false, ctrl = false, alt = false }
+    IsShiftKeyDown = function() return M.mods.shift end
+    IsControlKeyDown = function() return M.mods.ctrl end
+    IsAltKeyDown = function() return M.mods.alt end
+    M.page, M.bonus = 1, 0
+    GetActionBarPage = function() return M.page end
+    GetBonusBarOffset = function() return M.bonus end
 
     -- Protected calls: in combat they're blocked (recorded, event fired, no effect).
     local function protect(name, fn)
@@ -293,7 +309,41 @@ function M.load(files)
 
     -- Keybindings: one live set; SaveBindings(set) writes it and makes that set current
     -- (measured: SaveBindings(2) alone switches to character keybinds, keeping every bind).
-    GetBindingAction = function(key) return M.bindings[key] or "" end
+    -- Override bindings (what EllesmereUI and ElvUI set), seen when asked to check them.
+    M.overrides = {}
+    GetBindingAction = function(key, checkOverride)
+        if checkOverride and M.overrides[key] then return M.overrides[key] end
+        return M.bindings[key] or ""
+    end
+    -- The game's list of binding commands: every command bound here, in name order.
+    local function commands()
+        local list, seen = {}, {}
+        for _, cmd in pairs(M.bindings) do
+            if not seen[cmd] then seen[cmd] = true; list[#list + 1] = cmd end
+        end
+        table.sort(list)
+        return list
+    end
+    GetNumBindings = function() return #commands() end
+    GetBinding = function(i)
+        local cmd = commands()[i]
+        if cmd then return cmd, "category", GetBindingKey(cmd) end
+    end
+    -- Names from the game's Key Bindings list (M.bindingNames), else the command itself.
+    M.bindingNames = { MOVEFORWARD = "Move Forward", TOGGLEAUTORUN = "Toggle Autorun" }
+    GetBindingText = function(text, prefix)
+        if prefix == "BINDING_NAME_" then return M.bindingNames[text] or text end
+        return text
+    end
+    GetMacroInfo = function(nameOrIndex)
+        for index, m in pairs(M.macros) do
+            if index == nameOrIndex or m.name == nameOrIndex then return m.name, m.icon or 134400, m.body end
+        end
+    end
+    GetMacroIndexByName = function(name)
+        for index, m in pairs(M.macros) do if m.name == name then return index end end
+        return 0
+    end
     GetBindingKey = function(command)
         local keys = {}
         for key, cmd in pairs(M.bindings) do if cmd == command then keys[#keys + 1] = key end end
@@ -428,7 +478,8 @@ function M.tooltip()
         lines = {},
         AddLine = function(self, text) self.lines[#self.lines + 1] = { text } end,
         AddDoubleLine = function(self, l, r) self.lines[#self.lines + 1] = { l, r } end,
-        SetOwner = function(self, owner) self.owner, self.lines, self.shown = owner, {}, false end,
+        SetAction = function(self, slot) self.action = slot; self.lines[#self.lines + 1] = { "action:" .. slot } end,
+        SetOwner = function(self, owner) self.owner, self.lines, self.shown, self.action = owner, {}, false, nil end,
         Show = function(self) self.shown = true end,
         Hide = function(self) self.shown, self.owner = false, nil end,
         IsShown = function(self) return self.shown end,

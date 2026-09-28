@@ -12,7 +12,9 @@ A keybind and action bar manager for **World of Warcraft: Forever**, by **Kadmai
 - Finger-friendly suggestions: common abilities go on keys close to your movement keys, so you're not stretching for them.
 - Looks at home with the default UI, EllesmereUI or ElvUI.
 
-Status: early development, not released yet. So far there's the window (empty tabs), the minimap button and the look that follows your UI addon; the features above arrive in stages.
+Status: early development, not released yet. So far you can see your keybinds on an on-screen keyboard (with Shift, Ctrl and Alt layers) and your action bars with their keys, in a window that takes the look of your UI addon; the rest arrives in stages.
+
+Your setup is safe: Keystance only reads your bars and keys for now. Shortly after your first login with it, it saves a copy of your bars and keybinds as they were, so that once it can change them you can always put everything back.
 
 ## Commands
 
@@ -20,7 +22,7 @@ Status: early development, not released yet. So far there's the window (empty ta
 
 ## Performance
 
-Keystance does nothing while you play: no code runs every frame, and the window is only built the first time you open it. It uses about 40 KB of memory (measured outside the game; `/kst mem` shows the real figure).
+Keystance does nothing while you play: no code runs every frame, the window is only built the first time you open it, and while it's closed the game's events cost one check and create no garbage. It uses about 120 KB of memory (measured outside the game; `/kst mem` shows the real figure).
 
 ## Development
 

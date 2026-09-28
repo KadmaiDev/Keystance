@@ -14,6 +14,11 @@
 Locales.lua
 Core.lua
 Skins.lua
+Actions.lua
+Snapshot.lua
+Layouts.lua
 Window.lua
+Keyboard.lua
+Bars.lua
 Options.lua
 Minimap.lua
