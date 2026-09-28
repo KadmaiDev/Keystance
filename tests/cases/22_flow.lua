@@ -79,7 +79,7 @@ test("a new player is walked through, step by step, each ticked off by doing it"
     ns.SaveProfile("Ret")
     eq(guideStep(), "Set up another role")
     click(KeystanceGuideBar.actions[1])
-    eq(shownPage(), "keyboard")
+    eq(shownPage(), "bars", "bars first: build the setup there")
     wow.slots[1] = { kind = "spell", id = 647 }
     ns.SaveProfile("Prot")
     eq(guideStep(), "Choose how to switch")
@@ -129,8 +129,8 @@ test("Getting started on the Profiles tab lists every step, done ones ticked", f
     eq(view.rows[4].done, false)
     eq(view.rows[4].number.text, 4)
     eq(view.rows[3].buttons[1]:IsShown(), false, "no button for what's done")
-    click(view.rows[4].buttons[1]) -- Keyboard
-    eq(shownPage(), "keyboard")
+    click(view.rows[4].buttons[1]) -- Bars
+    eq(shownPage(), "bars")
     click(tabNamed("Profiles"))
     click(view.back)
     eq(page.list:IsShown(), true)

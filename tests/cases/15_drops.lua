@@ -30,7 +30,7 @@ test("dropped on an unbound key, it goes in the first empty slot on screen and t
     eq(wow.slots[4].id, 19834, "slot 4: the main bar's first empty button")
     eq(GetBindingAction("E"), "ACTIONBUTTON4")
     eq(wow.cursor, nil)
-    assert(printed():find("Blessing of Might placed in Main bar, slot 4, on E.", 1, true), printed())
+    assert(printed():find("Blessing of Might went on Main bar, button 4, with the key E. Move it on the Bars tab", 1, true), printed())
     ns.Undo()
     eq(wow.slots[4], nil); eq(GetBindingAction("E"), "")
 end)

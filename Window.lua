@@ -1,4 +1,4 @@
--- Keystance main window: tabs across the top (Profiles, Keyboard, Bars, Rules, Settings)
+-- Keystance main window: tabs across the top (Profiles, Bars, Keyboard, Rules, Settings)
 -- and a strip along the bottom: the profile in use (with "changed since saved" and Update),
 -- Undo when there's something to undo, a button per profile to switch, and the combat note. Built the first time it's
 -- opened and only refreshed while shown, so a closed window costs nothing.
@@ -16,12 +16,13 @@ local STRIP_BOTTOM, PAGE_BOTTOM = 12, 46
 local STRIP_SIDE = 26
 local frame
 
--- Profiles first: it's home (a new player's first steps are there), and Keyboard and Bars
--- are where a profile's bars and keys are edited.
+-- Profiles first: it's home (a new player's first steps are there). Then Bars, where a setup
+-- is built (spells onto slots, then keys with Keybind mode), and Keyboard, where keys are
+-- checked and fine-tuned: players think "what's on my bars" before "which key".
 local TABS = {
     { key = "profiles", name = L["Profiles"] },
-    { key = "keyboard", name = L["Keyboard"] },
     { key = "bars", name = L["Bars"] },
+    { key = "keyboard", name = L["Keyboard"] },
     { key = "rules", name = L["Rules"] },
     { key = "settings", name = L["Settings"] },
 }

@@ -138,7 +138,10 @@ local function PlaceAndBind(key)
         ns.Print(L["%s moved to %s."]:format(label, key))
     else
         ns.RecordChange(before, L["placing %s on %s"]:format(label, key))
-        ns.Print(L["%s placed in %s, slot %d, on %s."]:format(label, barName, index, key))
+        -- A key with no bar button yet: the first empty slot on screen took it. Say which,
+        -- as it may not be where the player would have put it.
+        ns.Print(L["%s went on %s, button %d, with the key %s. Move it on the Bars tab if you'd like it somewhere else."]
+            :format(label, barName, index, key))
     end
     ns.RefreshWindow()
     return true

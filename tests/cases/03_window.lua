@@ -41,7 +41,7 @@ test("the window has the five tabs, and each shows its own page", function()
     slash("")
     local names = {}
     for i, tab in ipairs(KeystanceFrame.tabs) do names[i] = tab.text end
-    eq(table.concat(names, ","), "Profiles,Keyboard,Bars,Rules,Settings")
+    eq(table.concat(names, ","), "Profiles,Bars,Keyboard,Rules,Settings")
     eq(shownPage(), "profiles", "home: where a new player starts")
     click(tabNamed("Keyboard"))
     eq(shownPage(), "keyboard")
