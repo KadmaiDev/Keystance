@@ -43,70 +43,50 @@ test("the minimap button can be hidden from the menu, and stays hidden next sess
     eq(KeystanceMinimapButton:IsShown(), true, "turned back on")
 end)
 
--- EllesmereUI's tray, as its code behaves: it learns what we want from hooks on Show and
--- Hide (SetShown doesn't reach them), and while its grid is open its Hide hook shows the
--- button again. Returns the tray's record and a function to open or close the grid.
+-- EllesmereUI's tray, as its code behaves: hooks on Show and Hide that fight us (Show
+-- fades the button to alpha 0 while its grid is closed; Hide while the grid is open shows
+-- it again), and its published list of wanted buttons, _EBS_AddonVisible.
 function ellesmereTray(b)
-    local tray = { open = false, wanted = {} }
+    local tray = { open = false }
+    _EBS_AddonVisible = {}
     local show, hide = b.Show, b.Hide
-    b.Show = function(self) show(self); tray.wanted[self] = true end
+    b.Show = function(self)
+        show(self)
+        _EBS_AddonVisible[self] = true
+        if not tray.open then self:SetAlpha(0) end
+    end
     b.Hide = function(self)
         hide(self)
-        if tray.open then show(self) else tray.wanted[self] = false end
+        if tray.open then show(self) else _EBS_AddonVisible[self] = false end
     end
     return tray
 end
 
-test("hiding tells EllesmereUI's tray, retrying while its grid is open until it sticks", function()
+test("with EllesmereUI's tray, hiding and showing work at once, grid open or not", function()
     start(nil)
     local b = KeystanceMinimapButton
     local tray = ellesmereTray(b)
-    tray.open = true -- hidden from the tray's own menu, grid still open
-    slash("minimap")
-    eq(b:IsShown(), true, "the open grid put it back")
-    wow.runTimers()
-    eq(b:IsShown(), true, "still open: tried again, still undone")
-    tray.open = false -- the next click closed the grid
-    wow.runTimers()
-    eq(b:IsShown(), false)
-    eq(tray.wanted[b], false, "the tray knows, so a rebuild won't bring it back")
-    slash("minimap")
-    eq(b:IsShown(), true)
-    eq(tray.wanted[b], true)
+    for _, open in ipairs({ true, false }) do
+        tray.open = open
+        slash("minimap")
+        eq(b:IsShown(), false, "hidden at once")
+        eq(_EBS_AddonVisible[b], false, "the tray's list says not wanted, so a rebuild won't bring it back")
+        b:SetAlpha(0) -- a rebuild while it's hidden tucks it away (HideMinimapChild)
+        slash("minimap")
+        eq(b:IsShown(), true, "shown at once")
+        eq(b:GetAlpha(), 1, "and visible, with no reload")
+        eq(_EBS_AddonVisible[b], true)
+    end
+    eq(wow.popup, nil, "never asks to reload")
 end)
 
-test("showing it again while a hide is still being retried stops the retries", function()
-    start(nil)
-    local b = KeystanceMinimapButton
-    local tray = ellesmereTray(b)
-    tray.open = true
-    slash("minimap")
-    slash("minimap")
-    tray.open = false
-    wow.runTimers()
-    eq(b:IsShown(), true, "the player's last choice wins")
-end)
-
-test("with EllesmereUI's minimap, turning the button back on offers a reload (its tray needs one)", function()
-    start(nil)
-    wow.loadedAddons.EllesmereUIMinimap = true
-    slash("minimap")
-    eq(wow.popup, nil, "hiding needs no reload")
-    slash("minimap")
-    eq(wow.popup.which, "KEYSTANCE_RELOAD")
-    assert(wow.popup.text:find("minimap tray", 1, true), wow.popup.text)
-    StaticPopupDialogs.KEYSTANCE_RELOAD.OnAccept()
-    eq(wow.reloads, 1)
-    wow.runTimers()
-    assert(printed():find("Type /reload to see the minimap button again.", 1, true))
-end)
-
-test("without EllesmereUI's minimap, the button just comes back: no reload", function()
+test("without EllesmereUI, the button just hides and shows", function()
     start(nil)
     slash("minimap")
+    eq(KeystanceMinimapButton:IsShown(), false)
     slash("minimap")
-    eq(wow.popup, nil)
     eq(KeystanceMinimapButton:IsShown(), true)
+    eq(wow.popup, nil)
 end)
 
 test("a hidden button is still made at load (hidden), so EllesmereUI's tray collects it", function()

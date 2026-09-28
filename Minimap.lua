@@ -110,51 +110,30 @@ function ns.CreateMinimapButton()
     mmButton = b
     Place(ns.db.settings.minimapAngle or DEFAULT_ANGLE)
     -- Hidden before EllesmereUI's scan, which then records it as not wanted.
-    if not ns.MinimapButtonOn() then b:Hide() end
+    if not ns.MinimapButtonOn() then b:SetShown(false) end
 end
 
--- EllesmereUI's minimap tray learns whether we want the button only from hooks on its Show
--- and Hide (EllesmereUIMinimap.lua, HideMinimapChild):
---  * SetShown doesn't reach those hooks, so a button hidden that way came back the next
---    time the tray rebuilt its grid (seen 2026-09-28);
---  * but while the tray's grid is open its Hide hook shows the button again at once.
--- So we hide with Hide() and, if the open grid undid it, try again every half second until
--- it sticks: the grid closes on the next click anywhere else. Without EllesmereUI the first
--- Hide() simply works.
-local RETRIES, RETRY_WAIT = 40, 0.5
-local retrying = false
-local function EnsureHidden(tries)
-    retrying = false
-    if not mmButton or ns.MinimapButtonOn() or not mmButton:IsShown() then return end
-    mmButton:Hide()
-    if mmButton:IsShown() and tries < RETRIES then
-        retrying = true
-        C_Timer.After(RETRY_WAIT, function() EnsureHidden(tries + 1) end)
-    end
-end
-
--- EllesmereUI's tray puts a button back in its grid only when it rebuilds (after an addon
--- loads, or a reload); until then a shown button stays invisible (seen in game 2026-09-28,
--- and a reload brought it back). Its only rebuild hook for other addons would also re-show
--- buttons other addons have hidden, so we offer a reload instead.
-local function EllesmereTray()
-    return C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("EllesmereUIMinimap") or false
+-- Shown and hidden with SetShown, as Alts Forever does: EllesmereUI's minimap tray hooks
+-- the button's Show and Hide, and those hooks fight us (Show from us made the button
+-- invisible until the tray rebuilt; Hide while its grid was open was undone at once).
+-- SetShown doesn't reach them, so the button appears and disappears right away. The tray
+-- also keeps its own list of which buttons are wanted, which SetShown doesn't update, so a
+-- hidden button came back whenever the tray rebuilt its grid (after opening Options). We
+-- update that list too: EllesmereUI publishes it as _EBS_AddonVisible (for its own options
+-- screen; unofficial, so only used when it's there and a table). Seen in game 2026-09-28.
+local function TellEllesmereTray(wanted)
+    local list = _G._EBS_AddonVisible
+    if type(list) == "table" then list[mmButton] = wanted end
 end
 
 function ns.SetMinimapButton(on)
-    local was = ns.MinimapButtonOn()
     ns.db.settings.minimapHidden = not on or nil
     ns.CreateMinimapButton()
     if not mmButton then return end
-    if on then
-        mmButton:Show()
-        if not was and EllesmereTray() then
-            ns.AskReload(L["EllesmereUI's minimap tray shows the Keystance button again after the interface reloads. Reload now?"],
-                L["Type /reload to see the minimap button again."])
-        end
-    elseif not retrying then
-        EnsureHidden(0)
-    end
+    TellEllesmereTray(on)
+    mmButton:SetShown(on)
+    -- The tray fades buttons it tucks away to alpha 0; ours must be seen when shown.
+    if on then mmButton:SetAlpha(1) end
 end
 
 ---------------------------------------------------------------------------

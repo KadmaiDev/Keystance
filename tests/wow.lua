@@ -131,6 +131,8 @@ function M.load(files)
     function frameMethods:SetText(text) self.text = text end
     function frameMethods:GetText() return self.text end
     function frameMethods:SetID(id) self.id = id end
+    function frameMethods:SetAlpha(a) self.alpha = a end
+    function frameMethods:GetAlpha() return self.alpha or 1 end
     function frameMethods:GetID() return self.id end
     function frameMethods:SetAttribute(k, v) self.attributes = self.attributes or {}; self.attributes[k] = v end
     function frameMethods:GetAttribute(k) return self.attributes and self.attributes[k] end
@@ -471,6 +473,7 @@ function M.load(files)
     Keystance_OnAddonCompartmentClick, Keystance_OnAddonCompartmentEnter = nil, nil
     Keystance_OnAddonCompartmentLeave = nil
     KeystanceMinimapButton, KeystanceFrame, KeystanceRunning = nil, nil, nil
+    _EBS_AddonVisible = nil -- EllesmereUI's minimap tray list, only if a test makes one
     SLASH_KEYSTANCE1, SLASH_KEYSTANCE2 = nil, nil
 
     M.addonName = "Keystance"
