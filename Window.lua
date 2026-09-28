@@ -11,6 +11,9 @@ local ipairs, pcall, CreateFrame = ipairs, pcall, CreateFrame
 local WIDTH, HEIGHT = 720, 476
 -- The strip along the bottom: its own band under the pages, with room around it.
 local STRIP_BOTTOM, PAGE_BOTTOM = 12, 46
+-- Its sides line up with the pages' content (pages sit 8 px in, their content 16 px more),
+-- clear of any look's border.
+local STRIP_SIDE = 26
 local frame
 
 -- Profiles first: it's home (a new player's first steps are there), and Keyboard and Bars
@@ -84,8 +87,8 @@ end
 
 local function BuildStatus(f)
     local s = CreateFrame("Frame", nil, f)
-    s:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, STRIP_BOTTOM)
-    s:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, STRIP_BOTTOM)
+    s:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", STRIP_SIDE, STRIP_BOTTOM)
+    s:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -STRIP_SIDE, STRIP_BOTTOM)
     s:SetHeight(22)
     s.icon = s:CreateTexture(nil, "ARTWORK")
     s.icon:SetSize(18, 18)
@@ -294,7 +297,7 @@ local function CreateWindow()
 
     -- Header strip: the combat note (the active profile joins it with profiles).
     local combat = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    combat:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -16, STRIP_BOTTOM + 4)
+    combat:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -STRIP_SIDE, STRIP_BOTTOM + 4)
     combat:SetTextColor(1, 0.5, 0.25)
     combat:SetText(L["In combat: changes wait until combat ends"])
     combat:Hide()

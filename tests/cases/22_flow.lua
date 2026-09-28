@@ -173,4 +173,6 @@ test("the strip along the bottom has its own band, clear of the pages above it",
         eq(page.point[1], "BOTTOMRIGHT")
         assert(page.point[5] - stripTop >= 10, "10 px or more between a page and the strip")
     end
+    -- And in from the sides as far as the pages' content (pages 8 px in, content 16 more).
+    assert(strip.point[4] <= -(8 + 16), "right side")
 end)
