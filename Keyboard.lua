@@ -280,19 +280,30 @@ local function Part(key, command)
 end
 
 local otherParts = {}
-local function RefreshOthers(page, layer)
+-- Bound keys of this kind of device (keyboard and mouse, or controller) that aren't drawn,
+-- in this layer: at most MAX_OTHERS of them, then "and N more", so the list never runs
+-- past the tab. A controller view doesn't list keyboard keys, nor a keyboard view
+-- controller buttons.
+local MAX_OTHERS = 24
+local function RefreshOthers(page, layer, pad)
     local prefix = PREFIXES[layer]
     local drawn = page.board.drawn
-    local n = 0
+    local n, extra = 0, 0
     for _, e in ipairs(BoundKeys()) do
         local p, base = ns.SplitKey(e[1])
-        if p == prefix and not drawn[base] then
-            n = n + 1
-            otherParts[n] = Part(e[1], e[2])
+        if p == prefix and not drawn[base] and (base:sub(1, 3) == "PAD") == (pad and true or false) then
+            if n < MAX_OTHERS then
+                n = n + 1
+                otherParts[n] = Part(e[1], e[2])
+            else
+                extra = extra + 1
+            end
         end
     end
     for i = n + 1, #otherParts do otherParts[i] = nil end
-    page.others:SetText(n > 0 and (L["Also bound: "] .. table.concat(otherParts, ", ")) or "")
+    local text = n > 0 and (L["Also bound: "] .. table.concat(otherParts, ", ")) or ""
+    if extra > 0 then text = text .. L[", and %d more"]:format(extra) end
+    page.others:SetText(text)
 end
 
 local padButton = {} -- [SHIFT/CTRL/ALT] = the controller button acting as it (reused)
@@ -310,7 +321,7 @@ local function Refresh(page)
         ns.SetWindowWidth(numpad and NUMPAD_WIDTH or nil)
         page.others:ClearAllPoints()
         page.others:SetPoint("TOPLEFT", page.board, "BOTTOMLEFT", 0, -12)
-        page.others:SetPoint("RIGHT", page, "RIGHT", -16, 0)
+        page.others:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -16, 36) -- above the layout buttons
         for _, fs in ipairs(page.window.texts) do ns.SkinText(fs) end
     end
     page.numpad:SetShown(not pad)
@@ -334,7 +345,7 @@ local function Refresh(page)
     page.binding:SetShown(held ~= nil)
     if held then page.binding:SetText(L["Click a key for %s (right-click drops it)"]:format(held.label)) end
     RefreshCaps(page, layer, padMods)
-    RefreshOthers(page, layer)
+    RefreshOthers(page, layer, pad)
 end
 
 local function Build(page, f)

@@ -203,3 +203,21 @@ test("a key bound to a raid marker shows the marker's picture, uncropped", funct
     eq(e.icon.texCoord[2], 1, "the whole picture")
     eq(capFor(page, "R").icon.texCoord[1], 0.08, "a spell icon keeps its border trimmed")
 end)
+
+test("the controller view lists only controller buttons it doesn't draw, and a keyboard view no controller buttons", function()
+    loginWithSetup(nil)
+    wow.bindings.PADLSTICKUP = "MOVEFORWARD"
+    local page = keyboardPage()
+    assert(page.others.text:find("NUMPAD1", 1, true))
+    assert(not page.others.text:find("PADLSTICKUP", 1, true), "no controller buttons in a keyboard view")
+    click(choice(page.layoutRow, "Controller"))
+    assert(page.others.text:find("PADLSTICKUP", 1, true), page.others.text)
+    assert(not page.others.text:find("NUMPAD1", 1, true), "no keyboard keys in the controller view")
+end)
+
+test("a long list of other keys stops after 24 with how many more", function()
+    loginWithSetup(nil)
+    for i = 1, 30 do wow.bindings["F" .. (20 + i)] = "ACTIONBUTTON1" end
+    local page = keyboardPage()
+    assert(page.others.text:find(", and 7 more", 1, true), page.others.text)
+end)
