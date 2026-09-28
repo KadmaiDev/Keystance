@@ -12,7 +12,7 @@ local IsShiftKeyDown, IsControlKeyDown, IsAltKeyDown = IsShiftKeyDown, IsControl
 
 local U = 34 -- one key unit, in pixels
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\media\\"
-local CIRCLE = MEDIA .. "circle.tga" -- a white disc: round caps' background and icon mask
+local CIRCLE = MEDIA .. "circle.tga" -- a white disc: the dark backing of a controller button's badge
 local ROW_GAP = 8 -- extra space under the function row
 local NUMPAD_WIDTH = 830 -- the window's width while the numpad is drawn (keys stay full size)
 
@@ -105,25 +105,31 @@ local function MakeCap(f, board, info, x, y, unit)
     cap:SetPoint("TOPLEFT", board, "TOPLEFT", x, -y)
     local bg = cap:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints()
-    cap.round = info.round -- a controller's round button: a tinted disc, not a square
-    if cap.round then
-        bg:SetTexture(CIRCLE)
-        bg:SetVertexColor(0.1, 0.1, 0.12, 0.9)
-    else
-        bg:SetColorTexture(0.1, 0.1, 0.12, 0.9)
-    end
+    bg:SetColorTexture(0.1, 0.1, 0.12, 0.9)
     cap.bg = bg
     local icon = cap:CreateTexture(nil, "ARTWORK")
     icon:SetPoint("TOPLEFT", 2, -2)
     icon:SetPoint("BOTTOMRIGHT", -2, 2)
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     icon:Hide()
-    if cap.round and icon.SetMask then pcall(icon.SetMask, icon, CIRCLE) end
     cap.icon, cap.whole = icon, false
     local label = cap:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     label:SetPoint("TOPLEFT", 3, -2)
     label:SetText(ns.KeyLabel(info[1]))
     cap.label = label
+    if info[1]:sub(1, 3) == "PAD" then
+        -- A controller button: its symbol as a badge on the icon's top-left corner, half
+        -- outside it, on a dark disc, so the spell icon stays clear.
+        local badge = cap:CreateTexture(nil, "OVERLAY", nil, 6)
+        badge:SetTexture(CIRCLE)
+        badge:SetVertexColor(0.05, 0.05, 0.07, 0.95)
+        badge:SetSize(20, 20)
+        badge:SetPoint("CENTER", cap, "TOPLEFT", 3, -3)
+        label:ClearAllPoints()
+        label:SetPoint("CENTER", badge, "CENTER", 0, 0)
+        label:SetDrawLayer("OVERLAY", 7)
+        cap.badge = badge
+    end
     -- A command's name, in a small font over up to two lines ("Toggle World Map").
     local name = cap:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
     name:SetPoint("BOTTOMLEFT", 1, 2)
@@ -239,7 +245,7 @@ end
 -- The page
 ---------------------------------------------------------------------------
 local function Tint(cap, r, g, b, a)
-    if cap.round then cap.bg:SetVertexColor(r, g, b, a) else cap.bg:SetColorTexture(r, g, b, a) end
+    cap.bg:SetColorTexture(r, g, b, a)
 end
 
 local function RefreshCaps(page, layer, padMods)

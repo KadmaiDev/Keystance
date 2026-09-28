@@ -1,11 +1,12 @@
-"""Makes the controller drawing for the Keyboard tab's Controller layout, and a round cap:
+"""Makes the controller drawing for the Keyboard tab's Controller layout, and a disc:
 
     python tools/make_controller.py
 
-  media/controller.tga  512x256, a controller's silhouette (flat, dark, with a soft outline),
-                        drawn in the layout's own units so the buttons in Layouts.lua sit on it
-  media/circle.tga      64x64, a white disc: round button backgrounds (tinted in game) and
-                        the mask that makes their icons round
+  media/controller.tga  512x256, a controller: a smooth outline (shoulders, a gently curved
+                        top, grips flaring down and out) with shallow wells under the sticks,
+                        the d-pad and the face buttons, drawn in the layout's own key units
+                        (15.5 x 8) so the buttons in Layouts.lua sit on it
+  media/circle.tga      64x64, a white disc: the dark backing behind a controller button's badge
 
 The game wants uncompressed 32-bit TGA files with power-of-two sizes.
 """
@@ -16,35 +17,65 @@ from PIL import Image, ImageDraw, ImageFilter
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MEDIA = os.path.join(ROOT, "media")
 
-# The layout's board is 15.5 x 8 key units; the image covers it.
 UNITS_W, UNITS_H = 15.5, 8.0
 W, H = 512, 256
 SUPER = 4  # drawn larger, then shrunk, for smooth edges
-FILL = (34, 36, 42, 235)
-EDGE = (92, 96, 108, 255)
+BODY = (38, 40, 47, 240)
+EDGE = (100, 104, 118, 255)
+WELL = (27, 28, 34, 255)
+
+# The outline, clockwise from the left shoulder, in key units (y down). A smooth closed
+# curve is drawn through these points.
+OUTLINE = [
+    (1.4, 1.35), (4.2, 1.55), (7.75, 1.75), (11.3, 1.55), (14.1, 1.35),  # top
+    (15.0, 2.2), (15.25, 3.9), (15.1, 5.7), (14.7, 7.1),                 # right side
+    (13.7, 7.85), (12.5, 7.55), (11.3, 6.1),                             # right grip
+    (9.6, 5.45), (7.75, 5.35), (5.9, 5.45),                              # underside
+    (4.2, 6.1), (3.0, 7.55), (1.8, 7.85),                                # left grip
+    (0.8, 7.1), (0.4, 5.7), (0.25, 3.9), (0.5, 2.2),                     # left side
+]
 
 
-def shape(draw, s, colour, grow=0.0):
-    """The controller: a rounded body and two grips, in key units (y down)."""
-    ux, uy = W * s / UNITS_W, H * s / UNITS_H
-
-    def box(x0, y0, x1, y1):
-        return (x0 * ux - grow * ux, y0 * uy - grow * uy, x1 * ux + grow * ux, y1 * uy + grow * uy)
-
-    draw.rounded_rectangle(box(0.9, 1.7, 14.6, 5.4), radius=1.4 * ux, fill=colour)
-    draw.ellipse(box(0.7, 3.4, 5.6, 7.9), fill=colour)   # left grip
-    draw.ellipse(box(9.9, 3.4, 14.8, 7.9), fill=colour)  # right grip
-    draw.rounded_rectangle(box(0.9, 0.1, 3.3, 2.4), radius=0.6 * ux, fill=colour)    # left shoulder
-    draw.rounded_rectangle(box(11.9, 0.1, 14.3, 2.4), radius=0.6 * ux, fill=colour)  # right shoulder
+def catmull_rom(points, steps=24):
+    """A smooth closed curve through the points."""
+    out = []
+    n = len(points)
+    for i in range(n):
+        p0, p1, p2, p3 = points[i - 1], points[i], points[(i + 1) % n], points[(i + 2) % n]
+        for s in range(steps):
+            t = s / steps
+            t2, t3 = t * t, t * t * t
+            x = 0.5 * ((2 * p1[0]) + (-p0[0] + p2[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2
+                       + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3)
+            y = 0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2
+                       + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3)
+            out.append((x, y))
+    return out
 
 
 def controller():
-    big = Image.new("RGBA", (W * SUPER, H * SUPER), (0, 0, 0, 0))
-    edge = Image.new("RGBA", big.size, (0, 0, 0, 0))
-    shape(ImageDraw.Draw(edge), SUPER, EDGE, grow=0.06)
-    shape(ImageDraw.Draw(big), SUPER, FILL)
-    out = Image.alpha_composite(edge, big).resize((W, H), Image.LANCZOS)
-    return out.filter(ImageFilter.SMOOTH)
+    s = SUPER
+    ux, uy = W * s / UNITS_W, H * s / UNITS_H
+    to_px = lambda pts: [(x * ux, y * uy) for x, y in pts]
+    curve = catmull_rom(OUTLINE)
+    img = Image.new("RGBA", (W * s, H * s), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    # The outline: the same shape a little larger, in the edge colour, under the body.
+    cx, cy = UNITS_W / 2, 4.6
+    grown = [(cx + (x - cx) * 1.012, cy + (y - cy) * 1.03) for x, y in curve]
+    d.polygon(to_px(grown), fill=EDGE)
+    d.polygon(to_px(curve), fill=BODY)
+
+    def well(x0, y0, x1, y1):
+        d.ellipse((x0 * ux, y0 * uy, x1 * ux, y1 * uy), fill=WELL)
+
+    # Wells under the sticks, the d-pad and the face buttons (centres match Layouts.lua).
+    well(1.75, 2.05, 3.65, 3.95)      # left stick
+    well(9.15, 3.85, 11.05, 5.75)     # right stick
+    well(3.35, 2.65, 7.05, 6.35)      # d-pad
+    well(10.65, 1.75, 14.35, 5.45)    # face buttons
+    img = img.resize((W, H), Image.LANCZOS)
+    return img.filter(ImageFilter.SMOOTH)
 
 
 def circle():
