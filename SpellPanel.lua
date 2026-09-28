@@ -620,5 +620,4 @@ for _, event in ipairs({ "SPELLS_CHANGED", "LEARNED_SPELL_IN_SKILL_LINE", "ACTIO
     ns.On(event, Changed)
 end
 
-ns.AddCommand("actions", function() ns.ToggleSpellPanel() end)
-ns.AddCommand("spells", function() ns.ToggleSpellPanel() end) -- its name before Actions
+-- Opened with the window's Actions button only (the owner's choice: no menu entry or command).

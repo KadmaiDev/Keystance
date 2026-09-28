@@ -13,8 +13,10 @@ function panelLogin()
     return c, ns
 end
 
+-- Opens the panel as a player does: the window, then its Actions button.
 function openPanel()
-    SlashCmdList.KEYSTANCE("spells")
+    if not (KeystanceFrame and KeystanceFrame:IsShown()) then slash("") end
+    if not (KeystanceSpellPanel and KeystanceSpellPanel:IsShown()) then click(KeystanceFrame.spellsButton) end
     return KeystanceSpellPanel
 end
 
@@ -158,7 +160,7 @@ test("the panel sits against the Keystance window, until it's moved", function()
     eq(rel, KeystanceFrame)
 end)
 
-test("the window's Actions button and the minimap menu open and close the panel", function()
+test("the window's Actions button opens and closes the panel; no menu entry or command does", function()
     panelLogin()
     slash("")
     click(tabNamed("Keyboard")) -- the panel belongs with Keyboard and Bars
@@ -167,10 +169,12 @@ test("the window's Actions button and the minimap menu open and close the panel"
     eq(KeystanceSpellPanel:IsShown(), false)
     click(KeystanceFrame.spellsButton)
     eq(KeystanceSpellPanel:IsShown(), true)
-    KeystanceSpellPanel:Hide()
     Keystance_OnAddonCompartmentClick("Keystance", "RightButton", UIParent)
-    wow.menuItem("Actions").fn()
-    eq(KeystanceSpellPanel:IsShown(), true)
+    eq(wow.menuItem("Actions"), nil, "not in the minimap menu")
+    eq(wow.menuItem("Spells"), nil)
+    wow.printed = {}
+    slash("actions")
+    assert(not printed():find("Actions", 1, true) or printed():find("Unknown", 1, true), "no /kst actions")
     eq(KeystanceFrame.spellsButton.text, "Actions")
     eq(KeystanceSpellPanel.title and KeystanceSpellPanel.title.text or "Actions", "Actions")
 end)
@@ -209,7 +213,7 @@ test("the panel never stays open without the window, even moved away from it", f
     slash("")
     eq(p:IsShown(), false, "closed with the window")
     eq(KeystanceDB.settings.spellPanelHidden, nil, "which isn't the player closing it")
-    slash("actions") -- opening it opens the window too
+    openPanel()
     eq(KeystanceFrame:IsShown(), true)
     eq(p:IsShown(), true)
 end)

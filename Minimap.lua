@@ -24,7 +24,6 @@ local function ToggleMinimap() ns.SetMinimapButton(not ns.MinimapButtonOn()) end
 local function OpenWindow() ns.ToggleWindow(true) end
 local function OpenOptions() ns.OpenOptions() end
 local function ShowMemory() ns.RunCommand("mem") end
-local function OpenSpells() ns.ToggleSpellPanel(true) end
 local function AutoSelected() return ns.AutoOn() end
 local function ToggleAuto() ns.RunCommand("auto", ns.AutoOn() and "off" or "on") end
 
@@ -35,7 +34,6 @@ function ns.ShowOptionsMenu(owner)
         if not ns.WindowShown() then
             root:CreateButton(L["Open Keystance"], OpenWindow)
         end
-        root:CreateButton(L["Actions"], OpenSpells)
         root:CreateButton(L["Settings"], OpenOptions)
         root:CreateCheckbox(L["Switch profiles automatically"], AutoSelected, ToggleAuto)
         root:CreateCheckbox(L["Show minimap button"], MinimapSelected, ToggleMinimap)
