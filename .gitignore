@@ -17,3 +17,6 @@ probe/
 .idea/
 Thumbs.db
 .DS_Store
+
+# Logo drafts, until the owner picks one.
+media/drafts/
