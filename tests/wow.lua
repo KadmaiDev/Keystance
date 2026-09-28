@@ -141,6 +141,7 @@ function M.load(files)
     function frameMethods:SetAlpha(a) self.alpha = a end
     function frameMethods:SetTexCoord(...) self.texCoord = { ... } end
     function frameMethods:IsProtected() return false end
+    function frameMethods:EnableKeyboard(on) self.keyboard = on end
     function frameMethods:GetAlpha() return self.alpha or 1 end
     function frameMethods:GetID() return self.id end
     function frameMethods:SetAttribute(k, v) self.attributes = self.attributes or {}; self.attributes[k] = v end

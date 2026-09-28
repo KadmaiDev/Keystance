@@ -279,6 +279,32 @@ local function Bind(key, command, label)
     return true
 end
 
+-- Keybind mode (Bars tab): binds `key` to `command` at once, saying what the key did before.
+function ns.QuickBind(key, command, label)
+    local was = GetBindingAction(key)
+    if was == command then
+        ns.Print(L["%s is already on %s."]:format(label, key))
+        return false
+    end
+    local ok = Bind(key, command, label)
+    if ok and was and was ~= "" then ns.Print(L["(%s was %s.)"]:format(key, ns.CommandName(was))) end
+    return ok
+end
+
+-- Clears every key of a command (a bar button), undoably.
+function ns.ClearKeys(command, label)
+    if ns.InCombat() then return Refused(L["Not in combat: try again when combat ends."]) end
+    local state = ns.CurrentState()
+    if not state.binds[command] then
+        ns.Print(L["%s has no key."]:format(label))
+        return false
+    end
+    if ns.SharedKeybinds() then SaveBindings(2) end -- this character's own keybinds first
+    state.binds[command] = nil
+    return ns.ApplyChange(state, { scope = "all" }, L["%s's keys cleared"]:format(label),
+        L["clearing %s's keys"]:format(label))
+end
+
 local pendingBind
 local function AskBind(text)
     if not StaticPopupDialogs.KEYSTANCE_BIND_COMMAND then
