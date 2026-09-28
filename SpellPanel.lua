@@ -1,15 +1,18 @@
--- Keystance spell panel: everything to put on bars and keys in one place, in four tabs.
+-- Keystance Actions panel (SpellPanel.lua): everything to put on bars and keys in one place,
+-- in three tabs.
 --  * Spells: every class spell, so bars can be set up without paging through the
 --    spellbook. The spellbook's sections as headers that fold away; each spell at its
 --    highest rank, whether it's on a bar, and what's still to learn ("next at 22").
 --    Right-click shows its other ranks; Shift-click links it in chat.
 --  * Macros: the account's and the character's macros.
---  * Raid markers: markers are keybindings, not actions, so clicking one waits for a key
---    in the Keyboard tab (Drops.lua); each shows the key it's on.
---  * Profiles: each profile's switch (and Next profile), held and put on a key the same way.
+--  * Commands: things that only go on keys (keybindings, not actions), in folding sections:
+--    Profiles (each profile's switch, Next profile, Open Keystance) and Raid markers.
+--    Clicking one holds it until a key in the Keyboard tab is clicked (Drops.lua); each
+--    shows the key it's on.
 -- Search as you type; filters for what's on a bar, not on a bar, or still to learn. Drag or
 -- click a spell or macro to pick it up, then drop it on a bar or a key in the Keyboard tab.
--- It sits against the Keystance window when both are open, unless it's been moved.
+-- It opens only with the Keystance window (some of what it holds only goes on Keystance's
+-- keys) and sits against it unless moved; it closes with the window.
 -- Built on first open; refreshed only while shown. Picking up is blocked in combat.
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
@@ -28,7 +31,15 @@ local offset = 0
 local expanded = {} -- [spell name] = true while its ranks are shown
 
 local function Settings() return ns.db.settings end
-local function Kind() return Settings().spellKind or "spells" end
+-- The tab shown. Markers and Profiles were tabs of their own before Commands: repaired.
+local function Kind()
+    local kind = Settings().spellKind or "spells"
+    if kind == "markers" or kind == "profiles" then
+        kind = "commands"
+        Settings().spellKind = kind
+    end
+    return kind
+end
 
 -- The raid markers, in the game's order, with their binding commands.
 local MARKERS = {
@@ -114,38 +125,43 @@ local function CollectMacros(search, filter)
     end
 end
 
-local function CollectMarkers(search)
-    for _, m in ipairs(MARKERS) do
-        if search == "" or m[2]:lower():find(search, 1, true) then
-            local command = "RAIDTARGET" .. m[1]
-            items[#items + 1] = { kind = "marker", command = command, name = m[2], icon = MARKER_ICON:format(m[1]),
-                key = GetBindingKey(command) }
-        end
-    end
-    local clear = L["Remove marker"]
-    if search == "" or clear:lower():find(search, 1, true) then
-        items[#items + 1] = { kind = "marker", command = "RAIDTARGETNONE", name = clear,
-            icon = "Interface\\Buttons\\UI-GroupLoot-Pass-Up", key = GetBindingKey("RAIDTARGETNONE") }
-    end
+-- A folding section of the Commands tab: its header, then what `fill` adds (unless folded).
+local function Section(name, search, fill)
+    local folded = (Settings().spellCollapsed or {})[name] and search == "" or false
+    local header = { kind = "header", name = name, count = 0, collapsed = folded }
+    local start = #items + 1
+    items[start] = header
+    fill(function(item)
+        if search ~= "" and not item.name:lower():find(search, 1, true) then return end
+        header.count = header.count + 1
+        if not folded then items[#items + 1] = item end
+    end)
+    if header.count == 0 then items[start] = nil end
 end
 
--- Each profile (its ItemRack set's picture, or Keystance's), then Next profile.
-local function CollectProfiles(search)
+-- A command held and put on a key: its binding, name, picture and the key it's on now.
+local function Command(command, name, icon)
+    return { kind = "marker", command = command, name = name, icon = icon, key = GetBindingKey(command) }
+end
+
+-- Profiles (each profile's switch, with its icon; Next profile; Open Keystance), then the
+-- raid markers.
+local function CollectCommands(search)
     local c = ns.char
-    for _, name in ipairs(ns.ProfileNames()) do
-        if search == "" or name:lower():find(search, 1, true) then
-            local p = c.profiles[name]
+    Section(L["Profiles"], search, function(add)
+        for _, name in ipairs(ns.ProfileNames()) do
             local n = ns.ProfileSlot(name)
-            local icon, crop = ns.ProfileIcon(p)
-            items[#items + 1] = { kind = "profile", name = name, icon = icon, crop = crop,
-                key = n and GetBindingKey(ns.ProfileSlotCommand(n)) }
+            local icon, crop = ns.ProfileIcon(c.profiles[name])
+            add({ kind = "profile", name = name, icon = icon, crop = crop,
+                key = n and GetBindingKey(ns.ProfileSlotCommand(n)) })
         end
-    end
-    local nextName = L["Next profile"]
-    if search == "" or nextName:lower():find(search, 1, true) then
-        items[#items + 1] = { kind = "marker", command = "KEYSTANCE_NEXT", name = nextName, icon = PROFILE_ICON,
-            key = GetBindingKey("KEYSTANCE_NEXT") }
-    end
+        add(Command("KEYSTANCE_NEXT", L["Next profile"], PROFILE_ICON))
+        add(Command("KEYSTANCE_TOGGLE", L["Open Keystance"], PROFILE_ICON))
+    end)
+    Section(L["Raid markers"], search, function(add)
+        for _, m in ipairs(MARKERS) do add(Command("RAIDTARGET" .. m[1], m[2], MARKER_ICON:format(m[1]))) end
+        add(Command("RAIDTARGETNONE", L["Remove marker"], "Interface\\Buttons\\UI-GroupLoot-Pass-Up"))
+    end)
 end
 
 -- Rebuilds `items` from the tab, the search and the filter.
@@ -155,8 +171,7 @@ local function Collect()
     local filter = Settings().spellFilter or "all"
     local kind = Kind()
     if kind == "macros" then return CollectMacros(search, filter == "later" and "all" or filter) end
-    if kind == "markers" then return CollectMarkers(search) end
-    if kind == "profiles" then return CollectProfiles(search) end
+    if kind == "commands" then return CollectCommands(search) end
     local collapsed = Settings().spellCollapsed or {}
     for _, section in ipairs(ns.SpellSections()) do
         local header = { kind = "header", name = section.name, count = 0 }
@@ -378,8 +393,8 @@ local function Refresh(self)
     self.kinds:Refresh()
     self.filters:Refresh()
     local kind = Kind()
-    self.filters:SetShown(kind ~= "markers" and kind ~= "profiles")
-    self.keysOnly:SetShown(kind == "markers" or kind == "profiles")
+    self.filters:SetShown(kind ~= "commands")
+    self.keysOnly:SetShown(kind == "commands")
     self.filters.buttons[4]:SetShown(kind == "spells")
     self.combat:SetShown(combat)
     self.empty:SetShown(#items == 0)
@@ -430,15 +445,14 @@ local function Create()
     end)
     local title = f.TitleText or f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     if not f.TitleText then title:SetPoint("TOP", 0, -6) end
-    title:SetText(L["Spells"])
+    title:SetText(L["Actions"])
 
-    f.kinds = ns.ChoiceRow(f, f, { { "spells", L["Spells"] }, { "macros", L["Macros"] }, { "markers", L["Markers"] },
-        { "profiles", L["Profiles"] } },
+    f.kinds = ns.ChoiceRow(f, f, { { "spells", L["Spells"] }, { "macros", L["Macros"] }, { "commands", L["Commands"] } },
         Kind, function(value)
             Settings().spellKind = value
             offset = 0
             f:Refresh()
-        end, 73)
+        end, 98)
     f.kinds:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -30)
 
     local okBox, search = pcall(CreateFrame, "EditBox", "KeystanceSpellSearch", f, "SearchBoxTemplate")
@@ -468,7 +482,7 @@ local function Create()
     keysOnly:SetWidth(WIDTH - 40)
     keysOnly:SetJustifyH("LEFT")
     keysOnly:SetTextColor(0.6, 0.8, 1)
-    keysOnly:SetText(L["These go on keys, not on bars. Pick one up, then click a key on the Keyboard tab."])
+    keysOnly:SetText(L["Commands go on keys, not on bars. Pick one up, then click a key on the Keyboard tab."])
     keysOnly:Hide()
     f.keysOnly = keysOnly
     f.texts[#f.texts + 1] = keysOnly
@@ -548,9 +562,12 @@ function ns.RefreshSpellPanel()
     if panel and panel:IsShown() then panel:Refresh() end
 end
 
+-- Opens or closes the panel; `open` only ever opens it. It only opens with the window.
 function ns.ToggleSpellPanel(open)
     if not panel then Create() end
-    if panel:IsShown() and not open then panel:Hide() else panel:Show() end
+    if panel:IsShown() and not open then return panel:Hide() end
+    if not ns.WindowShown() then ns.ToggleWindow(true) end
+    panel:Show()
 end
 
 -- The panel opens with the Keystance window (docked beside it) unless the player closed it,
@@ -573,8 +590,9 @@ function ns.SpellPanelForTab(tab)
         panel:Hide()
     end
 end
+-- It closes with the window, moved or not: some of what it holds only goes on Keystance's keys.
 function ns.WindowClosed()
-    if panel and panel:IsShown() and panel.docked then
+    if panel and panel:IsShown() then
         panel.closingWithWindow = true
         panel:Hide()
     end
@@ -598,4 +616,5 @@ for _, event in ipairs({ "SPELLS_CHANGED", "LEARNED_SPELL_IN_SKILL_LINE", "ACTIO
     ns.On(event, Changed)
 end
 
-ns.AddCommand("spells", function() ns.ToggleSpellPanel() end)
+ns.AddCommand("actions", function() ns.ToggleSpellPanel() end)
+ns.AddCommand("spells", function() ns.ToggleSpellPanel() end) -- its name before Actions

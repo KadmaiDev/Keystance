@@ -60,7 +60,7 @@ ns.GUIDE_STEPS = {
         check = function(c) return next(c.profiles) ~= nil end,
         actions = { { L["Save as profile"], function() ns.NewProfile() end } } },
     { key = "second", title = L["Set up another role"],
-        todo = L["Arrange your bars and keys for another role: drag spells from the spell panel onto the Keyboard or Bars tab. Then save that as a second profile."],
+        todo = L["Arrange your bars and keys for another role: drag spells from the Actions panel onto the Keyboard or Bars tab. Then save that as a second profile."],
         done = L["You have profiles to switch between."],
         check = function(c) return CountProfiles(c) >= 2 end,
         actions = { { L["Keyboard"], function() ns.ShowTab("keyboard") end },

@@ -224,13 +224,10 @@ test("markers and profile switches say they go on keys: in the panel, on the hel
     local panel = KeystanceSpellPanel
     click(choice(panel.kinds, "Spells"))
     eq(panel.keysOnly:IsShown(), false)
-    click(choice(panel.kinds, "Markers"))
+    click(choice(panel.kinds, "Commands"))
     eq(panel.keysOnly:IsShown(), true)
     eq(panel.filters:IsShown(), false)
-    click(choice(panel.kinds, "Profiles"))
-    eq(panel.keysOnly:IsShown(), true)
-    click(choice(panel.kinds, "Markers"))
-    click(panel.rows[8]) -- Skull
+    click(rowNamed("Skull"))
     eq(KeystanceDragIcon.caption.text, "Click a key")
     -- Clicked on one of the game's action buttons (or a Bars tab slot): told once.
     wow.mouseFoci = { { action = 5 } }
@@ -240,7 +237,7 @@ test("markers and profile switches say they go on keys: in the panel, on the hel
     for _, button in ipairs({ { GetAttribute = function(_, k) return k == "action" and 7 or nil end },
         { _state_action = 9 } }) do
         ns.CancelBinding()
-        click(panel.rows[8])
+        click(rowNamed("Skull"))
         wow.printed = {}
         wow.mouseFoci = { button }
         wow.fire("GLOBAL_MOUSE_DOWN", "LeftButton")
@@ -252,7 +249,7 @@ test("markers and profile switches say they go on keys: in the panel, on the hel
     eq(ns.HeldBinding().label, "Skull", "still held")
     -- A click on a key or anywhere else says nothing.
     ns.CancelBinding()
-    click(panel.rows[8])
+    click(rowNamed("Skull"))
     wow.mouseFoci = { { isKeyCap = true } }
     wow.fire("GLOBAL_MOUSE_DOWN", "LeftButton")
     eq(printed(), "")

@@ -35,7 +35,7 @@ function ns.ShowOptionsMenu(owner)
         if not ns.WindowShown() then
             root:CreateButton(L["Open Keystance"], OpenWindow)
         end
-        root:CreateButton(L["Spells"], OpenSpells)
+        root:CreateButton(L["Actions"], OpenSpells)
         root:CreateButton(L["Settings"], OpenOptions)
         root:CreateCheckbox(L["Switch profiles automatically"], AutoSelected, ToggleAuto)
         root:CreateCheckbox(L["Show minimap button"], MinimapSelected, ToggleMinimap)
