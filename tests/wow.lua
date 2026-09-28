@@ -293,6 +293,12 @@ function M.load(files)
     C_Spell.GetSpellLink = function(id) return "|Hspell:" .. id .. "|h[" .. tostring(C_Spell.GetSpellName(id)) .. "]|h" end
     M.links = {}
     ChatEdit_InsertLink = function(link) M.links[#M.links + 1] = link end
+    -- The frames under the mouse (GetMouseFoci) and the mouse pointer's picture.
+    M.mouseFoci = {}
+    GetMouseFoci = function() return M.mouseFoci end
+    M.pointer = nil
+    SetCursor = function(texture) M.pointer = texture end
+    ResetCursor = function() M.pointer = nil end
     M.modifiedClick = false
     IsModifiedClick = function() return M.modifiedClick end
     GetNumMacros = function()

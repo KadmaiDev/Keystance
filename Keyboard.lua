@@ -145,6 +145,7 @@ local function MakeCap(f, board, info, x, y)
     end)
     cap:SetScript("OnLeave", function() GameTooltip:Hide() end)
     cap.key, cap.mod, cap.blank = info[1], info.mod, info[1] == ""
+    cap.isKeyCap = true -- a raid marker dragged from the spell panel looks for this under the mouse
     -- The full key name for each layer ("SHIFT-1"...), made once.
     cap.full = {}
     for i, prefix in ipairs(PREFIXES) do cap.full[i] = prefix .. info[1] end

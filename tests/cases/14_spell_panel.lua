@@ -230,3 +230,24 @@ test("a key that already does something asks first; right-click cancels waiting 
     eq(page.binding:IsShown(), false)
     eq(GetBindingAction("E"), "")
 end)
+
+test("a raid marker can be dragged onto a key; let go elsewhere, it waits for a click", function()
+    panelLogin()
+    local p = openPanel()
+    click(choice(p.kinds, "Raid markers"))
+    local skull = rowNamed("Skull")
+    skull.scripts.OnDragStart(skull)
+    eq(wow.pointer, "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8", "the marker as the mouse pointer")
+    local page = KeystanceFrame.pages[1]
+    wow.mouseFoci = { capFor(page, "E") }
+    skull.scripts.OnDragStop(skull)
+    eq(wow.pointer, nil)
+    eq(GetBindingAction("E"), "RAIDTARGET8")
+    local cross = rowNamed("Cross")
+    cross.scripts.OnDragStart(cross)
+    wow.mouseFoci = { UIParent }
+    cross.scripts.OnDragStop(cross)
+    eq(page.binding:IsShown(), true, "still waiting for a key")
+    click(capFor(page, "R"))
+    eq(GetBindingAction("R"), "RAIDTARGET7")
+end)

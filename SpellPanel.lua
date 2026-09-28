@@ -179,7 +179,7 @@ local function RowTooltip(row)
         GameTooltip:AddLine(item.name)
         GameTooltip:AddLine(item.key and L["On %s."]:format(item.key) or L["Not on a key."], 1, 1, 1)
         GameTooltip:AddLine(" ")
-        GameTooltip:AddLine(L["Click, then click a key in Keystance's Keyboard tab to put it there."], 0.6, 0.8, 1, true)
+        GameTooltip:AddLine(L["Drag it onto a key in Keystance's Keyboard tab, or click it and then click a key."], 0.6, 0.8, 1, true)
         return GameTooltip:Show()
     end
     local e = item.entry
@@ -221,9 +221,33 @@ local function RowClick(row, button)
     Pickup(e, item.kind == "rank" and id or nil)
 end
 
+-- A raid marker isn't something the game's cursor can carry (it's a keybinding), so dragging
+-- one shows its icon as the mouse pointer, and letting go over a key in the Keyboard tab
+-- puts it there (RowDragStop). Let go anywhere else, it waits for a click on a key.
+local draggingMarker = false
+local function RowDragStop()
+    if not draggingMarker then return end
+    draggingMarker = false
+    if ResetCursor then ResetCursor() end
+    local foci = GetMouseFoci and GetMouseFoci()
+    local target = type(foci) == "table" and foci[1]
+    if target and target.isKeyCap and target.fullKey and ns.HeldBinding() then
+        ns.BindHeld(target.fullKey, target.command)
+    elseif ns.HeldBinding() then
+        ns.Print(L["Click a key in the Keyboard tab to put %s on it. Right-click cancels."]:format(ns.HeldBinding().label))
+    end
+end
+
 local function RowDrag(row)
     local item = row.item
-    if not item or item.kind == "header" or item.kind == "marker" then return end
+    if item and item.kind == "marker" then
+        if ns.InCombat() then return ns.Print(L["Not in combat: try again when combat ends."]) end
+        ns.StartBinding(item.command, item.name, item.icon, true)
+        draggingMarker = true
+        if SetCursor then SetCursor(item.icon) end
+        return
+    end
+    if not item or item.kind == "header" then return end
     if item.kind == "macro" then return PickupMacroAt(item.index) end
     Pickup(item.entry, item.kind == "rank" and item.rank.id or nil)
 end
@@ -259,6 +283,7 @@ local function MakeRow(f, list, i)
     f.texts[#f.texts + 1] = detail
     row:SetScript("OnClick", RowClick)
     row:SetScript("OnDragStart", RowDrag)
+    row:SetScript("OnDragStop", RowDragStop)
     row:SetScript("OnEnter", RowTooltip)
     row:SetScript("OnLeave", function() GameTooltip:Hide() end)
     return row

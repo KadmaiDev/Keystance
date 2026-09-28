@@ -118,11 +118,13 @@ local held -- { command = "RAIDTARGET8", label = "Skull", icon = ... } while wai
 
 function ns.HeldBinding() return held end
 
-function ns.StartBinding(command, label, icon)
+function ns.StartBinding(command, label, icon, dragging)
     held = { command = command, label = label, icon = icon }
     ns.ToggleWindow(true)
     ns.ShowTab("keyboard")
-    ns.Print(L["Click a key in the Keyboard tab to put %s on it. Right-click cancels."]:format(label))
+    if not dragging then
+        ns.Print(L["Click a key in the Keyboard tab to put %s on it. Right-click cancels."]:format(label))
+    end
     ns.RefreshWindow()
 end
 
