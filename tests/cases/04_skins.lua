@@ -113,16 +113,44 @@ test("a choice whose addon isn't installed falls back to classic", function()
     eq(ns.SkinName(), "classic")
 end)
 
-test("/kst skin changes the setting, which applies after /reload", function()
+test("/kst skin changes the setting and offers to reload, since the look changes then", function()
     wow.withElvUI = true
     local ns = start(nil)
     slash("skin classic")
     eq(KeystanceDB.settings.skin, "classic")
-    eq(ns.SkinName(), "elvui", "unchanged until /reload")
-    assert(printed():find("applies after /reload", 1, true))
+    eq(ns.SkinName(), "elvui", "unchanged until the reload")
+    eq(wow.popup.which, "KEYSTANCE_RELOAD")
+    StaticPopupDialogs.KEYSTANCE_RELOAD.OnAccept()
+    eq(wow.reloads, 1, "Reload now reloads")
+    wow.runTimers() -- still here a moment later: the game refused
+    assert(printed():find("Type /reload", 1, true))
     slash("skin shiny")
     eq(KeystanceDB.settings.skin, "classic")
     assert(printed():find("Unknown look 'shiny'", 1, true))
     slash("skin")
     assert(printed():find("Look: classic (in use: elvui)", 1, true), printed())
+end)
+
+test("choosing a look that changes nothing doesn't ask to reload", function()
+    wow.withElvUI = true
+    start(nil)
+    slash("skin elvui") -- Automatic already gives ElvUI
+    eq(wow.popup, nil)
+    assert(printed():find("Look set to ElvUI.", 1, true), printed())
+    slash("skin ellesmere") -- not installed: classic, which isn't in use
+    eq(wow.popup.which, "KEYSTANCE_RELOAD")
+end)
+
+test("the reload pop-up is added without assigning Blizzard's StaticPopupDialogs", function()
+    start(nil)
+    local dialogs = StaticPopupDialogs
+    slash("skin classic")
+    eq(StaticPopupDialogs, dialogs, "same table")
+    eq(dialogs.KEYSTANCE_RELOAD, nil, "classic is already in use: no pop-up needed")
+    wow.withElvUI = true
+    start(nil)
+    dialogs = StaticPopupDialogs
+    slash("skin classic")
+    eq(StaticPopupDialogs, dialogs)
+    assert(dialogs.KEYSTANCE_RELOAD, "added on first use")
 end)

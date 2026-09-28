@@ -193,10 +193,9 @@ function commands.skin(arg)
         return Print(L["Look: %s (in use: %s). Choose with /kst skin auto | classic | ellesmere | elvui"]
             :format(ns.db.settings.skin, ns.SkinName()))
     end
-    if not ns.SetSkin(arg) then
+    if not ns.ChooseSkin(arg) then
         return Print(L["Unknown look '%s'. Choose auto, classic, ellesmere or elvui."]:format(arg))
     end
-    Print(L["Look set to %s. It applies after /reload."]:format(arg))
 end
 
 function commands.options()

@@ -43,7 +43,9 @@ local pages = {} -- every built copy, so a change made in one shows in the other
 
 local function RefreshPage(page)
     page.look:SetText(L["Look: %s"]:format(LOOK_NAMES[ns.db.settings.skin] or ns.db.settings.skin))
-    page.lookNote:SetText(L["In use now: %s. A change applies after /reload."]:format(LOOK_NAMES[ns.SkinName()]))
+    local inUse, chosen = ns.SkinName(), ns.SkinNameFor(ns.db.settings.skin)
+    page.lookNote:SetText(inUse == chosen and L["In use: %s."]:format(LOOK_NAMES[inUse])
+        or L["In use: %s until you reload."]:format(LOOK_NAMES[inUse]))
     page.minimap:SetText(ns.MinimapButtonOn() and L["Minimap button: shown"] or L["Minimap button: hidden"])
 end
 
@@ -54,6 +56,44 @@ local function RefreshAll()
 end
 ns.RefreshSettings = RefreshAll
 
+-- Asks to reload now. The pop-up is added to Blizzard's StaticPopupDialogs only the first
+-- time it's needed, and never by assigning the global itself (that taints it).
+-- ReloadUI works from a click (ElvUI's pop-ups do the same on this client); an addon
+-- can't reload on its own, and if the game refuses, the player is told to type /reload.
+local function AskReload()
+    if not (StaticPopup_Show and StaticPopupDialogs) then return end
+    if not StaticPopupDialogs.KEYSTANCE_RELOAD then
+        StaticPopupDialogs.KEYSTANCE_RELOAD = {
+            text = L["Keystance's new look shows after the interface reloads. Reload now?"],
+            button1 = L["Reload now"],
+            button2 = L["Later"],
+            OnAccept = function()
+                -- A refused call doesn't throw (it fires an event), so if we're still here a
+                -- moment later, the reload didn't happen.
+                C_Timer.After(1, function() ns.Print(L["Type /reload to see the new look."]) end)
+                ReloadUI()
+            end,
+            timeout = 0,
+            whileDead = true,
+            hideOnEscape = true,
+            preferredIndex = 3,
+        }
+    end
+    StaticPopup_Show("KEYSTANCE_RELOAD")
+end
+
+-- Saves a look; if it differs from the one in use, offers to reload.
+function ns.ChooseSkin(choice)
+    if not ns.SetSkin(choice) then return false end
+    if ns.SkinNameFor(choice) ~= ns.SkinName() then
+        AskReload()
+    else
+        ns.Print(L["Look set to %s."]:format(LOOK_NAMES[choice]))
+    end
+    RefreshAll()
+    return true
+end
+
 local function LookMenu(owner)
     if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
     MenuUtil.CreateContextMenu(owner, function(_, root)
@@ -61,11 +101,7 @@ local function LookMenu(owner)
         for _, choice in ipairs({ "auto", "classic", "ellesmere", "elvui" }) do
             root:CreateRadio(LOOK_NAMES[choice],
                 function() return ns.db.settings.skin == choice end,
-                function()
-                    ns.SetSkin(choice)
-                    ns.Print(L["Look set to %s. It applies after /reload."]:format(LOOK_NAMES[choice]))
-                    RefreshAll()
-                end)
+                function() ns.ChooseSkin(choice) end)
         end
     end)
 end
@@ -115,9 +151,10 @@ end
 local function BuildCanvas(f)
     f.buttons, f.texts = {}, {}
     local logo = f:CreateTexture(nil, "ARTWORK")
-    logo:SetSize(48, 48)
+    logo:SetSize(56, 56)
     logo:SetPoint("TOPLEFT", 16, -16)
-    logo:SetTexture("Interface\\AddOns\\" .. ADDON .. "\\media\\icon.tga")
+    logo:SetTexture("Interface\\AddOns\\" .. ADDON .. "\\media\\logo.tga") -- the full badge, big enough here
+    f.logo = logo
     local title = Text(f, f, "GameFontNormalLarge", "Keystance")
     title:SetPoint("TOPLEFT", logo, "TOPRIGHT", 10, -4)
     local by = Text(f, f, "GameFontDisableSmall", L["Keybinds and action bars, by Kadmai"])

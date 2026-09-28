@@ -66,14 +66,20 @@ test("the minimap button and addon list use our logo, shipped with the addon", f
     eq(KeystanceMinimapButton.icon.texture, "Interface\\AddOns\\Keystance\\media\\minimap.tga")
     local toc = readFile("Keystance.toc")
     assert(toc:find("## IconTexture: Interface\\AddOns\\Keystance\\media\\icon.tga", 1, true), "addon list icon")
-    for _, file in ipairs({ "media/icon.tga", "media/minimap.tga" }) do
-        -- Uncompressed 32-bit TGA, 64x64: what the game loads.
+    for file, size in pairs({ ["media/icon.tga"] = 64, ["media/minimap.tga"] = 64, ["media/logo.tga"] = 128 }) do
+        -- Uncompressed 32-bit TGA with a power-of-two size: what the game loads.
         local header = readFile(file):sub(1, 18)
         eq(header:byte(3), 2, file .. " uncompressed")
-        eq(header:byte(13) + header:byte(14) * 256, 64, file .. " width")
-        eq(header:byte(15) + header:byte(16) * 256, 64, file .. " height")
+        eq(header:byte(13) + header:byte(14) * 256, size, file .. " width")
+        eq(header:byte(15) + header:byte(16) * 256, size, file .. " height")
         eq(header:byte(17), 32, file .. " 32-bit")
     end
+end)
+
+test("the Options page shows the full logo, not the small icon stretched", function()
+    start(nil)
+    slash("options")
+    eq(KeystanceOptionsPanel.logo.texture, "Interface\\AddOns\\Keystance\\media\\logo.tga")
 end)
 
 test("every menu option has a slash command listed in /kst help", function()

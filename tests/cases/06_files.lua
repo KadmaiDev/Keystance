@@ -81,11 +81,14 @@ function globalWrite(text)
         for name in names:gmatch("[%w_]+") do locals[name] = true end
     end
     for name in text:gmatch("local%s+function%s+([%w_]+)") do locals[name] = true end
-    local n = 0
+    local n, depth = 0, 0 -- depth: how many table constructors { } are open (fields aren't globals)
     for line in (text .. "\n"):gmatch("([^\n]*)\n") do
         n = n + 1
         local code = line:gsub("%-%-.*$", "")
-        if not code:match("^%s*local%s") then
+        local bare = code:gsub('"[^"]*"', ""):gsub("'[^']*'", "")
+        local inTable = depth > 0
+        for c in bare:gmatch("[{}]") do depth = depth + (c == "{" and 1 or -1) end
+        if not inTable and not code:match("^%s*local%s") then
             -- "Name =" or "A, B =" at the start of a statement.
             local targets = code:match("^%s*([%a_][%w_%s,]-)%s*=[^=]")
             if targets then
@@ -116,4 +119,6 @@ test("the no-globals check catches every kind of write to a Blizzard global", fu
     eq(globalWrite("local Frame = 1\nFrame = 2\nif a == b then end\nKeystanceDB = {}\n"), nil, "locals and our own")
     eq(globalWrite("SlashCmdList.KEYSTANCE = f\nUISpecialFrames[#UISpecialFrames + 1] = 'x'\n"), nil,
         "adding a key to a Blizzard table is allowed")
+    eq(globalWrite("t.X = {\n    OnAccept = function()\n    end,\n    Text = '{',\n}\nGameTooltip = nil\n"),
+        "6: GameTooltip", "table fields are skipped, and the scan picks up again after the table")
 end)

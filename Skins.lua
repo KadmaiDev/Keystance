@@ -41,12 +41,16 @@ ns.On("ADDON_LOADED", function(name)
     if name == ADDON then choice = ns.db.settings.skin end
 end)
 
--- The look in use: "ellesmere", "elvui" or "classic".
-function ns.SkinName()
-    local want = Choice()
+-- The look a setting gives with the UI addons running now: "ellesmere", "elvui" or "classic".
+function ns.SkinNameFor(want)
     if (want == "auto" or want == "ellesmere") and euiSkin then return "ellesmere" end
     if (want == "auto" or want == "elvui") and Elv() then return "elvui" end
     return "classic"
+end
+
+-- The look in use this session.
+function ns.SkinName()
+    return ns.SkinNameFor(Choice())
 end
 
 function ns.SetSkin(choice)

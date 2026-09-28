@@ -7,6 +7,8 @@
                      and they lost their detail (as Alts Forever's icon does)
   media/minimap.tga  64x64, the same: the minimap button's own border (or EllesmereUI's
                      tray) draws the ring, and two rings never line up
+  media/logo.tga     128x128, the whole badge with its ring: the Options page, shown at
+                     about 56 pixels (the small icons are too coarse stretched that big)
   media/logo.png     400x400, the whole badge with its ring, for the README
 
 The game wants uncompressed 32-bit TGA files with power-of-two sizes.
@@ -48,6 +50,7 @@ def main():
 
     full = src.crop((round(cx - half), round(cy - half), round(cx + half), round(cy + half)))
     full.resize((400, 400), Image.LANCZOS).save(os.path.join(MEDIA, "logo.png"))
+    save_tga(full.resize((128, 128), Image.LANCZOS), "logo.tga")
 
     # Inside the gold ring: measured on the logo, the ring's inner edge is at 92.4% of the
     # badge's radius; cut inside it (0.9) so no gold shows at the edge.
@@ -59,7 +62,7 @@ def main():
     disc.putalpha(alpha)
     save_tga(disc, "icon.tga")
     save_tga(disc, "minimap.tga")
-    print("made media/icon.tga, media/minimap.tga, media/logo.png")
+    print("made media/icon.tga, media/minimap.tga, media/logo.tga, media/logo.png")
 
 
 if __name__ == "__main__":
