@@ -13,7 +13,8 @@ local KNOWN_EVENTS = {
     PLAYER_REGEN_DISABLED = true, PLAYER_REGEN_ENABLED = true,
     ADDON_ACTION_BLOCKED = true, ADDON_ACTION_FORBIDDEN = true,
     ACTIONBAR_SLOT_CHANGED = true, UPDATE_BINDINGS = true, CURSOR_CHANGED = true,
-    MODIFIER_STATE_CHANGED = true, UPDATE_MACROS = true, GLOBAL_MOUSE_DOWN = true, ACTIONBAR_PAGE_CHANGED = true, UPDATE_BONUS_ACTIONBAR = true,
+    MODIFIER_STATE_CHANGED = true, UPDATE_MACROS = true, GLOBAL_MOUSE_DOWN = true,
+    EQUIPMENT_SWAP_FINISHED = true, EQUIPMENT_SETS_CHANGED = true, ACTIONBAR_PAGE_CHANGED = true, UPDATE_BONUS_ACTIONBAR = true,
     SPELLS_CHANGED = true, LEARNED_SPELL_IN_SKILL_LINE = true,
     PLAYER_EQUIPMENT_CHANGED = true, UNIT_INVENTORY_CHANGED = true,
 }
@@ -58,6 +59,10 @@ function M.load(files)
     M.spellbook = {}
     M.spellNames = {}  -- [spellID] = name (filled from the spellbook too)
     M.itemCount = {}   -- [itemID] = count in bags
+    M.inventory = {}   -- [inventory slot] = itemID equipped (16 main hand, 17 off hand)
+    M.equipLoc = { [2129] = "INVTYPE_SHIELD", [1680] = "INVTYPE_2HWEAPON", [2132] = "INVTYPE_WEAPON" }
+    M.itemNames = { [2129] = "Large Round Shield", [1680] = "Headchopper", [2132] = "Short Cutlass", [6948] = "Hearthstone" }
+    M.sets = {}        -- { { name = "Healing", equipped = true }, ... }
 
     wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
     issecretvalue = function(v) return v == SECRET end
@@ -266,7 +271,21 @@ function M.load(files)
     PickupMacro = protect("PickupMacro", function(index)
         if M.macros[index] then M.cursor = { "macro", index } end
     end)
+    GetInventoryItemID = function(_, slot) return M.inventory[slot] end
+    C_EquipmentSet = {
+        GetEquipmentSetIDs = function()
+            local ids = {}
+            for i in ipairs(M.sets) do ids[i] = i end
+            return ids
+        end,
+        GetEquipmentSetInfo = function(id)
+            local s = M.sets[id]
+            if s then return s.name, 1, id, s.equipped or false end
+        end,
+    }
     C_Item = {
+        GetItemInfoInstant = function(id) return id, nil, nil, M.equipLoc[id], 100000 + id end,
+        GetItemNameByID = function(id) return M.itemNames[id] end,
         PickupItem = function(id) if (M.itemCount[id] or 0) > 0 then M.cursor = { "item", id } end end,
         GetItemCount = function(id) return M.itemCount[id] or 0 end,
         GetItemIconByID = function(id) return 100000 + id end,

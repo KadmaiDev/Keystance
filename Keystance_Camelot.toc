@@ -19,6 +19,7 @@ Snapshot.lua
 Apply.lua
 Profiles.lua
 Ranks.lua
+Rules.lua
 Spells.lua
 Drops.lua
 Layouts.lua
@@ -26,6 +27,7 @@ Window.lua
 Keyboard.lua
 Bars.lua
 ProfilesTab.lua
+RulesTab.lua
 SpellPanel.lua
 Options.lua
 Minimap.lua

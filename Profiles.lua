@@ -95,6 +95,9 @@ function ns.RenameProfile(old, new)
     if other and other ~= key then return nil, L["There's already a profile called %s."]:format(other) end
     c.profiles[clean], c.profiles[key] = c.profiles[key], nil
     if c.active == key then c.active = clean end
+    for _, rule in ipairs(c.rules) do
+        if rule.profile == key then rule.profile = clean end -- rules follow the rename
+    end
     ns.RefreshWindow()
     return clean
 end

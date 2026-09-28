@@ -14,7 +14,7 @@ local TABS = {
     { key = "keyboard", name = L["Keyboard"] },
     { key = "bars", name = L["Bars"] },
     { key = "profiles", name = L["Profiles"] },
-    { key = "rules", name = L["Rules"], blurb = L["Switch profiles automatically when you equip a shield, a two-hander or a set. Coming soon."] },
+    { key = "rules", name = L["Rules"] },
     { key = "settings", name = L["Settings"] },
 }
 

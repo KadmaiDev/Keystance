@@ -25,6 +25,8 @@ local function OpenWindow() ns.ToggleWindow(true) end
 local function OpenOptions() ns.OpenOptions() end
 local function ShowMemory() ns.RunCommand("mem") end
 local function OpenSpells() ns.ToggleSpellPanel(true) end
+local function AutoSelected() return ns.AutoOn() end
+local function ToggleAuto() ns.RunCommand("auto", ns.AutoOn() and "off" or "on") end
 
 function ns.ShowOptionsMenu(owner)
     if not (MenuUtil and MenuUtil.CreateContextMenu) then return ns.ShowHelp() end
@@ -35,6 +37,7 @@ function ns.ShowOptionsMenu(owner)
         end
         root:CreateButton(L["Spells"], OpenSpells)
         root:CreateButton(L["Settings"], OpenOptions)
+        root:CreateCheckbox(L["Switch profiles automatically"], AutoSelected, ToggleAuto)
         root:CreateCheckbox(L["Show minimap button"], MinimapSelected, ToggleMinimap)
         root:CreateButton(L["Memory use"], ShowMemory)
     end)
