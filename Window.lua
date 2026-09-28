@@ -159,6 +159,7 @@ local function RefreshStatus()
     end
     s.text:ClearAllPoints()
     s.text:SetPoint("LEFT", p and s.icon or s, p and "RIGHT" or "LEFT", p and 6 or 0, 0)
+    ns.RefreshGuide(frame) -- the next getting-started step (Guide.lua)
     for i, b in ipairs(s.quick) do
         local name = names[i]
         b.profile, b.active = name, name ~= nil and name == c.active
@@ -335,6 +336,7 @@ local function CreateWindow()
 
     ns.SkinWindow(f)
     f:SetScript("OnShow", function()
+        statusStale = true
         Refresh()
         ns.WindowOpened(TABS[f.selected].key) -- the spell panel opens beside it (SpellPanel.lua)
     end)

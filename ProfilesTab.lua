@@ -209,12 +209,36 @@ local function Note(p)
 end
 
 -- Shows a profile's gear editor in place of the list (nil: back to the list).
+local profilesPage
 function ns.ShowGear(page, name)
-    page.gearFor = name
+    page.gearFor, page.guideOpen = name, nil
     if name and not page.gearView then
         page.gearView = CreateFrame("Frame", nil, page)
         page.gearView:SetAllPoints()
         ns.BuildGearView(page.gearView, page.window, function() ns.ShowGear(page, nil) end)
+    end
+    ns.RefreshWindow()
+end
+
+-- The gear editor for a profile, from elsewhere (the guide).
+function ns.ShowGearFor(name)
+    if profilesPage then ns.ShowGear(profilesPage, name) end
+end
+
+-- Every getting-started step, in place of the list (Guide.lua).
+function ns.ShowGuideSteps()
+    ns.ToggleWindow(true)
+    ns.ShowTab("profiles")
+    local page = profilesPage
+    if not page then return end
+    page.guideOpen, page.gearFor = true, nil
+    if not page.guideView then
+        page.guideView = CreateFrame("Frame", nil, page)
+        page.guideView:SetAllPoints()
+        ns.BuildGuideView(page.guideView, page.window, function()
+            page.guideOpen = nil
+            ns.RefreshWindow()
+        end)
     end
     ns.RefreshWindow()
 end
@@ -224,12 +248,14 @@ local function Refresh(page)
     if not c then return end
     local gearFor = page.gearFor and ns.FindProfile(page.gearFor)
     page.gearFor = gearFor
-    page.list:SetShown(not gearFor)
+    local guide = page.guideOpen and not gearFor
+    page.list:SetShown(not gearFor and not guide)
     if page.gearView then page.gearView:SetShown(gearFor ~= nil) end
+    if page.guideView then page.guideView:SetShown(guide or false) end
+    if guide then return ns.RefreshGuideView(page.guideView) end
     if gearFor then return ns.RefreshGearView(page.gearView, gearFor) end
     local combat = ns.InCombat()
     page.title:SetText(L["Profiles for %s"]:format(ns.charKey or "?"))
-    page.active:SetText(c.active and L["In use: %s"]:format(c.active) or "")
     page.shared:SetShown(ns.SharedKeybinds())
     page.ownKeys:SetShown(ns.SharedKeybinds())
     page.ownKeys:SetEnabled(not combat)
@@ -273,15 +299,16 @@ end
 
 local function Build(page, f)
     page.window, page.rows = f, {}
+    profilesPage = page
     local list = CreateFrame("Frame", nil, page)
     list:SetAllPoints()
     page.list = list
     local title = Text(f, list, "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 16, -14)
     page.title = title
-    local active = Text(f, list, "GameFontHighlight")
-    active:SetPoint("TOPRIGHT", page, "TOPRIGHT", -16, -16)
-    page.active = active
+    -- The steps for new players (Guide.lua); the profile in use is in the window's strip.
+    page.guide = Button(f, list, L["Getting started"], 130, function() ns.ShowGuideSteps() end)
+    page.guide:SetPoint("TOPRIGHT", page, "TOPRIGHT", -16, -10)
 
     page.new = Button(f, list, L["New profile from current setup"], 230, function() ns.NewProfile() end)
     page.new:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -12)

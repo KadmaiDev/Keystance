@@ -49,7 +49,7 @@ test("Apply shows what will change first, then applies; the profile in use is ma
     eq(slotId(1), 647, "not before it's confirmed")
     accept()
     eq(slotId(1), 1866)
-    eq(page.active.text, "In use: Ret")
+    eq(KeystanceFrame.status.text.text, "In use: Ret")
     eq(page.rows[1].name.text, "|cff55ff55Ret|r")
 end)
 

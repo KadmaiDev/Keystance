@@ -57,3 +57,90 @@ test("a button per profile switches to it; in combat they give way to the combat
     wow.leaveCombat()
     eq(s.quickFrame:IsShown(), true)
 end)
+
+-- The guide bar's step title, or nil when it's hidden.
+local function guideStep()
+    local bar = KeystanceGuideBar
+    if not (bar and bar:IsShown()) then return nil end
+    return bar.title.text
+end
+
+test("a new player is walked through, step by step, each ticked off by doing it", function()
+    local c, ns = loginWithSetup(nil)
+    wow.bindingSet = 1 -- shared keybinds, as for most players
+    slash("")
+    eq(guideStep(), "Give this character its own keybinds", "the backup is already done")
+    eq(KeystanceGuideBar.step.text, "Step 2 of 6")
+    click(KeystanceGuideBar.actions[1])
+    eq(wow.bindingSet, 2)
+    eq(guideStep(), "Save your first profile")
+    click(KeystanceGuideBar.actions[1])
+    eq(wow.popup.which, "KEYSTANCE_NAME")
+    ns.SaveProfile("Ret")
+    eq(guideStep(), "Set up another role")
+    click(KeystanceGuideBar.actions[1])
+    eq(shownPage(), "keyboard")
+    wow.slots[1] = { kind = "spell", id = 647 }
+    ns.SaveProfile("Prot")
+    eq(guideStep(), "Choose how to switch")
+    ns.AddRule({ when = "shield", profile = "Prot" })
+    eq(guideStep(), "Gear too (optional)", "a rule counts at once")
+    eq(KeystanceGuideBar.actions[2].text, "Skip")
+    click(KeystanceGuideBar.actions[2])
+    eq(guideStep(), "You're all set")
+    click(KeystanceGuideBar.actions[1])
+    eq(guideStep(), nil)
+    eq(c.guide.finished, true)
+end)
+
+test("steps already done are skipped: a returning player starts where they are", function()
+    local c, ns = profileLogin() -- own keybinds
+    ns.SaveProfile("Ret")
+    wow.slots[1] = { kind = "spell", id = 647 }
+    ns.SaveProfile("Prot")
+    ns.SetProfileKey("Prot", "F2")
+    slash("")
+    eq(guideStep(), "Gear too (optional)")
+end)
+
+test("the guide can be hidden, and /kst guide brings it back", function()
+    local c, ns = profileLogin()
+    slash("")
+    assert(guideStep())
+    click(KeystanceGuideBar.close)
+    eq(guideStep(), nil)
+    assert(printed():find("/kst guide brings it back", 1, true))
+    slash("") -- closed
+    slash("guide")
+    assert(guideStep(), "back")
+end)
+
+test("Getting started on the Profiles tab lists every step, done ones ticked", function()
+    local c, ns = profileLogin()
+    ns.SaveProfile("Ret")
+    local page = profilesPage()
+    click(page.guide)
+    local view = page.guideView
+    eq(view:IsShown(), true)
+    eq(page.list:IsShown(), false)
+    eq(view.rows[1].done, true, "backed up")
+    eq(view.rows[2].done, true, "own keybinds")
+    eq(view.rows[3].done, true, "a profile")
+    eq(view.rows[4].done, false)
+    eq(view.rows[4].number.text, 4)
+    eq(view.rows[3].buttons[1]:IsShown(), false, "no button for what's done")
+    click(view.rows[4].buttons[1]) -- Keyboard
+    eq(shownPage(), "keyboard")
+    click(tabNamed("Profiles"))
+    click(view.back)
+    eq(page.list:IsShown(), true)
+end)
+
+test("a new character is told once where to start", function()
+    local c, ns = loginWithSetup(nil)
+    assert(printed():find("Type /kst", 1, true), printed())
+    wow.printed = {}
+    wow.fire("PLAYER_ENTERING_WORLD", false, true)
+    wow.runTimers()
+    assert(not printed():find("Type /kst", 1, true), "once")
+end)

@@ -30,6 +30,7 @@ Bars.lua
 ProfilesTab.lua
 GearTab.lua
 IconPicker.lua
+Guide.lua
 RulesTab.lua
 SpellPanel.lua
 Options.lua

@@ -5,7 +5,7 @@
 package.path = "tests/?.lua;" .. package.path
 local wow = require("wow")
 local FILES = { "Locales.lua", "Core.lua", "Skins.lua", "Actions.lua", "Snapshot.lua", "Apply.lua", "Gear.lua", "Profiles.lua", "Ranks.lua", "Rules.lua", "Spells.lua", "Drops.lua", "Layouts.lua", "Window.lua",
-    "Keyboard.lua", "Bars.lua", "ProfilesTab.lua", "GearTab.lua", "IconPicker.lua", "RulesTab.lua", "SpellPanel.lua", "Options.lua", "Minimap.lua" }
+    "Keyboard.lua", "Bars.lua", "ProfilesTab.lua", "GearTab.lua", "IconPicker.lua", "Guide.lua", "RulesTab.lua", "SpellPanel.lua", "Options.lua", "Minimap.lua" }
 
 local function out(fmt, ...) io.write(fmt:format(...), "\n") end
 local function settle()

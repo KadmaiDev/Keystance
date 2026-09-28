@@ -112,7 +112,7 @@ function ns.AddRule(rule)
     if rule.when == "item" and not rule.id then return nil, L["Choose the item first."] end
     if rule.when == "set" and not rule.set then return nil, L["Choose the equipment set first."] end
     c.rules[#c.rules + 1] = rule
-    ns.RefreshWindow()
+    ns.ProfilesChanged()
     return rule
 end
 
@@ -121,12 +121,12 @@ function ns.MoveRule(i, delta)
     local j = i + delta
     if not rules[i] or not rules[j] then return end
     rules[i], rules[j] = rules[j], rules[i]
-    ns.RefreshWindow()
+    ns.ProfilesChanged()
 end
 
 function ns.DeleteRule(i)
     table.remove(Char().rules, i)
-    ns.RefreshWindow()
+    ns.ProfilesChanged()
 end
 
 ---------------------------------------------------------------------------
@@ -200,5 +200,5 @@ ns.AddCommand("auto", function(arg)
     ns.db.settings.autoOff = not on or nil
     ns.Print(on and L["Automatic switching is on: your rules pick the profile when your gear changes."]
         or L["Automatic switching is off."])
-    ns.RefreshWindow()
+    ns.ProfilesChanged()
 end)
