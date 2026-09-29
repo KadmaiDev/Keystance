@@ -432,13 +432,7 @@ local function Place()
 end
 
 local function Create()
-    local ok, f = pcall(CreateFrame, "Frame", "KeystanceSpellPanel", UIParent, "BasicFrameTemplateWithInset")
-    if not ok then
-        f = CreateFrame("Frame", "KeystanceSpellPanel", UIParent, "BackdropTemplate")
-        local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-        close:SetPoint("TOPRIGHT", -4, -4)
-        f.CloseButton = close -- restyled with the window by EllesmereUI and ElvUI
-    end
+    local f = ns.FramedWindow("KeystanceSpellPanel")
     panel = f
     f.buttons, f.texts, f.rows = {}, {}, {}
     f:SetSize(WIDTH, HEIGHT)

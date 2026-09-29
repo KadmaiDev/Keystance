@@ -165,3 +165,14 @@ test("the guide bar under the window takes the look too, its X like the window's
     assert(skinnedWith("Shell", KeystanceGuideBar), "backdrop")
     assert(skinnedWith("CloseButton", KeystanceGuideBar.close), "its X, as the window's")
 end)
+
+test("an error inside EllesmereUI's skinning never stops the window opening", function()
+    wow.withEllesmere = true
+    wow.load(FILES)
+    wow.login(nil)
+    wow.skinFacade.Shell = function() error("EllesmereUI broke") end
+    wow.skinFacade.Button = function() error("EllesmereUI broke") end
+    wow.skinCallback(wow.skinFacade)
+    slash("")
+    eq(KeystanceFrame:IsShown(), true)
+end)

@@ -73,12 +73,18 @@ local function EachFontString(frame, fn)
     end
 end
 
+-- EllesmereUI's skin functions, guarded like ElvUI's: an error in one must never stop our
+-- window from opening (its API is public, but a mistake there shouldn't cost us the window).
+local function Eui(fn, obj)
+    if type(fn) == "function" then pcall(fn, obj) end
+end
+
 -- Text in the player's chosen font. A no-op in the classic look.
 function ns.SkinText(fs)
     if not fs then return end
     local look = ns.SkinName()
     if look == "ellesmere" then
-        euiSkin.Font(fs)
+        Eui(euiSkin.Font, fs)
     elseif look == "elvui" then
         pcall(ElvFont, fs)
     end
@@ -89,8 +95,8 @@ function ns.SkinButton(b)
     if not b then return end
     local look = ns.SkinName()
     if look == "ellesmere" then
-        euiSkin.Button(b)
-        if euiSkin.StateButtonLabel then euiSkin.StateButtonLabel(b) end
+        Eui(euiSkin.Button, b)
+        Eui(euiSkin.StateButtonLabel, b)
     elseif look == "elvui" then
         pcall(elvS.HandleButton, elvS, b)
     end
@@ -101,7 +107,7 @@ function ns.SkinTab(tab)
     if not tab then return end
     local look = ns.SkinName()
     if look == "ellesmere" then
-        euiSkin.Tab(tab)
+        Eui(euiSkin.Tab, tab)
     elseif look == "elvui" then
         pcall(elvS.HandleTab, elvS, tab)
     end
@@ -123,10 +129,10 @@ function ns.SkinWindow(f)
     if not seen then windows[#windows + 1] = f end
     local look = ns.SkinName()
     if look == "ellesmere" then
-        euiSkin.Shell(f)
-        if f.CloseButton then euiSkin.CloseButton(f.CloseButton) end
-        if f.Inset then euiSkin.Inset(f.Inset) end
-        EachFontString(f, euiSkin.Font)
+        Eui(euiSkin.Shell, f)
+        if f.CloseButton then Eui(euiSkin.CloseButton, f.CloseButton) end
+        if f.Inset then Eui(euiSkin.Inset, f.Inset) end
+        EachFontString(f, function(fs) Eui(euiSkin.Font, fs) end)
         SkinParts(f)
     elseif look == "elvui" then
         -- Guarded: a change in ElvUI must never stop our window from opening.
@@ -136,6 +142,30 @@ function ns.SkinWindow(f)
         end)
         SkinParts(f)
     end
+end
+
+-- A window framed like Blizzard's own (title bar, inset, close button). Where this client
+-- lacks that template: a dialog-bordered frame with a close button of its own. Either way
+-- f.CloseButton is its X, which EllesmereUI and ElvUI restyle with the window.
+function ns.FramedWindow(name, parent)
+    parent = parent or UIParent
+    local ok, f = pcall(CreateFrame, "Frame", name, parent, "BasicFrameTemplateWithInset")
+    if not ok then
+        f = CreateFrame("Frame", name, parent, "BackdropTemplate")
+        if f.SetBackdrop then
+            pcall(f.SetBackdrop, f, {
+                bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+                edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+                tile = true, tileSize = 32, edgeSize = 24,
+                insets = { left = 6, right = 6, top = 6, bottom = 6 },
+            })
+        end
+    end
+    if not f.CloseButton then
+        f.CloseButton = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+        f.CloseButton:SetPoint("TOPRIGHT", -2, -2)
+    end
+    return f
 end
 
 if EllesmereUI and EllesmereUI.RegisterSkin then

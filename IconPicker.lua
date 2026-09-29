@@ -106,13 +106,7 @@ local function Cell(f, i)
 end
 
 local function Create()
-    local ok, f = pcall(CreateFrame, "Frame", "KeystanceIconPicker", UIParent, "BasicFrameTemplateWithInset")
-    if not ok then
-        f = CreateFrame("Frame", "KeystanceIconPicker", UIParent, "BackdropTemplate")
-        local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-        close:SetPoint("TOPRIGHT", -4, -4)
-        f.CloseButton = close -- restyled with the window by EllesmereUI and ElvUI
-    end
+    local f = ns.FramedWindow("KeystanceIconPicker")
     picker = f
     f.buttons, f.texts, f.cells = {}, {}, {}
     local gridW, gridH = COLUMNS * (SIZE + GAP) - GAP, ROWS * (SIZE + GAP) - GAP

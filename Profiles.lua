@@ -572,12 +572,7 @@ end)
 -- Dialogs. Each is added to Blizzard's StaticPopupDialogs the first time it's needed, and
 -- never by assigning the global itself (that taints it).
 ---------------------------------------------------------------------------
-local function Dialog(which, def)
-    if not StaticPopupDialogs[which] then
-        def.timeout, def.whileDead, def.hideOnEscape, def.preferredIndex = 0, true, true, 3
-        StaticPopupDialogs[which] = def
-    end
-end
+local Dialog = ns.Dialog
 
 -- The text typed into a dialog's box (the field's name differs between client versions).
 local function Typed(dialog)

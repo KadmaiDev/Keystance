@@ -56,18 +56,15 @@ local capturePage
 local function AskCapture(page, name)
     if not ns.SharedKeybinds() then return StartCapture(page, name) end
     capturePage = page
-    if not StaticPopupDialogs.KEYSTANCE_PROFILE_KEY then
-        StaticPopupDialogs.KEYSTANCE_PROFILE_KEY = {
-            text = L["Your keybinds are shared by all your characters, so a key set here would change them for everyone.\n\nGive this character its own keybinds first? Nothing changes on screen, and your other characters keep theirs."],
-            button1 = L["Own keybinds"],
-            button2 = CANCEL or "Cancel",
-            OnAccept = function(_, data)
-                ns.UseOwnKeybinds()
-                if capturePage then StartCapture(capturePage, data) end
-            end,
-            timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-        }
-    end
+    ns.Dialog("KEYSTANCE_PROFILE_KEY", {
+        text = L["Your keybinds are shared by all your characters, so a key set here would change them for everyone.\n\nGive this character its own keybinds first? Nothing changes on screen, and your other characters keep theirs."],
+        button1 = L["Own keybinds"],
+        button2 = CANCEL or "Cancel",
+        OnAccept = function(_, data)
+            ns.UseOwnKeybinds()
+            if capturePage then StartCapture(capturePage, data) end
+        end,
+    })
     StaticPopup_Show("KEYSTANCE_PROFILE_KEY", nil, nil, name)
 end
 
@@ -87,15 +84,12 @@ function ns.ConfirmApply(name)
     local gear = ns.ProfileGearChanges(c.profiles[key])
     if slots + keys + gear == 0 then return ns.Notify(L["%s is already in place."]:format(key)) end
     if keys > 0 and ns.SharedKeybinds() then return ns.AskSharedKeybinds(key) end
-    if not StaticPopupDialogs.KEYSTANCE_APPLY then
-        StaticPopupDialogs.KEYSTANCE_APPLY = {
-            text = L["Apply %s? %s will change. You can undo it."],
-            button1 = L["Apply"],
-            button2 = CANCEL or "Cancel",
-            OnAccept = function(_, data) ns.ApplyProfile(data, nil, true) end,
-            timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-        }
-    end
+    ns.Dialog("KEYSTANCE_APPLY", {
+        text = L["Apply %s? %s will change. You can undo it."],
+        button1 = L["Apply"],
+        button2 = CANCEL or "Cancel",
+        OnAccept = function(_, data) ns.ApplyProfile(data, nil, true) end,
+    })
     local parts = {}
     if slots > 0 then parts[#parts + 1] = L["%d slots"]:format(slots) end
     if keys > 0 then parts[#parts + 1] = L["%d keys"]:format(keys) end

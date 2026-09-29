@@ -263,19 +263,7 @@ end
 -- Building the window
 ---------------------------------------------------------------------------
 local function CreateWindow()
-    local ok, f = pcall(CreateFrame, "Frame", "KeystanceFrame", UIParent, "BasicFrameTemplateWithInset")
-    if not ok then
-        -- Plain fallback if this client lacks the template: a dialog backdrop and a close button.
-        f = CreateFrame("Frame", "KeystanceFrame", UIParent, "BackdropTemplate")
-        f:SetBackdrop({
-            bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-            tile = true, tileSize = 32, edgeSize = 32,
-            insets = { left = 8, right = 8, top = 8, bottom = 8 },
-        })
-        local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-        close:SetPoint("TOPRIGHT", -4, -4)
-    end
+    local f = ns.FramedWindow("KeystanceFrame")
     frame = f
     f.buttons, f.tabs, f.texts, f.pages = {}, {}, {}, {}
     f:SetSize(WIDTH, HEIGHT)

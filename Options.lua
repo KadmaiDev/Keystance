@@ -83,23 +83,17 @@ local function ReloadLater() ns.Print(laterText) end
 function ns.AskReload(message, later)
     if not (StaticPopup_Show and StaticPopupDialogs) then return ns.Print(later) end
     laterText = later
-    if not StaticPopupDialogs.KEYSTANCE_RELOAD then
-        StaticPopupDialogs.KEYSTANCE_RELOAD = {
-            text = "%s",
-            button1 = L["Reload now"],
-            button2 = L["Later"],
-            OnAccept = function()
-                -- A refused call doesn't throw (it fires an event), so if we're still here a
-                -- moment later, the reload didn't happen.
-                C_Timer.After(1, ReloadLater)
-                ReloadUI()
-            end,
-            timeout = 0,
-            whileDead = true,
-            hideOnEscape = true,
-            preferredIndex = 3,
-        }
-    end
+    ns.Dialog("KEYSTANCE_RELOAD", {
+        text = "%s",
+        button1 = L["Reload now"],
+        button2 = L["Later"],
+        OnAccept = function()
+            -- A refused call doesn't throw (it fires an event), so if we're still here a
+            -- moment later, the reload didn't happen.
+            C_Timer.After(1, ReloadLater)
+            ReloadUI()
+        end,
+    })
     StaticPopup_Show("KEYSTANCE_RELOAD", message)
 end
 

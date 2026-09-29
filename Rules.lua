@@ -151,15 +151,12 @@ local function Switch(key)
 end
 
 local function AskSwitch(rule, key)
-    if not StaticPopupDialogs.KEYSTANCE_SWITCH then
-        StaticPopupDialogs.KEYSTANCE_SWITCH = {
-            text = L["%s: switch to %s?"],
-            button1 = L["Switch"],
-            button2 = L["Stay"],
-            OnAccept = function(_, data) Switch(data) end,
-            timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-        }
-    end
+    ns.Dialog("KEYSTANCE_SWITCH", {
+        text = L["%s: switch to %s?"],
+        button1 = L["Switch"],
+        button2 = L["Stay"],
+        OnAccept = function(_, data) Switch(data) end,
+    })
     local reason = ns.RuleCondition(rule)
     StaticPopup_Show("KEYSTANCE_SWITCH", reason:sub(1, 1):upper() .. reason:sub(2), key, key)
 end

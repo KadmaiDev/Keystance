@@ -175,20 +175,17 @@ end
 -- first (owner's decision: ask).
 local function AskStart(page)
     if not ns.SharedKeybinds() then return StartBindMode(page) end
-    if not StaticPopupDialogs.KEYSTANCE_BIND_MODE then
-        StaticPopupDialogs.KEYSTANCE_BIND_MODE = {
-            text = L["Your keybinds are shared by all your characters, so keybind mode would change them for everyone.\n\nGive this character its own keybinds first? Nothing changes on screen, and your other characters keep theirs."],
-            button1 = L["Own keybinds, then start"],
-            button2 = CANCEL or "Cancel",
-            OnAccept = function(_, data)
-                if ns.InCombat() then return ns.Print(L["Not in combat: try again when combat ends."]) end
-                if not data:IsVisible() then return end -- the tab closed while asking
-                ns.OwnKeybindsFirst()
-                StartBindMode(data)
-            end,
-            timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-        }
-    end
+    ns.Dialog("KEYSTANCE_BIND_MODE", {
+        text = L["Your keybinds are shared by all your characters, so keybind mode would change them for everyone.\n\nGive this character its own keybinds first? Nothing changes on screen, and your other characters keep theirs."],
+        button1 = L["Own keybinds, then start"],
+        button2 = CANCEL or "Cancel",
+        OnAccept = function(_, data)
+            if ns.InCombat() then return ns.Print(L["Not in combat: try again when combat ends."]) end
+            if not data:IsVisible() then return end -- the tab closed while asking
+            ns.OwnKeybindsFirst()
+            StartBindMode(data)
+        end,
+    })
     StaticPopup_Show("KEYSTANCE_BIND_MODE", nil, nil, page)
 end
 

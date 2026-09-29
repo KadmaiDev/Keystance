@@ -154,22 +154,7 @@ end
 -- with a title bar, inset and close button, so the Classic look matches; EllesmereUI and
 -- ElvUI restyle it with the main window).
 local function BuildBar(window)
-    local ok, f = pcall(CreateFrame, "Frame", "KeystanceGuideBar", window, "BasicFrameTemplateWithInset")
-    if not ok then
-        f = CreateFrame("Frame", "KeystanceGuideBar", window, "BackdropTemplate")
-        if f.SetBackdrop then
-            pcall(f.SetBackdrop, f, {
-                bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-                edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-                tile = true, tileSize = 32, edgeSize = 24,
-                insets = { left = 6, right = 6, top = 6, bottom = 6 },
-            })
-        end
-    end
-    if not f.CloseButton then -- the template brings one; a plain frame gets its own
-        f.CloseButton = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-        f.CloseButton:SetPoint("TOPRIGHT", -2, -2)
-    end
+    local f = ns.FramedWindow("KeystanceGuideBar", window)
     bar = f
     f.buttons, f.texts = {}, {}
     f:SetPoint("TOPLEFT", window, "BOTTOMLEFT", 0, -2)
