@@ -218,15 +218,16 @@ local function Touched(before)
 end
 
 -- The undo record for a change from `before`: what it touched, with how things were.
-local function Record(before, label, gear)
+local function Record(before, label, gear, homes)
     local slots, keys = Touched(before)
-    return { state = before, only = slots, keys = keys, gear = gear, label = label, at = time() }
+    return { state = before, only = slots, keys = keys, gear = gear, homes = homes, label = label, at = time() }
 end
 
 -- Applies a state now, recording the setup before it for Undo. `done` is said afterwards
 -- ("Prot applied"); `undo` names the change for the Undo button ("applying Prot").
--- options.gearChanged says gear is going on too, and options.gearBefore is the gear it
--- replaces, kept for Undo.
+-- options.gearChanged says gear is going on too, options.gearBefore is the gear it
+-- replaces and options.gearHomes where the items it puts into empty slots came from, kept
+-- for Undo.
 local function Change(state, options, done, undo, onDone)
     local c = Char()
     local before = ns.CurrentState()
@@ -236,7 +237,7 @@ local function Change(state, options, done, undo, onDone)
         return false
     end
     if slots + keys > 0 or options.gearChanged then
-        c.lastChange = Record(before, undo, options.gearBefore)
+        c.lastChange = Record(before, undo, options.gearBefore, options.gearHomes)
         if ns.StatusStale then ns.StatusStale() end
     end
     if onDone then onDone() end
@@ -277,9 +278,10 @@ function ns.ApplyProfile(name, keys, asked, noGear)
         ns.pendingProfile = nil
         local p = c.profiles[key]
         if not p then return end -- deleted meanwhile
-        local gearBefore, gearChanged
-        if not noGear then gearBefore, gearChanged = ns.StartProfileGear(p) end
-        Change(p, { keys = keys ~= false, scope = "bars", gearBefore = gearBefore, gearChanged = gearChanged },
+        local gearBefore, gearChanged, gearHomes
+        if not noGear then gearBefore, gearChanged, gearHomes = ns.StartProfileGear(p) end
+        Change(p, { keys = keys ~= false, scope = "bars", gearBefore = gearBefore, gearChanged = gearChanged,
+            gearHomes = gearHomes },
             L["%s applied"]:format(key), L["applying %s"]:format(key), function() c.active = key end)
     end)
     if not now then
@@ -309,17 +311,18 @@ function ns.Undo()
     local now = ns.OutOfCombat("apply", function()
         local last = c.lastChange
         if not last then return end
-        -- The gear from before goes back on (kept for a second Undo in turn).
-        local gearBefore, gearChanged
+        -- The gear from before goes back on, items taken off going back where they came from
+        -- (kept for a second Undo in turn).
+        local gearBefore, gearChanged, gearHomes
         if last.gear and ns.GearChanges(last.gear) > 0 and not GetCursorInfo() then
-            gearBefore = ns.CaptureGear(ns.GearSlotsOf(last.gear))
-            local ok, why = ns.EquipGear(last.gear, ns.GearReport)
+            gearBefore, gearHomes = ns.CaptureGear(ns.GearSlotsOf(last.gear), true), {}
+            local ok, why = ns.EquipGear(last.gear, ns.GearReport, last.homes, gearHomes)
             gearChanged = ok
             if not ok then Print(L["Gear not changed: %s."]:format(why)) end
         end
         -- Only what that change touched (records from before this was kept: everything).
         Change(last.state, { scope = "all", only = last.only, onlyKeys = last.only and (last.keys or {}),
-            gearBefore = gearBefore, gearChanged = gearChanged },
+            gearBefore = gearBefore, gearChanged = gearChanged, gearHomes = gearHomes },
             L["Undid %s"]:format(last.label), L["the undo"], function() c.active = nil end)
     end)
     if not now then Notify(L["Undo will happen when combat ends."]) end

@@ -119,16 +119,21 @@ end
 -- Saving
 ---------------------------------------------------------------------------
 -- The gear worn now, as { [slot] = item string }: every slot, or only those in `slots`.
--- Returns nil and why if the game hasn't loaded the items yet (right after login it knows
--- item IDs before links).
-function ns.CaptureGear(slots)
+-- With `empties` (Undo's record), an empty slot is false: Undo empties it again. Returns
+-- nil and why if the game hasn't loaded the items yet (right after login it knows item IDs
+-- before links).
+function ns.CaptureGear(slots, empties)
     local items = {}
     for slot = 1, 19 do
         if not slots or slots[slot] then
             local id = GetInventoryItemID("player", slot)
             local s = Worn(slot)
             if id and not Secret(id) and not s then return nil, L["Your gear hasn't loaded yet; try again in a moment."] end
-            items[slot] = s
+            if s then
+                items[slot] = s
+            elseif empties then
+                items[slot] = false
+            end
         end
     end
     return items
@@ -248,6 +253,17 @@ local function FreeBagSlot(where, avoid)
     end
 end
 
+-- Where to put an item taken off: the bag or bank slot it came from (`homes`, by Key) if
+-- that's free (the bank only while it's open), else a free slot in the bags.
+local function Home(where, avoid, homes, item)
+    local loc = homes and item and homes[Key(item)]
+    if type(loc) == "number" and loc >= 1000 and not where[loc] and not avoid[loc] and (bankOpen or not InBank(loc)) then
+        local bag, slot = LocBag(loc)
+        if bag and slot <= (C_Container.GetContainerNumSlots(bag) or 0) then return loc end
+    end
+    return FreeBagSlot(where, avoid)
+end
+
 local function Pickup(loc)
     if loc < 100 then
         PickupInventoryItem(loc)
@@ -286,9 +302,10 @@ local function ExactCopy(where, want, claimed)
 end
 
 -- The moves that would put `items` on: { { slot, from }, ... } in equip order, and the
--- slots whose item isn't anywhere.
+-- slots whose item isn't anywhere. A slot whose item is false (Undo: it was empty) is
+-- emptied: { slot, to, off = true }, to its home (see Home) or nil if there's no room.
 local NONE = {}
-local function Plan(where, items, skip)
+local function Plan(where, items, skip, homes)
     local claimed, moves, missing = {}, {}, {}
     for slot, want in pairs(items) do
         if Key(where[slot]) == Key(want) then claimed[slot] = true end
@@ -307,7 +324,13 @@ local function Plan(where, items, skip)
     for _, slot in ipairs(ns.GEAR_ORDER) do
         local want = items[slot]
         if slot == OFF_HAND and noOffHand then want = nil end
-        if want and not claimed[slot] and not skip[slot] then
+        if want == false then
+            if where[slot] and not skip[slot] then
+                local to = Home(where, claimed, homes, where[slot])
+                if to then claimed[to] = true end
+                moves[#moves + 1] = { slot, to, off = true }
+            end
+        elseif want and not claimed[slot] and not skip[slot] then
             local from = Find(where, want, slot, claimed)
             if from then
                 claimed[from] = true
@@ -375,7 +398,10 @@ end
 ---------------------------------------------------------------------------
 -- Equipping
 ---------------------------------------------------------------------------
-local job -- the swap in progress: { items, done, failed = {slot = why}, waits, passes, moved, touched, gen }
+-- The swap in progress: { items, done, failed = {slot = why}, waits, passes, moved, touched,
+-- gen, homes (where items taken off go back), record (filled: where items put into empty
+-- slots came from), leftInBags (bank items that went to the bags) }.
+local job
 local gen = 0
 local itemRackUntil -- a set asked of ItemRack counts as Keystance's until then (or its EndSetSwap)
 
@@ -392,7 +418,7 @@ end
 
 local function Finish(result)
     local done = job.done
-    result.items = job.items
+    result.items, result.leftInBags = job.items, job.leftInBags
     job = nil
     Quiet()
     if done then done(result) end
@@ -434,18 +460,47 @@ Pass = function()
         end
         return Next()
     end
-    local moves, missing = Plan(where, job.items, job.failed)
+    local moves, missing = Plan(where, job.items, job.failed, job.homes)
     if #moves == 0 then return Finish({ moved = job.moved, missing = missing, failed = job.failed }) end
     local touched = {}
     job.touched = touched
+    -- An item taken off landed at `to`: if it came from the bank, but the bank is closed now,
+    -- it's in the bags (said when the swap is done).
+    local function Placed(item, to)
+        local home = job.homes and job.homes[Key(item)]
+        if type(home) == "number" and InBank(home) and not InBank(to) then
+            job.leftInBags[#job.leftInBags + 1] = item
+        end
+    end
     for _, move in ipairs(moves) do
         local slot, from = move[1], move[2]
-        if not touched[slot] and not touched[from] and not locked[from] then
+        if move.off then
+            -- Emptying a slot (Undo, where it was empty): the item goes home.
+            if not touched[slot] and not (from and touched[from]) then
+                touched[slot] = true
+                if not from then
+                    job.failed[slot] = L["no bag space to take it off"]
+                else
+                    touched[from] = true
+                    local item = where[slot]
+                    PickupInventoryItem(slot)
+                    Pickup(from)
+                    if CursorHasItem() then
+                        ClearCursor()
+                        job.failed[slot] = L["it wouldn't come off"]
+                    else
+                        job.moved = job.moved + 1
+                        Placed(item, from)
+                    end
+                end
+            end
+        elseif not touched[slot] and not touched[from] and not locked[from] then
             touched[slot], touched[from] = true, true
             if slot == MAIN_HAND and IsTwoHand(where[from]) and where[OFF_HAND] then
                 -- A two-hander: the off hand goes to a free bag slot first; the weapon next pass.
                 touched[OFF_HAND] = true
-                local space = FreeBagSlot(where, touched)
+                local offHand = where[OFF_HAND]
+                local space = Home(where, touched, job.homes, offHand)
                 if not space then
                     job.failed[slot] = L["no bag space for your off hand"]
                 else
@@ -455,9 +510,12 @@ Pass = function()
                     if CursorHasItem() then
                         ClearCursor()
                         job.failed[slot] = L["your off hand wouldn't come off"]
+                    else
+                        Placed(offHand, space)
                     end
                 end
             else
+                local item, empty = where[from], not where[slot]
                 Pickup(from)
                 PickupInventoryItem(slot)
                 if CursorHasItem() then
@@ -465,6 +523,9 @@ Pass = function()
                     job.failed[slot] = L["the game wouldn't equip it"]
                 else
                     job.moved = job.moved + 1
+                    -- Into an empty slot, so nothing took its place: remember where it came
+                    -- from, for Undo to put it back (a swapped item goes back by swapping).
+                    if empty and from >= 1000 and job.record and item then job.record[Key(item)] = from end
                 end
             end
         end
@@ -473,15 +534,18 @@ Pass = function()
     Next()
 end
 
--- Puts on `items` ({ [slot] = item string }), then calls done(result) with
--- { moved = n, missing = { slots }, failed = { [slot] = why }, why = reason it stopped }.
+-- Puts on `items` ({ [slot] = item string, or false to empty it }), then calls done(result)
+-- with { moved = n, missing = { slots }, failed = { [slot] = why }, why = reason it stopped,
+-- leftInBags = { items } }. `homes` ({ [Key] = place }) says where items taken off go back;
+-- `record`, if given, is filled the same way for the items this swap puts into empty slots.
 -- Replaces a swap already under way. Returns false and why if it can't start. In combat it
 -- starts when combat ends.
-function ns.EquipGear(items, done)
+function ns.EquipGear(items, done, homes, record)
     if UnitIsDeadOrGhost("player") then return false, L["you can't change gear while dead"] end
     if CursorHasItem() then return false, L["something is on your cursor"] end
     gen = gen + 1
-    job = { items = items, done = done, failed = {}, waits = 0, passes = 0, moved = 0, touched = {}, gen = gen }
+    job = { items = items, done = done, failed = {}, waits = 0, passes = 0, moved = 0, touched = {}, gen = gen,
+        homes = homes, record = record, leftInBags = {} }
     Quiet()
     ns.OutOfCombat("gear", function() if job then Pass() end end)
     return true
@@ -504,6 +568,9 @@ function ns.GearReport(result)
     end
     for slot, why in pairs(result.failed or {}) do
         ns.Print(L["Gear: %s: %s."]:format(ns.GEAR_SLOT_NAMES[slot], why))
+    end
+    for _, item in ipairs(result.leftInBags or NONE) do
+        ns.Print(L["Gear: %s came from your bank; it's in your bags now."]:format(ns.GearItemName(item)))
     end
 end
 
@@ -657,8 +724,9 @@ function ns.ProfileGearChanges(p)
     return 0
 end
 
--- Starts putting on a profile's gear. Returns the gear it replaces ({ [slot] = item }, for
--- Undo) and true if anything is changing.
+-- Starts putting on a profile's gear. Returns the gear it replaces ({ [slot] = item, or
+-- false where the slot was empty }, for Undo), true if anything is changing, and where the
+-- items it puts into empty slots came from (filled as they go on; also for Undo).
 function ns.StartProfileGear(p)
     if GetCursorInfo() then return nil, false end -- applying stops too; say it once, there
     local kind, data = ns.ProfileGear(p)
@@ -666,21 +734,21 @@ function ns.StartProfileGear(p)
         if ns.GearChanges(data) == 0 then return nil, false end
         -- What it replaces, for Undo (the off hand too when the main hand changes). Without
         -- it (item links not loaded yet), gear stays as it is rather than change past Undo.
-        local before, why = ns.CaptureGear(ns.GearSlotsOf(data))
+        local before, why = ns.CaptureGear(ns.GearSlotsOf(data), true)
         if not before then
             ns.Print(L["Gear not changed: %s"]:format(why))
             return nil, false
         end
-        local ok
-        ok, why = ns.EquipGear(data, ns.GearReport)
+        local homes, ok = {}, nil
+        ok, why = ns.EquipGear(data, ns.GearReport, nil, homes)
         if not ok then
             ns.Print(L["Gear not changed: %s."]:format(why))
             return nil, false
         end
-        return before, true
+        return before, true, homes
     elseif kind == "itemrack" then
         if ns.ItemRackEquipped(data) then return nil, false end
-        local before, why = ns.CaptureGear()
+        local before, why = ns.CaptureGear(nil, true)
         if not before then
             ns.Print(L["Gear not changed: %s"]:format(why))
             return nil, false
