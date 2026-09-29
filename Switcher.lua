@@ -184,6 +184,7 @@ end
 function ns.SetSwitcherMode(mode)
     Settings().switcher = mode ~= "hidden" and mode or nil
     ns.RefreshSwitcher()
+    if ns.RefreshSettings then ns.RefreshSettings() end -- an open settings page follows
 end
 
 ns.On("PLAYER_LOGIN", function() ns.RefreshSwitcher() end)

@@ -260,3 +260,19 @@ test("moved off the minimap by some other collector, it isn't dragged round the 
     b.scripts.OnDragStart(b)
     eq(b.scripts.OnUpdate, nil)
 end)
+
+test("shown again in combat, the tray regrids when combat ends; without its regrid, it just shows", function()
+    start(nil)
+    local b = KeystanceMinimapButton
+    local tray = ellesmereTray(b)
+    slash("minimap") -- hidden
+    wow.enterCombat()
+    slash("minimap")
+    eq(tray.regrids, 0, "not in combat")
+    wow.leaveCombat()
+    eq(tray.regrids, 1)
+    slash("minimap")
+    _EMIN_RefreshFlyout = nil -- gone in an EllesmereUI update
+    slash("minimap")
+    eq(b:IsShown(), true)
+end)

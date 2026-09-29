@@ -138,6 +138,7 @@ local function Create()
     for i = 1, COLUMNS * ROWS do f.cells[i] = Cell(f, i) end
     local scroll = CreateFrame("Slider", nil, f)
     scroll:SetOrientation("VERTICAL")
+    scroll:EnableMouse(true) -- so its thumb can be dragged
     scroll:SetSize(6, gridH)
     scroll:SetPoint("TOPLEFT", f.grid, "TOPRIGHT", 6, 0)
     local thumb = scroll:CreateTexture(nil, "OVERLAY")
@@ -154,8 +155,9 @@ local function Create()
     end)
     f.scroll = scroll
     ns.SkinWindow(f)
-    -- Escape closes it, like Blizzard's own windows.
+    -- Escape closes it, like Blizzard's own windows, and it closes with the window.
     if UISpecialFrames then UISpecialFrames[#UISpecialFrames + 1] = "KeystanceIconPicker" end
+    if KeystanceFrame then KeystanceFrame:HookScript("OnHide", function() f:Hide() end) end
     f:Hide()
 end
 

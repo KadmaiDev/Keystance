@@ -36,6 +36,7 @@ end
 
 local function StartCapture(page, name)
     if ns.InCombat() then return ns.Print(L["Not in combat: try again when combat ends."]) end
+    if not page:IsVisible() then return end -- the window closed while the question was open
     page.capturing = name
     page.catcher:Show()
     page.catcher:EnableKeyboard(true)
@@ -225,6 +226,14 @@ end
 -- The gear editor for a profile, from elsewhere (the guide).
 function ns.ShowGearFor(name)
     if profilesPage then ns.ShowGear(profilesPage, name) end
+end
+
+-- The profile list itself (from the guide: the gear editor or the steps may be showing).
+function ns.ShowProfileList()
+    ns.ToggleWindow(true)
+    ns.ShowTab("profiles")
+    if profilesPage then profilesPage.guideOpen, profilesPage.gearFor = nil, nil end
+    ns.RefreshWindow()
 end
 
 -- Every getting-started step, in place of the list (Guide.lua).

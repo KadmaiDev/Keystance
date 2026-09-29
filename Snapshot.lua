@@ -42,6 +42,8 @@ function ns.TakeSnapshot()
         at = time(), set = GetCurrentBindingSet(),
         slots = slots, binds = binds, nSlots = nSlots, nBinds = nBinds,
     }
+    -- An open window follows (the guide's first step, Restore), after whatever is running.
+    if ns.ProfilesChanged then C_Timer.After(0, ns.ProfilesChanged) end
     return true
 end
 

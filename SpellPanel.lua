@@ -106,8 +106,12 @@ local function CollectMacros(search, filter)
         { L["Account macros"], 1, account or 0 },
         { L["%s's macros"]:format(ns.charKey or "?"), (MAX_ACCOUNT_MACROS or 120) + 1, perChar or 0 },
     }
-    for _, g in ipairs(groups) do
-        local header = { kind = "header", name = g[1], count = 0 }
+    local collapsed = Settings().spellCollapsed or {}
+    for i, g in ipairs(groups) do
+        -- Folds like the spell sections; the character's section under one name for everyone.
+        local foldKey = i == 1 and "macros:account" or "macros:character"
+        local folded = collapsed[foldKey] and search == "" or false
+        local header = { kind = "header", name = g[1], count = 0, foldKey = foldKey, collapsed = folded }
         local start = #items + 1
         items[start] = header
         for index = g[2], g[2] + g[3] - 1 do
@@ -118,7 +122,9 @@ local function CollectMacros(search, filter)
                     and (filter ~= "missing" or not on) and (filter ~= "onbar" or on)
                 if keep then
                     header.count = header.count + 1
-                    items[#items + 1] = { kind = "macro", index = index, name = name, icon = icon, body = body, onBar = on }
+                    if not folded then
+                        items[#items + 1] = { kind = "macro", index = index, name = name, icon = icon, body = body, onBar = on }
+                    end
                 end
             end
         end
@@ -243,9 +249,13 @@ local function RowClick(row, button)
     if item.kind == "header" then
         local collapsed = Settings().spellCollapsed or {}
         Settings().spellCollapsed = collapsed
-        collapsed[item.name] = not collapsed[item.name] or nil
+        local key = item.foldKey or item.name
+        collapsed[key] = not collapsed[key] or nil
         return panel:Refresh()
     end
+    -- Right-click: a spell's other ranks; nothing else (it mustn't pick up again the raid
+    -- marker that same right-click just dropped).
+    if button == "RightButton" and item.kind ~= "spell" then return end
     if item.kind == "macro" then return PickupMacroAt(item.index) end
     if item.kind == "marker" then return ns.StartBinding(item.command, item.name, item.icon) end
     if item.kind == "profile" then return ns.StartBinding(nil, item.name, item.icon, item.name) end
@@ -503,6 +513,7 @@ local function Create()
 
     local scroll = CreateFrame("Slider", nil, f)
     scroll:SetOrientation("VERTICAL")
+    scroll:EnableMouse(true) -- so its thumb can be dragged
     scroll:SetSize(6, ROWS * ROW_HEIGHT)
     scroll:SetPoint("TOPLEFT", list, "TOPRIGHT", 4, 0)
     local thumb = scroll:CreateTexture(nil, "OVERLAY")
@@ -602,7 +613,6 @@ function ns.WindowClosed()
     end
 end
 
-function ns.SpellPanelShown() return panel and panel:IsShown() or false end
 
 -- Kept current while shown: spells learned, bars changed, combat.
 local pending = false

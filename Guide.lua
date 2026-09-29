@@ -69,7 +69,7 @@ ns.GUIDE_STEPS = {
         todo = L["Give each profile a key (the key button on its row), or add a rule so your gear switches for you, like a shield switching to Prot."],
         done = L["You can switch without opening Keystance."],
         check = HasSwitch,
-        actions = { { L["Set keys"], function() ns.ShowTab("profiles") end },
+        actions = { { L["Set keys"], function() ns.ShowProfileList() end },
             { L["Add a rule"], function() ns.ShowTab("rules") end } } },
     { key = "gear", optional = true, title = L["Gear too (optional)"],
         todo = L["A profile can change your gear as well: its Gear button picks an ItemRack set or saves what you're wearing."],
@@ -247,7 +247,7 @@ function ns.RefreshGuide(window)
     else
         bar.step:SetText("")
         bar.title:SetText(L["You're all set"])
-        bar.text:SetText(L["Switch with your keys, rules or the buttons along the bottom. Undo and Restore are on the Profiles tab; /kst guide shows this again."])
+        bar.text:SetText(L["Switch with your keys, rules or the buttons along the bottom, where Undo is too. Restore is on the Profiles tab; /kst guide shows this again."])
         local b = bar.actions[1]
         b:SetText(L["Got it"])
         b.fn = function() ns.FinishGuide() end

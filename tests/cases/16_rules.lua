@@ -31,6 +31,7 @@ end)
 test("several equipment events at once make one check", function()
     local c, ns = rulesLogin()
     ns.AddRule({ when = "shield", profile = "Prot" })
+    wow.runTimers() -- anything left from login
     equip(16, 2132); equip(17, 2129); wow.fire("EQUIPMENT_SWAP_FINISHED", true)
     eq(#wow.timers, 1)
 end)

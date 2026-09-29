@@ -379,6 +379,7 @@ local function Build(page, f)
     page:SetScript("OnMouseWheel", function(_, delta) Scroll(page.offset - delta) end)
     local scroll = CreateFrame("Slider", nil, page)
     scroll:SetOrientation("VERTICAL")
+    scroll:EnableMouse(true) -- so its thumb can be dragged
     scroll:SetSize(6, MAX_ROWS * ROW - 4)
     scroll:SetPoint("TOPRIGHT", page, "TOPRIGHT", -20, -40)
     local thumb = scroll:CreateTexture(nil, "OVERLAY")

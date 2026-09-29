@@ -151,9 +151,18 @@ end
 -- sitting loose on the minimap. _EMIN_RefreshFlyout is EllesmereUI's own (unofficial,
 -- guarded), and it also shows every button in its grid, other addons' hidden ones
 -- included, so those are put back exactly as they were afterwards.
-local function RegridTray()
+local RegridTray
+RegridTray = function()
     local refresh, list = _G._EMIN_RefreshFlyout, TrayList()
-    if type(refresh) ~= "function" or not list or InCombatLockdown() then return end
+    if not list then return end
+    -- Its grid can't be laid out in combat: when combat ends.
+    if InCombatLockdown() then return ns.OutOfCombat("minimap", RegridTray) end
+    -- Without its regrid (an EllesmereUI update), just shown, rather than not at all.
+    if type(refresh) ~= "function" then
+        mmButton:SetShown(true)
+        mmButton:SetAlpha(1)
+        return
+    end
     local hidden = {}
     for btn, wanted in pairs(list) do
         if btn ~= mmButton and type(btn) == "table" and btn.IsShown and not btn:IsShown() then
@@ -189,6 +198,7 @@ ns.MinimapButtonHolder = Holder
 
 function ns.SetMinimapButton(on)
     ns.db.settings.minimapHidden = not on or nil
+    if ns.RefreshSettings then ns.RefreshSettings() end -- an open settings page follows
     ns.CreateMinimapButton()
     if not mmButton then return end
     if Holder() == "mbb" then

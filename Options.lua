@@ -310,7 +310,8 @@ local function OpenCategory()
 end
 
 function ns.OpenOptions()
-    if category and Settings.OpenToCategory then
+    -- Blizzard's Options window isn't opened in combat: the window's Settings tab instead.
+    if category and Settings.OpenToCategory and not ns.InCombat() then
         C_Timer.After(0, OpenCategory)
         return
     end
@@ -318,4 +319,3 @@ function ns.OpenOptions()
     ns.ShowTab("settings")
 end
 
-function ns.OptionsPanel() return canvas end
