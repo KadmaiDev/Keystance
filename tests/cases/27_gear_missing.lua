@@ -101,3 +101,27 @@ test("nothing is flagged while the game is still loading item details", function
     eq(view.slots[8].note:IsShown(), false)
     wow.linksNotReady = nil
 end)
+
+test("a soft sound plays once when some of a profile's gear can't go on, and not when it all does", function()
+    local c, ns = gearLogin()
+    ns.SaveProfile("Prot")
+    ns.SetProfileGear("Prot", { [1] = gearString(1100) })
+    wow.sounds = {}
+    ns.ApplyProfile("Prot")
+    settleGear()
+    eq(#wow.sounds, 0, "the helm was in the bags")
+    ns.SetProfileGear("Prot", { [8] = gearString(1300), [11] = gearString(1000), [1] = gearString(1101) })
+    ns.ApplyProfile("Prot")
+    settleGear()
+    eq(#wow.sounds, 1, "two items missing: one sound")
+    eq(wow.sounds[1], 882)
+    -- A client without that sound uses the next one; one without either stays silent.
+    SOUNDKIT.IG_PLAYER_INVITE_DECLINE, SOUNDKIT.IG_QUEST_LOG_ABANDON_QUEST = nil, 846
+    ns.ApplyProfile("Prot")
+    settleGear()
+    eq(wow.sounds[2], 846)
+    SOUNDKIT.IG_QUEST_LOG_ABANDON_QUEST = nil
+    ns.ApplyProfile("Prot")
+    settleGear()
+    eq(#wow.sounds, 2)
+end)

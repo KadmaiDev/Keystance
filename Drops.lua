@@ -200,17 +200,7 @@ end
 -- UI_CURSOR_PICKUP_OBJECT 688, UI_CURSOR_DROP_OBJECT 689).
 local PICKUP_SOUNDS = { "IG_ABILITY_ICON_PICKUP", "UI_CURSOR_PICKUP_OBJECT" }
 local DROP_SOUNDS = { "IG_ABILITY_ICON_DROP", "UI_CURSOR_DROP_OBJECT" }
-local function Sound(names)
-    local kit = SOUNDKIT
-    if type(kit) ~= "table" or not PlaySound then return end
-    for _, name in ipairs(names) do
-        local id = kit[name]
-        if id then
-            PlaySound(id)
-            return
-        end
-    end
-end
+local Sound = ns.Sound
 
 local held -- { command = "RAIDTARGET8", label = "Skull", icon = ... } while held
 local ghost, listener

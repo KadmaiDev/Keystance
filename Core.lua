@@ -223,6 +223,21 @@ function ns.Notify(msg)
     Print(msg)
 end
 
+-- Plays the first of the game's sounds (SOUNDKIT names) this client has, on the Sound
+-- Effects channel, so the player's own volume and mute apply. Names, not numbers: the list
+-- differs between clients, and a missing one just tries the next.
+function ns.Sound(names)
+    local kit = SOUNDKIT
+    if type(kit) ~= "table" or not PlaySound then return end
+    for _, name in ipairs(names) do
+        local id = kit[name]
+        if id then
+            PlaySound(id, "SFX")
+            return
+        end
+    end
+end
+
 local commands = {}
 
 function commands.minimap()
