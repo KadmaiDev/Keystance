@@ -238,6 +238,7 @@ function ns.ApplyProfile(name, keys, asked, noGear)
         if keyChanges > 0 then return ns.AskSharedKeybinds(key) end
     end
     local now = ns.OutOfCombat("apply", function()
+        ns.pendingProfile = nil
         local p = c.profiles[key]
         if not p then return end -- deleted meanwhile
         local gearBefore, gearChanged
@@ -245,13 +246,30 @@ function ns.ApplyProfile(name, keys, asked, noGear)
         Change(p, { keys = keys ~= false, scope = "bars", gearBefore = gearBefore, gearChanged = gearChanged },
             L["%s applied"]:format(key), L["applying %s"]:format(key), function() c.active = key end)
     end)
-    if not now then Print(L["%s will apply when combat ends."]:format(key)) end
+    if not now then
+        -- Shown on the profile switcher until combat ends (another click changes or cancels it).
+        ns.pendingProfile = key
+        Print(L["%s will apply when combat ends."]:format(key))
+        ns.ProfilesChanged()
+    end
+end
+
+-- Drops a profile switch waiting for combat to end.
+function ns.CancelPendingProfile()
+    local key = ns.pendingProfile
+    if not key then return false end
+    ns.pendingProfile = nil
+    ns.CancelWaiting("apply")
+    Print(L["Switching to %s cancelled."]:format(key))
+    ns.ProfilesChanged()
+    return true
 end
 
 -- Puts back the setup from before the last change (a second Undo redoes it).
 function ns.Undo()
     local c = Char()
     if not (c and c.lastChange) then return Print(L["Nothing to undo."]) end
+    ns.pendingProfile = nil -- Undo takes the queue's place
     local now = ns.OutOfCombat("apply", function()
         local last = c.lastChange
         if not last then return end
@@ -275,6 +293,7 @@ end
 function ns.RestoreOriginal()
     local c = Char()
     if not (c and c.snapshot) then return Print(L["Your original setup hasn't been saved yet."]) end
+    ns.pendingProfile = nil -- Restore takes the queue's place
     local now = ns.OutOfCombat("apply", function()
         Change(c.snapshot, { scope = "all" }, L["Your original setup is back"], L["restoring your original setup"],
             function() c.active = nil end)

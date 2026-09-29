@@ -220,6 +220,7 @@ ns.RefreshWindow = Refresh
 function ns.ProfilesChanged()
     statusStale = true
     Refresh()
+    if ns.RefreshSwitcher then ns.RefreshSwitcher() end -- the on-screen switcher (Switcher.lua)
 end
 
 -- Refreshes the open window soon, once however many events asked (a bar change fires one

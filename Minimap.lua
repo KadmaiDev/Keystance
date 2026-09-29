@@ -26,6 +26,8 @@ local function OpenOptions() ns.OpenOptions() end
 local function ShowMemory() ns.RunCommand("mem") end
 local function AutoSelected() return ns.AutoOn() end
 local function ToggleAuto() ns.RunCommand("auto", ns.AutoOn() and "off" or "on") end
+local function SwitcherSelected() return ns.SwitcherMode() ~= "hidden" end
+local function ToggleSwitcher() ns.SetSwitcherMode(ns.SwitcherMode() == "hidden" and "shown" or "hidden") end
 
 function ns.ShowOptionsMenu(owner)
     if not (MenuUtil and MenuUtil.CreateContextMenu) then return ns.ShowHelp() end
@@ -36,6 +38,7 @@ function ns.ShowOptionsMenu(owner)
         end
         root:CreateButton(L["Settings"], OpenOptions)
         root:CreateCheckbox(L["Switch profiles automatically"], AutoSelected, ToggleAuto)
+        root:CreateCheckbox(L["Show profile switcher"], SwitcherSelected, ToggleSwitcher)
         root:CreateCheckbox(L["Show minimap button"], MinimapSelected, ToggleMinimap)
         root:CreateButton(L["Memory use"], ShowMemory)
     end)

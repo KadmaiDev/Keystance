@@ -48,6 +48,7 @@ local function RefreshPage(page)
         or L["In use: %s until you reload."]:format(LOOK_NAMES[inUse]))
     page.minimap:SetText(ns.MinimapButtonOn() and L["Minimap button: shown"] or L["Minimap button: hidden"])
     page.ranksRow:Refresh()
+    page.switcherRow:Refresh()
     local snap = ns.char and ns.char.snapshot
     page.snapshot:SetText(snap and L["Your bars and keys as they were before Keystance were saved on %s (%d slots, %d keys). Restore puts them back; before uninstalling Keystance, use it to get your original setup back."]
         :format(date("%d %b %Y", snap.at), snap.nSlots, snap.nBinds)
@@ -143,6 +144,22 @@ function ns.BuildSettings(page, owner, top)
         RefreshAll()
     end)
     page.minimap = minimap
+    -- The profile switcher on screen: off (default), on (movable) or locked.
+    local switcherLabel = Text(owner, page, "GameFontNormal", L["Profile switcher"])
+    switcherLabel:SetPoint("LEFT", minimap, "RIGHT", 16, 0)
+    local switcher = ns.ChoiceRow(owner, page, { { "hidden", L["Off"], 56 }, { "shown", L["On"], 56 },
+        { "locked", L["Locked"], 70 } },
+        function() return ns.SwitcherMode() end,
+        function(mode)
+            ns.SetSwitcherMode(mode)
+            RefreshAll()
+        end)
+    switcher:SetPoint("LEFT", switcherLabel, "RIGHT", 10, 0)
+    switcher.buttons[1]:SetScript("OnEnter", function(self)
+        Tooltip(self, L["Profile switcher"], L["A row of your profiles that stays on screen: click one to switch (in combat it switches when combat ends). On: drag it where you like. Locked: it stays put."])
+    end)
+    switcher.buttons[1]:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    page.switcherRow = switcher
     -- New spell ranks: upgrade the bars (the rank in use until now) or leave them.
     local ranksLabel = Text(owner, page, "GameFontNormal", L["New spell ranks"])
     ranksLabel:SetPoint("TOPLEFT", minimap, "BOTTOMLEFT", 0, -16)

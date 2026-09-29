@@ -154,6 +154,16 @@ function ns.OutOfCombat(key, fn)
     return false
 end
 
+-- Drops the work waiting under this key (a switch the player changed their mind about).
+function ns.CancelWaiting(key)
+    if not queued[key] then return false end
+    queued[key] = nil
+    for i = #order, 1, -1 do
+        if order[i] == key then table.remove(order, i) end
+    end
+    return true
+end
+
 -- True while work under this key (or any key, without one) waits for combat to end.
 function ns.Waiting(key)
     if key then return queued[key] ~= nil end
@@ -213,7 +223,7 @@ end
 
 function commands.help()
     Print(L["by Kadmai. /kst opens Keystance. Profiles: /kst save Name | apply Name | undo | restore | profiles | ownkeys | ranks | auto on/off"])
-    Print(L["Also: /kst options | minimap | skin | mem | help"])
+    Print(L["Also: /kst switcher on/off/lock | guide | options | minimap | skin | mem | help"])
     Print(L["Or use the minimap button (right-click for options)."])
 end
 ns.ShowHelp = commands.help
