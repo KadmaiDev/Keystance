@@ -176,3 +176,15 @@ test("the strip along the bottom has its own band, clear of the pages above it",
     -- And in from the sides as far as the pages' content (pages 8 px in, content 16 more).
     assert(strip.point[4] <= -(8 + 16), "right side")
 end)
+
+test("the guide is a small framed window like the main one, its text clear of the edges", function()
+    local c, ns = profileLogin()
+    slash("")
+    local bar = KeystanceGuideBar
+    eq(bar.template, "BasicFrameTemplateWithInset", "framed like the main window")
+    eq(bar.close, bar.CloseButton, "the frame's own close button")
+    eq(bar.title.point[4], 18, "in from the left edge")
+    assert(bar.title.point[5] <= -30, "below the title bar")
+    eq(bar.all.point[4], -16, "in from the right edge")
+    eq(bar.all.point[5], 12, "up from the bottom")
+end)

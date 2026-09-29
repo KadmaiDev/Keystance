@@ -141,46 +141,57 @@ local function ActionButton(parent, i)
     return b
 end
 
+-- A small window of its own under the main one, built like it (Blizzard's framed window
+-- with a title bar, inset and close button, so the Classic look matches; EllesmereUI and
+-- ElvUI restyle it with the main window).
 local function BuildBar(window)
-    local ok, f = pcall(CreateFrame, "Frame", "KeystanceGuideBar", window, "BackdropTemplate")
-    if not ok then f = CreateFrame("Frame", "KeystanceGuideBar", window) end
+    local ok, f = pcall(CreateFrame, "Frame", "KeystanceGuideBar", window, "BasicFrameTemplateWithInset")
+    if not ok then
+        f = CreateFrame("Frame", "KeystanceGuideBar", window, "BackdropTemplate")
+        if f.SetBackdrop then
+            pcall(f.SetBackdrop, f, {
+                bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+                edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+                tile = true, tileSize = 32, edgeSize = 24,
+                insets = { left = 6, right = 6, top = 6, bottom = 6 },
+            })
+        end
+    end
+    if not f.CloseButton then -- the template brings one; a plain frame gets its own
+        f.CloseButton = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+        f.CloseButton:SetPoint("TOPRIGHT", -2, -2)
+    end
     bar = f
     f.buttons, f.texts = {}, {}
     f:SetPoint("TOPLEFT", window, "BOTTOMLEFT", 0, -2)
     f:SetPoint("TOPRIGHT", window, "BOTTOMRIGHT", 0, -2)
-    f:SetHeight(66) -- room for three lines of text beside the buttons
-    if f.SetBackdrop then
-        pcall(f.SetBackdrop, f, {
-            bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-            tile = true, tileSize = 16, edgeSize = 14,
-            insets = { left = 3, right = 3, top = 3, bottom = 3 },
-        })
-        pcall(f.SetBackdropColor, f, 0.05, 0.05, 0.07, 0.95)
-    end
+    f:SetHeight(100) -- the title bar, then the step and up to three lines beside the buttons
+    -- The title bar: "Getting started", and which step on its left.
+    local heading = f.TitleText or f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    if not f.TitleText then heading:SetPoint("TOP", 0, -8) end
+    heading:SetText(L["Getting started"])
+    f.heading = heading
     f.step = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    f.step:SetPoint("TOPLEFT", 14, -9)
+    f.step:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -6)
+    -- The step, and what to do, with room from the edges.
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    f.title:SetPoint("LEFT", f.step, "RIGHT", 8, 0)
+    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 18, -32)
     f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    f.text:SetPoint("TOPLEFT", f.step, "BOTTOMLEFT", 0, -5)
+    f.text:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -5)
     f.text:SetJustifyV("TOP")
     f.text:SetJustifyH("LEFT")
-    f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-    f.close:SetSize(22, 22)
-    f.close:SetPoint("TOPRIGHT", -3, -3)
+    f.close = f.CloseButton -- where EllesmereUI and ElvUI look for a window's X to restyle it
     f.close:SetScript("OnClick", function() ns.HideGuide() end)
-    f.CloseButton = f.close -- where EllesmereUI and ElvUI look for a window's X to restyle it
     f.all = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     f.all:SetSize(80, 22)
-    f.all:SetPoint("BOTTOMRIGHT", -30, 8)
+    f.all:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -16, 12)
     f.all:SetText(L["All steps"])
     f.all:SetScript("OnClick", function() ns.ShowGuideSteps() end)
     ns.SkinButton(f.all)
     f.actions = { ActionButton(f, 1), ActionButton(f, 2) }
     f.actions[1]:SetPoint("RIGHT", f.all, "LEFT", -6, 0)
     f.actions[2]:SetPoint("RIGHT", f.actions[1], "LEFT", -4, 0)
-    for _, fs in ipairs({ f.step, f.title, f.text }) do
+    for _, fs in ipairs({ heading, f.step, f.title, f.text }) do
         f.texts[#f.texts + 1] = fs
         ns.SkinText(fs)
     end
@@ -233,7 +244,7 @@ function ns.RefreshGuide(window)
         if b:IsShown() then leftmost = b end
     end
     bar.text:ClearAllPoints()
-    bar.text:SetPoint("TOPLEFT", bar.step, "BOTTOMLEFT", 0, -5)
+    bar.text:SetPoint("TOPLEFT", bar.title, "BOTTOMLEFT", 0, -5)
     bar.text:SetPoint("RIGHT", leftmost, "LEFT", -12, 0)
     bar:Show()
 end
