@@ -181,10 +181,11 @@ if BANKER then
     ns.On("PLAYER_INTERACTION_MANAGER_FRAME_HIDE", function(kind) if kind == BANKER then closed() end end)
 end
 
--- Every item worn, in the bags, and in the bank while it's open: { [loc] = item string },
--- the places locked (the game hasn't finished a move yet, or the item sits in a trade or
--- mail window), and true if some item's details haven't loaded yet (right after login).
-local function Scan()
+-- Every item worn, in the bags, and in the bank while it's open (unless `carriedOnly`):
+-- { [loc] = item string }, the places locked (the game hasn't finished a move yet, or the
+-- item sits in a trade or mail window), and true if some item's details haven't loaded yet
+-- (right after login).
+local function Scan(carriedOnly)
     local where, locked, loading = {}, {}, false
     for slot = 1, 19 do
         where[slot] = Worn(slot)
@@ -194,7 +195,7 @@ local function Scan()
             if id and not Secret(id) then loading = true end
         end
     end
-    for i = 1, bankOpen and #BAGS or CARRIED do
+    for i = 1, (bankOpen and not carriedOnly) and #BAGS or CARRIED do
         local bag = BAGS[i]
         for slot = 1, bag and C_Container.GetContainerNumSlots(bag) or 0 do
             local info = C_Container.GetContainerItemInfo(bag, slot)
@@ -351,13 +352,14 @@ function ns.GearChanges(items)
     return #moves + #missing
 end
 
--- The items that aren't on the character (not worn, not in the bags, not in the bank while
--- it's open): { [slot] = "bank" (there on the last bank visit) or "missing" }, empty if
--- all are there, or nil while the game is still loading item details.
+-- The items that aren't on the character (not worn, not in the bags): { [slot] = "bank"
+-- (in the bank: now if it's open, else on the last visit) or "missing" }, empty if all are
+-- there, or nil while the game is still loading item details. An open bank still counts as
+-- the bank: the note says where the item is, not whether it can be reached right now.
 function ns.GearStatus(items)
     local status = {}
     if not items or not next(items) then return status end
-    local where, _, loading = Scan()
+    local where, _, loading = Scan(true)
     if loading then return nil end
     local _, missing = Plan(where, items, NONE)
     for _, slot in ipairs(missing) do
