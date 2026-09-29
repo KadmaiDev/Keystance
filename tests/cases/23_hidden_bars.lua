@@ -119,3 +119,55 @@ test("ElvUI's hidden bars: Show opens its action bar options", function()
     assert(printed():find("Switch Bar 3 on in ElvUI's Action Bars settings", 1, true), printed())
     ElvUI = nil
 end)
+
+test("Hide takes a Blizzard bar off screen with the game's switch; its spells stay; the main bar has no Hide", function()
+    loginWithSetup(nil)
+    blizzardBars()
+    wow.barToggles = { true, false, false, false, false, false, false }
+    wow.slots[62] = { kind = "spell", id = 647 }
+    local page = barsPage()
+    eq(page.rows[1].hide:IsShown(), false, "the main bar can't be hidden")
+    eq(page.rows[2].hide:IsShown(), true)
+    click(page.rows[2].hide)
+    eq(wow.barToggles[1], false)
+    wow.runTimers()
+    assert(printed():find("Bottom left is hidden now. It keeps its spells and keys", 1, true), printed())
+    wow.runTimers()
+    eq(page.rows[2]:IsShown(), false, "no longer among the shown bars")
+    eq(page.hiddenFold.text:find("Hidden bars (2)", 1, true) ~= nil, true)
+    eq(wow.slots[62].id, 647, "its spells stay")
+    -- And back again.
+    local rows = openFold(page)
+    eq(rows[1].label.text, "Bottom left")
+    click(rows[1].show)
+    wow.runTimers()
+    wow.runTimers()
+    eq(page.rows[2].label.text, "Bottom left")
+end)
+
+test("Hide on EllesmereUI's bars opens its settings; its main bar has no Hide", function()
+    loginWithSetup(nil)
+    CreateFrame("Frame", "EABBar_MainBar")
+    CreateFrame("Frame", "EABBar_Bar2")
+    CreateFrame("Button", "EABButton1"):SetAttribute("action", 1)
+    local opened
+    EllesmereUI = { ShowModule = function(_, module) opened = module end }
+    local page = barsPage()
+    eq(page.rows[1].hide:IsShown(), false)
+    click(page.rows[2].hide)
+    eq(opened, "EllesmereUIActionBars")
+    assert(printed():find("Switch Bar 2 off in EllesmereUI's Action Bars settings.", 1, true), printed())
+    EllesmereUI = nil
+end)
+
+test("Hide waits out combat too", function()
+    loginWithSetup(nil)
+    blizzardBars()
+    wow.barToggles = { true, false, false, false, false, false, false }
+    local page = barsPage()
+    wow.enterCombat()
+    click(page.rows[2].hide)
+    eq(wow.toggleCalls, nil)
+    eq(#wow.blocked, 0)
+    wow.leaveCombat()
+end)

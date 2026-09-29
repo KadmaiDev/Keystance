@@ -394,8 +394,9 @@ function M.load(files)
         M.fire("ITEM_LOCK_CHANGED")
     end
     -- The game's switches for Blizzard's extra bars, as Options > Action Bars sets them:
-    -- bottom left, bottom right, right, right 2, bars 6-8. Setting one shows or hides its bar
-    -- frame, unless M.togglesWork is false (as if the game ignored the call).
+    -- bottom left, bottom right, right, right 2, bars 6-8. Setting them only stores them
+    -- (measured 2026-09-29); Blizzard's MultiActionBar_Update then shows or hides each bar
+    -- frame, unless M.togglesWork is false (as if the game ignored it).
     M.barToggles = { false, false, false, false, false, false, false }
     M.togglesWork, M.toggleCalls = true, nil
     local TOGGLE_FRAMES = { "MultiBarBottomLeft", "MultiBarBottomRight", "MultiBarRight", "MultiBarLeft",
@@ -404,12 +405,14 @@ function M.load(files)
     SetActionBarToggles = protect("SetActionBarToggles", function(...)
         M.barToggles = { ... }
         M.toggleCalls = (M.toggleCalls or 0) + 1
+    end)
+    MultiActionBar_Update = function()
         if not M.togglesWork then return end
         for i, name in ipairs(TOGGLE_FRAMES) do
             local f = _G[name]
-            if f and M.barToggles[i] then f:Show() end
+            if f then f:SetShown(M.barToggles[i] and true or false) end
         end
-    end)
+    end
     GetInventoryItemID = function(_, slot) return idOf(M.inventory[slot]) end
     GetInventoryItemLink = function(_, slot)
         if M.linksNotReady then return nil end

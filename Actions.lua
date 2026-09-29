@@ -1,6 +1,6 @@
 -- Keystance actions: what's in each action slot, which slot a binding command triggers, and
 -- which bars are on screen or hidden, for Blizzard's bars, EllesmereUI's and ElvUI's. Reads
--- only, except ns.ShowBar, which puts a hidden bar on screen (never touching its slots).
+-- only, except ns.SetBarShown, which shows or hides a bar (never touching its slots).
 -- Slot numbers and binding commands were measured with the phase 0 probe (AGENTS.md).
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
@@ -260,6 +260,7 @@ local function Collect(list, shown)
                 end
                 local bar = Bar(list, n, info.label)
                 bar.source, bar.key, bar.frameName = source, info.key, info.barFrame
+                bar.canHide = info.key ~= "MainBar"
                 for b = 1, 12 do
                     local btn = bar.buttons[b]
                     btn.command, btn.frame, btn.click = info.commands[b], _G[info.frames[b]], info.clicks[b]
@@ -279,6 +280,7 @@ local function Collect(list, shown)
                 end
                 local bar = Bar(list, n, info.label)
                 bar.source, bar.key, bar.frameName = source, k, info.barFrame
+                bar.canHide = k ~= 1
                 for b = 1, 12 do
                     local btn = bar.buttons[b]
                     btn.frame = _G[info.frames[b]]
@@ -297,6 +299,7 @@ local function Collect(list, shown)
                 n = n + 1
                 local bar = Bar(list, n, info.name)
                 bar.source, bar.key, bar.frameName = source, info.toggle, info.frame
+                bar.canHide = info.toggle ~= nil -- the main bar has no switch
                 if not info.commands then
                     Names(info, function(b) return info.command .. b end, function(b) return info.button .. b end)
                 end
@@ -319,11 +322,13 @@ function ns.ShownBars() return Collect(shownList, true) end
 -- The bars that exist but are hidden (they keep their slots and keys), in order.
 function ns.HiddenBars() return Collect(hiddenList, false) end
 
--- Puts a hidden bar on screen: Blizzard's through the game's own bar switch (as Options >
--- Action Bars does); EllesmereUI's and ElvUI's bars belong to those addons, so their action
--- bar settings open for the player to switch it on there (Keystance doesn't change another
--- addon's settings). Not in combat.
-function ns.ShowBar(bar)
+-- Shows or hides a bar. Blizzard's: the game's own bar switch, then Blizzard's bar update,
+-- as ticking it in Options > Action Bars does (measured 2026-09-29: the switch alone is
+-- stored but changes nothing on screen until MultiActionBar_Update runs). EllesmereUI's and
+-- ElvUI's bars belong to those addons, so their action bar settings open for the player to
+-- switch it there (Keystance doesn't change another addon's settings). Never in combat (the
+-- bars are secure frames). A hidden bar keeps its spells and keys.
+function ns.SetBarShown(bar, on)
     if ns.InCombat() then
         ns.Print(L["Not in combat: try again when combat ends."])
         return false
@@ -332,34 +337,50 @@ function ns.ShowBar(bar)
     if bar.source == "ellesmere" then
         local ok = type(EllesmereUI) == "table" and type(EllesmereUI.ShowModule) == "function"
             and pcall(EllesmereUI.ShowModule, EllesmereUI, "EllesmereUIActionBars")
-        ns.Print(ok and L["Switch %s on in EllesmereUI's Action Bars settings; Keystance shows it as soon as it's on."]:format(name)
-            or L["Switch %s on in EllesmereUI's settings (/eui, Action Bars)."]:format(name))
+        if on then
+            ns.Print(ok and L["Switch %s on in EllesmereUI's Action Bars settings; Keystance shows it as soon as it's on."]:format(name)
+                or L["Switch %s on in EllesmereUI's settings (/eui, Action Bars)."]:format(name))
+        else
+            ns.Print(ok and L["Switch %s off in EllesmereUI's Action Bars settings."]:format(name)
+                or L["Switch %s off in EllesmereUI's settings (/eui, Action Bars)."]:format(name))
+        end
         return ok and true or false
     elseif bar.source == "elvui" then
         local E = type(ElvUI) == "table" and ElvUI[1]
         local ok = type(E) == "table" and type(E.ToggleOptions) == "function" and pcall(E.ToggleOptions, E, "actionbar")
-        ns.Print(ok and L["Switch %s on in ElvUI's Action Bars settings; Keystance shows it as soon as it's on."]:format(name)
-            or L["Switch %s on in ElvUI's settings (/ec, Action Bars)."]:format(name))
+        if on then
+            ns.Print(ok and L["Switch %s on in ElvUI's Action Bars settings; Keystance shows it as soon as it's on."]:format(name)
+                or L["Switch %s on in ElvUI's settings (/ec, Action Bars)."]:format(name))
+        else
+            ns.Print(ok and L["Switch %s off in ElvUI's Action Bars settings."]:format(name)
+                or L["Switch %s off in ElvUI's settings (/ec, Action Bars)."]:format(name))
+        end
         return ok and true or false
     end
-    -- Blizzard's: the game's switches, the rest kept as they are.
+    -- Blizzard's: the game's switches, the rest kept as they are, then its bar update.
     local toggles = GetActionBarToggles and { GetActionBarToggles() }
-    local ok = toggles and #toggles >= (bar.key or 99) and SetActionBarToggles and true or false
+    local ok = bar.key and toggles and #toggles >= bar.key and SetActionBarToggles and true or false
     if ok then
-        toggles[bar.key] = true
+        toggles[bar.key] = on and true or false
         ok = pcall(SetActionBarToggles, unpack(toggles))
+        if ok and type(MultiActionBar_Update) == "function" then pcall(MultiActionBar_Update) end
     end
-    -- Whether it appeared (the switch isn't verified on Forever yet): if not, say where.
+    -- Whether it changed: if not, say where to do it.
     C_Timer.After(0.5, function()
-        if ok and Shown(frameName) then
-            ns.Print(L["%s is on screen now."]:format(name))
+        if ok and Shown(frameName) == on then
+            ns.Print(on and L["%s is on screen now."]:format(name)
+                or L["%s is hidden now. It keeps its spells and keys; Show brings it back."]:format(name))
         else
-            ns.Print(L["%s didn't appear: switch it on in the game's Options, under Action Bars."]:format(name))
+            ns.Print(on and L["%s didn't appear: switch it on in the game's Options, under Action Bars."]:format(name)
+                or L["%s is still showing: switch it off in the game's Options, under Action Bars."]:format(name))
         end
         ns.RequestRefresh("bars")
     end)
     return ok
 end
+
+function ns.ShowBar(bar) return ns.SetBarShown(bar, true) end
+function ns.HideBar(bar) return ns.SetBarShown(bar, false) end
 
 -- The slot a bar button shows now.
 function ns.BarButtonSlot(btn)

@@ -1,6 +1,6 @@
 -- Keystance Bars tab: the action bars on screen (Blizzard's, EllesmereUI's or ElvUI's),
--- each slot with its icon and key; under them, folded away, the bars that exist but are
--- hidden (dimmed, still usable), each with Show (ns.ShowBar). Hovering shows the action's tooltip; slots take drops,
+-- each slot with its icon and key, and Hide beside each bar but the main one; under them,
+-- folded away, the bars that exist but are hidden (dimmed, still usable), each with Show. Hovering shows the action's tooltip; slots take drops,
 -- can be dragged, and right-click removes. Keybind mode, as the game's own quick keybind
 -- mode: hover a slot and press a key (or a mouse or controller button) to put it there;
 -- right-click clears the slot's keys; Escape finishes. While it's on, key presses go to
@@ -202,25 +202,30 @@ local function NewRow(page, r)
     return row
 end
 
--- A hidden bar's row: dimmed, with Show beside it (on the page, so it isn't dimmed too).
+-- A button beside a row (on the page, so a dimmed row doesn't dim it): Show or Hide.
+local function RowButton(page, row, text, title, fn)
+    local b = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+    b:SetSize(64, 20)
+    b:SetPoint("LEFT", row, "RIGHT", 8, 0)
+    b:SetText(text)
+    b:SetScript("OnClick", function() if row.bar then fn(row.bar) end end)
+    b:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(title)
+        GameTooltip:AddLine(ns.BarSource() == "blizzard" and L["Switches it as Options > Action Bars does. Its spells and keys stay."]
+            or L["Opens your bar addon's Action Bars settings, where you switch it. Its spells and keys stay."], 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    ns.SkinButton(b)
+    return b
+end
+
+-- A hidden bar's row: dimmed, with Show beside it.
 local function HiddenRow(page, r)
     local row = NewRow(page, r)
     row:SetAlpha(0.55)
-    local show = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
-    show:SetSize(64, 20)
-    show:SetPoint("LEFT", row, "RIGHT", 8, 0)
-    show:SetText(L["Show"])
-    show:SetScript("OnClick", function() if row.bar then ns.ShowBar(row.bar) end end)
-    show:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine(L["Put this bar on screen"])
-        GameTooltip:AddLine(ns.BarSource() == "blizzard" and L["Switches it on, as Options > Action Bars does."]
-            or L["Opens your bar addon's Action Bars settings, where you switch it on."], 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    show:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    ns.SkinButton(show)
-    row.show = show
+    row.show = RowButton(page, row, L["Show"], L["Put this bar on screen"], ns.ShowBar)
     return row
 end
 
@@ -247,12 +252,16 @@ local function Refresh(page)
         if bar then
             if not row then
                 row = NewRow(page, r)
+                row.hide = RowButton(page, row, L["Hide"], L["Take this bar off screen"], ns.HideBar)
                 page.rows[r] = row
             end
+            row.bar = bar
             FillRow(page, row, bar)
             row:Show()
+            row.hide:SetShown(bar.canHide and true or false)
         elseif row then
             row:Hide()
+            row.hide:Hide()
         end
     end
     -- The hidden bars, folded under the shown ones.
