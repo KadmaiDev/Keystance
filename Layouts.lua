@@ -74,15 +74,15 @@ ns.LAYOUTS.pad = {
         { "PAD3", at = { 210, 88 }, via = { 207, 112 } }, { "PADRSTICK", at = { 190, 138 } },
     },
 }
-ns.LAYOUT_ORDER = { "ansi", "iso", "pad" }
 
 -- The controller buttons set to act as Shift, Ctrl and Alt (the game's GamePadEmulate
 -- settings): { [button] = "SHIFT"|"CTRL"|"ALT" }.
 local padMods = {}
+local EMULATE = { { "GamePadEmulateShift", "SHIFT" }, { "GamePadEmulateCtrl", "CTRL" }, { "GamePadEmulateAlt", "ALT" } }
 function ns.PadModifiers()
     for k in pairs(padMods) do padMods[k] = nil end
     if not GetCVar then return padMods end
-    for _, m in ipairs({ { "GamePadEmulateShift", "SHIFT" }, { "GamePadEmulateCtrl", "CTRL" }, { "GamePadEmulateAlt", "ALT" } }) do
+    for _, m in ipairs(EMULATE) do
         local ok, button = pcall(GetCVar, m[1])
         if ok and type(button) == "string" and button ~= "" and button ~= "none" then padMods[button] = m[2] end
     end

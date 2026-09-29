@@ -43,11 +43,11 @@ test("a key used for something else asks first, and cancelling keeps the spell o
     eq(wow.popup.which, "KEYSTANCE_BIND_KEY")
     assert(wow.popup.text:find("W is Move Forward", 1, true), wow.popup.text)
     eq(wow.cursor[4], 19834, "still held while asking")
-    StaticPopupDialogs.KEYSTANCE_BIND_KEY.OnCancel()
+    wow.popup = nil -- Cancel: the pop-up just closes
     eq(GetBindingAction("W"), "MOVEFORWARD")
     eq(wow.cursor[4], 19834, "nothing lost")
     click(capFor(page, "W"))
-    StaticPopupDialogs.KEYSTANCE_BIND_KEY.OnAccept()
+    StaticPopupDialogs.KEYSTANCE_BIND_KEY.OnAccept(nil, wow.popup.data)
     eq(GetBindingAction("W"), "ACTIONBUTTON4")
 end)
 
@@ -57,7 +57,7 @@ test("with shared keybinds, binding a key asks and gives the character its own k
     holding(19834)
     click(capFor(page, "E"))
     eq(wow.popup.which, "KEYSTANCE_BIND_KEY")
-    StaticPopupDialogs.KEYSTANCE_BIND_KEY.OnAccept()
+    StaticPopupDialogs.KEYSTANCE_BIND_KEY.OnAccept(nil, wow.popup.data)
     eq(GetCurrentBindingSet(), 2)
     eq(GetBindingAction("E"), "ACTIONBUTTON4")
 end)
@@ -176,12 +176,12 @@ test("right-click a key: remove its action from the bar, or unbind it (after ask
     click(capFor(page, "1"), "RightButton")
     eq(wow.popup.which, "KEYSTANCE_REMOVE_BOTH")
     eq(wow.slots[1].id, 1866, "nothing until chosen")
-    StaticPopupDialogs.KEYSTANCE_REMOVE_BOTH.OnAccept()
+    StaticPopupDialogs.KEYSTANCE_REMOVE_BOTH.OnAccept(nil, wow.popup.data)
     eq(wow.slots[1], nil)
     eq(GetBindingAction("1"), "ACTIONBUTTON1", "the key keeps its binding")
     eq(ns.UndoLabel(), "removing Holy Strike")
     click(capFor(page, "2"), "RightButton")
-    StaticPopupDialogs.KEYSTANCE_REMOVE_BOTH.OnAlt()
+    StaticPopupDialogs.KEYSTANCE_REMOVE_BOTH.OnAlt(nil, wow.popup.data)
     eq(GetBindingAction("2"), "")
     eq(wow.slots[2].id, 647, "the spell stays on its bar")
     click(capFor(page, "W"), "RightButton")
@@ -200,7 +200,7 @@ test("the Bars tab: drag a slot to pick it up, right-click to remove", function(
     PlaceAction(1)
     click(page.rows[1].slots[2], "RightButton")
     eq(wow.popup.which, "KEYSTANCE_REMOVE_SLOT")
-    StaticPopupDialogs.KEYSTANCE_REMOVE_SLOT.OnAccept()
+    StaticPopupDialogs.KEYSTANCE_REMOVE_SLOT.OnAccept(nil, wow.popup.data)
     eq(wow.slots[2], nil)
 end)
 
@@ -255,4 +255,90 @@ test("markers and profile switches say they go on keys: in the panel, on the hel
     eq(printed(), "")
     wow.mouseFoci = {}
     ns.CancelBinding()
+end)
+
+test("two remove questions open at once don't cross: each acts on its own key", function()
+    local c, ns = dropLogin()
+    local page = keyboardPage()
+    click(capFor(page, "1"), "RightButton")
+    local first = wow.popup.data
+    click(capFor(page, "W"), "RightButton") -- a second question before answering the first
+    StaticPopupDialogs.KEYSTANCE_REMOVE_BOTH.OnAlt(nil, first) -- "Unbind key" on the first
+    eq(GetBindingAction("1"), "", "key 1 unbound")
+    eq(GetBindingAction("W"), "MOVEFORWARD", "not W")
+end)
+
+test("a swap between two slots undoes right back to how it started", function()
+    local c, ns = dropLogin()
+    ns.PickupFromSlot(1) -- Holy Strike
+    ns.DropOnSlot(2) -- Holy Light comes onto the cursor
+    ns.DropOnSlot(1)
+    eq(slotId(1), 647); eq(slotId(2), 1866)
+    ns.Undo()
+    eq(slotId(1), 1866, "as it started")
+    eq(slotId(2), 647)
+end)
+
+test("an action picked up here and thrown away can be put back with Undo", function()
+    local c, ns = dropLogin()
+    ns.PickupFromSlot(1)
+    ClearCursor()
+    wow.fire("CURSOR_CHANGED")
+    eq(ns.UndoLabel(), "removing Holy Strike")
+    ns.Undo()
+    eq(slotId(1), 1866)
+end)
+
+test("a key that triggers a slot is a key, not a bar button, for the keys-only hint", function()
+    local c, ns = dropLogin()
+    ns.StartBinding("RAIDTARGET8", "Skull", "icon")
+    wow.mouseFoci = { { isKeyCap = true, slot = 1 } }
+    wow.printed = {}
+    wow.fire("GLOBAL_MOUSE_DOWN", "LeftButton")
+    eq(printed(), "", "no 'not on a bar' hint on a key")
+    wow.mouseFoci = {}
+    ns.CancelBinding()
+end)
+
+test("the right-click that drops a held marker over a Bars slot doesn't also ask to remove it", function()
+    local c, ns = dropLogin()
+    local page = barsPage()
+    ns.StartBinding("RAIDTARGET8", "Skull", "icon")
+    wow.fire("GLOBAL_MOUSE_DOWN", "RightButton")
+    wow.popup = nil
+    click(page.rows[1].slots[1], "RightButton")
+    eq(wow.popup, nil)
+end)
+
+test("keybind mode: a controller button set to act as Shift is held, not bound", function()
+    local c, ns = dropLogin()
+    local page = barsPage()
+    click(page.bindButton)
+    wow.cvars.GamePadEmulateShift = "PADLTRIGGER"
+    local b = page.rows[1].slots[4]
+    b.scripts.OnEnter(b)
+    page.catcher.scripts.OnGamePadButtonDown(page.catcher, "PADLTRIGGER")
+    eq(GetBindingAction("PADLTRIGGER"), "")
+    page.catcher.scripts.OnGamePadButtonDown(page.catcher, "PAD1")
+    eq(GetBindingAction("PAD1"), "ACTIONBUTTON4")
+end)
+
+test("keybind mode doesn't start on a tab closed while its question was open", function()
+    local c, ns = dropLogin(true)
+    local page = barsPage()
+    click(page.bindButton)
+    eq(wow.popup.which, "KEYSTANCE_BIND_MODE")
+    slash("") -- the window closes
+    StaticPopupDialogs.KEYSTANCE_BIND_MODE.OnAccept(nil, wow.popup.data)
+    eq(page.bindMode, nil)
+    eq(page.catcher:IsShown(), false)
+end)
+
+test("the combat note shows as combat starts (before the game's lockdown has begun)", function()
+    local c, ns = dropLogin()
+    slash("")
+    wow.fire("PLAYER_REGEN_DISABLED") -- InCombatLockdown is still false at this moment
+    eq(KeystanceFrame.combat:IsShown(), true)
+    wow.fire("PLAYER_REGEN_ENABLED")
+    eq(KeystanceFrame.combat:IsShown(), false)
 end)

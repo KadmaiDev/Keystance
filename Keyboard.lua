@@ -1,5 +1,7 @@
 -- Keystance Keyboard tab: a keyboard and mouse (or a controller, as a diagram) showing what
--- each key does, with the spell, macro or item icon of the action slot it triggers. Toggles show the Shift, Ctrl
+-- each key does, with the spell, macro or item icon of the action slot it triggers. Keys
+-- take drops (Drops.lua), can be dragged to pick up, right-clicked to remove, and clicked to
+-- put a held raid marker or profile switch on them. Toggles show the Shift, Ctrl
 -- and Alt layers (and combinations); holding a real modifier switches the view live.
 -- Bound keys the drawn keyboard doesn't have are listed underneath. Read-only.
 local ADDON, ns = ...
@@ -322,6 +324,7 @@ end
 -- What an action slot holds, by name ("Holy Light"), for a controller's callouts.
 local function ActionName(slot)
     local kind, id = GetActionInfo(slot)
+    if issecretvalue and (issecretvalue(kind) or issecretvalue(id)) then return GetActionText(slot) or "" end
     local name
     if kind == "spell" then
         name = C_Spell.GetSpellName(id)
@@ -430,6 +433,8 @@ local function Refresh(page)
     local boardKey = key .. (numpad and "+numpad" or "")
     if page.boardKey ~= boardKey then
         if page.board then page.board:Hide() end
+        local texts = #page.window.texts
+        local built = not page.boards[boardKey]
         page.boards[boardKey] = page.boards[boardKey] or BuildBoard(page, page.window, key, numpad)
         page.board = page.boards[boardKey]
         page.board:Show()
@@ -438,7 +443,10 @@ local function Refresh(page)
         page.others:ClearAllPoints()
         page.others:SetPoint("TOPLEFT", page.board, "BOTTOMLEFT", 0, -12)
         page.others:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -16, 36) -- above the layout buttons
-        for _, fs in ipairs(page.window.texts) do ns.SkinText(fs) end
+        -- A board built just now takes the look (one built before already has it).
+        if built then
+            for i = texts + 1, #page.window.texts do ns.SkinText(page.window.texts[i]) end
+        end
     end
     page.numpad:SetShown(not pad)
     if numpad then page.numpad:LockHighlight() else page.numpad:UnlockHighlight() end
@@ -524,6 +532,7 @@ ns.pageBuilders.keyboard = Build
 -- Keep an open window current; a closed one costs one check.
 ns.On("UPDATE_BINDINGS", function()
     boundStale = true
+    for k in pairs(partCache) do partCache[k] = nil end -- a profile's key may have a new name or icon
     ns.RequestRefresh()
 end)
 ns.On("MODIFIER_STATE_CHANGED", function() ns.RequestRefresh("keyboard") end)

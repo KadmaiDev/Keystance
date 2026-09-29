@@ -140,9 +140,12 @@ end)
 ---------------------------------------------------------------------------
 local queued, order = {}, {}
 
+local combatStarted = false
 function ns.InCombat()
-    return InCombatLockdown() and true or false
+    return (combatStarted or InCombatLockdown()) and true or false
 end
+ns.On("PLAYER_REGEN_DISABLED", function() combatStarted = true end)
+ns.On("PLAYER_REGEN_ENABLED", function() combatStarted = false end)
 
 -- Runs fn now if out of combat and returns true; otherwise runs it after combat and returns
 -- false. Work queued again under the same key replaces the earlier request (the latest
@@ -192,6 +195,16 @@ local function Print(msg)
     print("|cff66ccffKeystance|r: " .. msg)
 end
 ns.Print = Print
+
+-- Adds one of Keystance's pop-ups to Blizzard's StaticPopupDialogs the first time it's
+-- needed (never assigning the table itself: that taints it), with the settings they share.
+function ns.Dialog(which, def)
+    if not StaticPopupDialogs[which] then
+        def.timeout, def.whileDead, def.hideOnEscape, def.preferredIndex = 0, true, true, 3
+        StaticPopupDialogs[which] = def
+    end
+    return StaticPopupDialogs[which]
+end
 
 -- Where everyday messages go ("Prot applied", "Gear: 3 items put on"): "screen" (the
 -- default: briefly at the top of the screen, where the game's own notices fade), "chat" or

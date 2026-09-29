@@ -1,4 +1,4 @@
--- Keystance drops: what the cursor holds (a spell from the spell panel or the spellbook, a
+-- Keystance drops: what the cursor holds (a spell from the Actions panel or the spellbook, a
 -- macro, an item, an action dragged off a bar or off a key) dropped on a key in the
 -- Keyboard tab or a slot in the Bars tab, plus picking actions up from those keys and
 -- slots, and removing them. Never in combat; every change can be undone.
@@ -53,16 +53,28 @@ local source
 function ns.PickupFromSlot(slot, fullKey, command)
     if ns.InCombat() then return Refused(L["Not in combat: try again when combat ends."]) end
     ns.CancelBinding() -- one thing held at a time
-    if GetCursorInfo() or not slot or not HasAction(slot) then return false end
+    if GetCursorInfo() or not slot or slot > ns.MANAGED_SLOTS or not HasAction(slot) then return false end
+    ns.TakeSnapshot()
     local before = ns.CurrentState()
+    local label = SlotLabel(slot)
     PickupAction(slot)
     if not GetCursorInfo() then return false end
-    source = { before = before, key = fullKey, slot = slot, command = command }
+    source = { before = before, key = fullKey, slot = slot, command = command, label = label }
     return true
 end
 
+-- The cursor emptied with what was picked up here still on it: it was thrown away (Esc, a
+-- click on the world, picking up a raid marker). Its slot is empty now, so that's a change
+-- Undo can put back.
 ns.On("CURSOR_CHANGED", function()
-    if source and not GetCursorInfo() then source = nil end
+    if source and not GetCursorInfo() then
+        local s = source
+        source = nil
+        if s.slot and not HasAction(s.slot) and s.label then
+            ns.RecordChange(s.before, L["removing %s"]:format(s.label))
+            ns.RefreshWindow()
+        end
+    end
 end)
 
 -- The setup to undo to: from before the pick-up, if this came from here.
@@ -77,11 +89,16 @@ end
 function ns.DropOnSlot(slot)
     if not GetCursorInfo() then return false end
     if ns.InCombat() then return Refused(L["Not in combat: drop it again when combat ends."]) end
+    if not slot or slot > ns.MANAGED_SLOTS then return Refused(L["That slot isn't one Keystance can change."]) end
     local label = CursorLabel()
     local before, from = Before()
     PlaceAction(slot)
+    if not HasAction(slot) then return Refused(L["%s couldn't go there."]:format(label)) end
     ns.RecordChange(before, (from and L["moving %s"] or L["placing %s"]):format(label))
     ns.Notify(L["%s placed in slot %d."]:format(label, slot))
+    -- A swap: the slot's old action is on the cursor now. Wherever it goes next, Undo goes
+    -- back to before this drop, not just before the next one.
+    if GetCursorInfo() then source = { before = before } end
     ns.RefreshWindow()
     return true
 end
@@ -128,12 +145,17 @@ local function PlaceAndBind(key)
     local label = CursorLabel()
     local before = Before()
     PlaceAction(slot) -- an empty slot, so nothing comes back onto the cursor
+    if not HasAction(slot) then return Refused(L["%s couldn't go on a bar."]:format(label)) end
     local state = ns.CurrentState()
     if moving and moving.key then Unbind(state, moving.key) end
     Unbind(state, key)
     state.binds[command] = state.binds[command] or {}
     table.insert(state.binds[command], key)
-    ns.ApplyState(state, { scope = "all" })
+    local ok, why = ns.ApplyState(state, { scope = "all" })
+    if not ok then
+        ns.RecordChange(before, L["placing %s"]:format(label))
+        return Refused(L["%s went on its bar, but its key wasn't set: %s."]:format(label, why))
+    end
     if moving then
         ns.RecordChange(before, L["moving %s to %s"]:format(label, key))
         ns.Notify(L["%s moved to %s."]:format(label, key))
@@ -148,28 +170,22 @@ local function PlaceAndBind(key)
     return true
 end
 
-local pendingKey
-local function AskToBind(text)
-    if not StaticPopupDialogs.KEYSTANCE_BIND_KEY then
-        StaticPopupDialogs.KEYSTANCE_BIND_KEY = {
-            text = "%s",
-            button1 = L["Use this key"],
-            button2 = CANCEL or "Cancel",
-            OnAccept = function()
-                local key = pendingKey
-                pendingKey = nil
-                if not key then return end
-                if ns.SharedKeybinds() then
-                    if ns.InCombat() then return Refused(L["Not in combat: drop it again when combat ends."]) end
-                    ns.OwnKeybindsFirst() -- this character's own keybinds first (same as /kst ownkeys)
-                end
-                PlaceAndBind(key)
-            end,
-            OnCancel = function() pendingKey = nil end,
-            timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-        }
-    end
-    StaticPopup_Show("KEYSTANCE_BIND_KEY", text)
+-- The dialogs below carry their request as the pop-up's data, so a second one opened
+-- before the first is answered can't act on the wrong key.
+local function AskToBind(text, key)
+    ns.Dialog("KEYSTANCE_BIND_KEY", {
+        text = "%s",
+        button1 = L["Use this key"],
+        button2 = CANCEL or "Cancel",
+        OnAccept = function(_, data)
+            if not data then return end
+            if ns.InCombat() then return Refused(L["Not in combat: drop it again when combat ends."]) end
+            if not GetCursorInfo() then return Refused(L["Nothing is held on the cursor any more."]) end
+            ns.OwnKeybindsFirst() -- this character's own keybinds first (same as /kst ownkeys)
+            PlaceAndBind(data)
+        end,
+    })
+    StaticPopup_Show("KEYSTANCE_BIND_KEY", text, nil, key)
 end
 
 ---------------------------------------------------------------------------
@@ -206,7 +222,7 @@ function ns.HeldBinding() return held end
 -- (ElvUI also `_state_action`), EllesmereUI's the "action" attribute; or a slot on
 -- Keystance's Bars tab.
 local function IsActionButton(f)
-    if type(f) ~= "table" then return false end
+    if type(f) ~= "table" or f.isKeyCap then return false end -- a key, even one with a slot
     if f.slot or f.action or f._state_action then return true end
     if f.GetAttribute then
         local ok, action = pcall(f.GetAttribute, f, "action")
@@ -221,7 +237,6 @@ local function HintKeysOnly()
     held.hinted = true
     ns.Notify(L["%s goes on a key, not on a bar: click a key on Keystance's Keyboard tab. Right-click drops it."]:format(held.label))
 end
-ns.HintKeysOnly = HintKeysOnly
 
 local function Follow(self)
     local x, y = GetCursorPosition()
@@ -294,15 +309,11 @@ end
 
 local function Bind(key, command, label)
     if ns.InCombat() then return Refused(L["Not in combat: try again when combat ends."]) end
+    if GetCursorInfo() then return Refused(L["Nothing changed: %s."]:format(L["put down what you're holding on the cursor first"])) end
     ns.OwnKeybindsFirst()
     local before = ns.CurrentState()
     local state = ns.CurrentState()
-    for cmd, keys in pairs(state.binds) do
-        for i = #keys, 1, -1 do
-            if keys[i] == key then table.remove(keys, i) end
-        end
-        if #keys == 0 then state.binds[cmd] = nil end
-    end
+    Unbind(state, key)
     state.binds[command] = state.binds[command] or {}
     table.insert(state.binds[command], key)
     local ok, why = ns.ApplyState(state, { scope = "all" })
@@ -340,27 +351,20 @@ function ns.ClearKeys(command, label)
         L["clearing %s's keys"]:format(label))
 end
 
-local pendingBind
-local function AskBind(text)
-    if not StaticPopupDialogs.KEYSTANCE_BIND_COMMAND then
-        StaticPopupDialogs.KEYSTANCE_BIND_COMMAND = {
-            text = "%s",
-            button1 = L["Use this key"],
-            button2 = CANCEL or "Cancel",
-            OnAccept = function()
-                local p = pendingBind
-                pendingBind = nil
-                if p and p.profile then
-                    ns.SetProfileKey(p.profile, p.key)
-                elseif p then
-                    Bind(p.key, p.command, p.label)
-                end
-            end,
-            OnCancel = function() pendingBind = nil end,
-            timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-        }
-    end
-    StaticPopup_Show("KEYSTANCE_BIND_COMMAND", text)
+local function AskBind(text, request)
+    ns.Dialog("KEYSTANCE_BIND_COMMAND", {
+        text = "%s",
+        button1 = L["Use this key"],
+        button2 = CANCEL or "Cancel",
+        OnAccept = function(_, p)
+            if p and p.profile then
+                ns.SetProfileKey(p.profile, p.key)
+            elseif p then
+                Bind(p.key, p.command, p.label)
+            end
+        end,
+    })
+    StaticPopup_Show("KEYSTANCE_BIND_COMMAND", text, nil, request)
 end
 
 -- Binds the held command to `fullKey` (now bound to `current`), asking first if the key
@@ -392,8 +396,7 @@ function ns.BindHeld(fullKey, current)
     if ns.SharedKeybinds() then
         text = text .. "\n\n" .. L["Your keybinds are shared by all your characters, so this character gets its own keybinds first: nothing changes on screen, and your other characters keep theirs."]
     end
-    pendingBind = { key = fullKey, command = h.command, label = h.label, profile = h.profile }
-    AskBind(text)
+    AskBind(text, { key = fullKey, command = h.command, label = h.label, profile = h.profile })
     ns.RefreshWindow()
     return true
 end
@@ -412,18 +415,16 @@ function ns.DropOnKey(fullKey, slot, command)
     if ns.SharedKeybinds() then
         text = text .. "\n\n" .. L["Your keybinds are shared by all your characters, so this character gets its own keybinds first: nothing changes on screen, and your other characters keep theirs."]
     end
-    pendingKey = fullKey
-    AskToBind(text)
+    AskToBind(text, fullKey)
     return true
 end
 
 ---------------------------------------------------------------------------
 -- Removing: a key's action from its bar slot, or the key's binding
 ---------------------------------------------------------------------------
-local pendingRemove
-
 local function RemoveFromBar(slot)
     if ns.InCombat() then return Refused(L["Not in combat: try again when combat ends."]) end
+    if not slot or slot > ns.MANAGED_SLOTS then return Refused(L["That slot isn't one Keystance can change."]) end
     local label = SlotLabel(slot)
     if not label then return false end
     local state = ns.CurrentState()
@@ -440,19 +441,6 @@ local function UnbindKey(key)
     return ns.ApplyChange(state, { scope = "all" }, L["%s unbound"]:format(key), L["unbinding %s"]:format(key))
 end
 
-local function Dialog(which, def)
-    if not StaticPopupDialogs[which] then
-        def.timeout, def.whileDead, def.hideOnEscape, def.preferredIndex = 0, true, true, 3
-        def.OnCancel = function() pendingRemove = nil end
-        StaticPopupDialogs[which] = def
-    end
-end
-
-local function TakePending()
-    local p = pendingRemove
-    pendingRemove = nil
-    return p
-end
 
 -- Asks what to remove from a key (or a slot, with no key): its action from the bar, or
 -- the key's binding. Nothing is removed without asking.
@@ -461,34 +449,34 @@ function ns.AskRemove(fullKey, slot, command)
     local label = slot and SlotLabel(slot)
     local bound = fullKey and command and command ~= ""
     if not label and not bound then return false end
-    pendingRemove = { key = fullKey, slot = slot }
+    local request = { key = fullKey, slot = slot }
     local shared = bound and ns.SharedKeybinds() and ("\n\n" .. L["Unbinding gives this character its own keybinds first: your other characters keep theirs."]) or ""
     if label and bound then
-        Dialog("KEYSTANCE_REMOVE_BOTH", {
+        ns.Dialog("KEYSTANCE_REMOVE_BOTH", {
             text = "%s",
             button1 = L["Remove from bar"],
             button3 = L["Unbind key"],
             button2 = CANCEL or "Cancel",
-            OnAccept = function() local p = TakePending() if p then RemoveFromBar(p.slot) end end,
-            OnAlt = function() local p = TakePending() if p then UnbindKey(p.key) end end,
+            OnAccept = function(_, p) if p then RemoveFromBar(p.slot) end end,
+            OnAlt = function(_, p) if p then UnbindKey(p.key) end end,
         })
-        StaticPopup_Show("KEYSTANCE_REMOVE_BOTH", L["%s: %s.\n\nRemove it from its bar, or unbind %s so the key does nothing?"]:format(fullKey, label, fullKey) .. shared)
+        StaticPopup_Show("KEYSTANCE_REMOVE_BOTH", L["%s: %s.\n\nRemove it from its bar, or unbind %s so the key does nothing?"]:format(fullKey, label, fullKey) .. shared, nil, request)
     elseif label then
-        Dialog("KEYSTANCE_REMOVE_SLOT", {
+        ns.Dialog("KEYSTANCE_REMOVE_SLOT", {
             text = "%s",
             button1 = L["Remove from bar"],
             button2 = CANCEL or "Cancel",
-            OnAccept = function() local p = TakePending() if p then RemoveFromBar(p.slot) end end,
+            OnAccept = function(_, p) if p then RemoveFromBar(p.slot) end end,
         })
-        StaticPopup_Show("KEYSTANCE_REMOVE_SLOT", L["Remove %s from its bar?"]:format(label))
+        StaticPopup_Show("KEYSTANCE_REMOVE_SLOT", L["Remove %s from its bar?"]:format(label), nil, request)
     else
-        Dialog("KEYSTANCE_REMOVE_KEY", {
+        ns.Dialog("KEYSTANCE_REMOVE_KEY", {
             text = "%s",
             button1 = L["Unbind key"],
             button2 = CANCEL or "Cancel",
-            OnAccept = function() local p = TakePending() if p then UnbindKey(p.key) end end,
+            OnAccept = function(_, p) if p then UnbindKey(p.key) end end,
         })
-        StaticPopup_Show("KEYSTANCE_REMOVE_KEY", L["%s: %s.\n\nUnbind %s so the key does nothing?"]:format(fullKey, ns.CommandName(command), fullKey) .. shared)
+        StaticPopup_Show("KEYSTANCE_REMOVE_KEY", L["%s: %s.\n\nUnbind %s so the key does nothing?"]:format(fullKey, ns.CommandName(command), fullKey) .. shared, nil, request)
     end
     return true
 end

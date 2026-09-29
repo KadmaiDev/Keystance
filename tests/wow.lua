@@ -158,7 +158,15 @@ function M.load(files)
         if v then frameMethods.Show(self) else frameMethods.Hide(self) end
     end
     function frameMethods:IsShown() return self.shown end
-    function frameMethods:IsVisible() return self.shown end
+    -- Shown, and every parent shown too (as in game).
+    function frameMethods:IsVisible()
+        local f = self
+        while f do
+            if not f.shown then return false end
+            f = f.parent
+        end
+        return true
+    end
     function frameMethods:SetTexture(t) self.texture = t end
     function frameMethods:SetText(text) self.text = text end
     function frameMethods:GetText() return self.text end

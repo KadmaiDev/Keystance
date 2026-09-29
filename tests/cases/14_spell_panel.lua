@@ -298,7 +298,7 @@ test("a key that already does something asks first; right-click cancels waiting 
     eq(wow.popup.which, "KEYSTANCE_BIND_COMMAND")
     assert(wow.popup.text:find("W is Move Forward", 1, true), wow.popup.text)
     eq(GetBindingAction("W"), "MOVEFORWARD", "not until confirmed")
-    StaticPopupDialogs.KEYSTANCE_BIND_COMMAND.OnAccept()
+    StaticPopupDialogs.KEYSTANCE_BIND_COMMAND.OnAccept(nil, wow.popup.data)
     eq(GetBindingAction("W"), "RAIDTARGET8")
     click(rowNamed("Cross"))
     click(capFor(page, "E"), "RightButton")

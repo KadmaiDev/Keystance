@@ -207,7 +207,7 @@ test("the Actions panel's Commands tab holds a profile's switch; clicking a key 
     click(rowNamed("Prot"))
     ns.BindHeld("F8", "TOGGLEAUTORUN")
     eq(wow.popup.which, "KEYSTANCE_BIND_COMMAND")
-    StaticPopupDialogs.KEYSTANCE_BIND_COMMAND.OnAccept()
+    StaticPopupDialogs.KEYSTANCE_BIND_COMMAND.OnAccept(nil, wow.popup.data)
     eq(GetBindingAction("F8"), "KEYSTANCE_PROFILE1")
     eq(GetBindingAction("F7"), "", "still one key per profile")
     -- Next profile is a plain keybind.

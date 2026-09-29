@@ -243,7 +243,7 @@ local function SelectTab(i)
     -- Only the keyboard (with the numpad) needs more width; it asks again when shown.
     frame:SetWidth(WIDTH)
     frame.pages[i].boardKey = nil
-    -- The spell panel is for Keyboard and Bars, where things are dragged from it.
+    -- The Actions panel is for Keyboard and Bars, where things are dragged from it.
     ns.SpellPanelForTab(TABS[i].key)
     for j, tab in ipairs(frame.tabs) do
         local on = j == i
@@ -333,13 +333,8 @@ local function CreateWindow()
         page:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -8, PAGE_BOTTOM)
         page:Hide()
         page.key = info.key
-        local build = ns.pageBuilders[info.key]
-        if build then
-            build(page, f)
-        elseif info.blurb then
-            local fs = Text(f, page, "GameFontHighlightMedium", info.blurb)
-            fs:SetPoint("CENTER")
-        end
+        local build = ns.pageBuilders[info.key] -- Settings is filled below (ns.BuildSettings)
+        if build then build(page, f) end
         f.pages[i] = page
     end
     local settings = f.pages[#TABS]

@@ -111,6 +111,8 @@ local function MakeRow(page, f, r)
         b:SetScript("OnReceiveDrag", Drop)
         b:RegisterForClicks("AnyUp")
         b:SetScript("OnClick", function(self, button)
+            -- The right-click that just dropped a held raid marker does nothing more.
+            if button == "RightButton" and ns.HoldJustEnded() then return end
             if page.bindMode then
                 if button == "RightButton" then
                     if self.command then ns.ClearKeys(self.command, SlotLabel(self)) end
@@ -145,8 +147,9 @@ local function StopBindMode(page)
     page.catcher:EnableKeyboard(false)
     if page.catcher.EnableGamePadButton then pcall(page.catcher.EnableGamePadButton, page.catcher, false) end
     page.catcher:Hide()
-    for _, rows in ipairs({ page.rows, page.hiddenRows }) do
-        for _, row in ipairs(rows) do
+    for r = 1, MAX_ROWS do
+        local row = page.rows[r]
+        if row then
             for _, b in ipairs(row.slots) do b:EnableMouseWheel(false) end
         end
     end
@@ -159,8 +162,9 @@ local function StartBindMode(page)
     page.catcher:Show()
     page.catcher:EnableKeyboard(true)
     if page.catcher.EnableGamePadButton then pcall(page.catcher.EnableGamePadButton, page.catcher, true) end
-    for _, rows in ipairs({ page.rows, page.hiddenRows }) do
-        for _, row in ipairs(rows) do
+    for r = 1, MAX_ROWS do
+        local row = page.rows[r]
+        if row then
             for _, b in ipairs(row.slots) do b:EnableMouseWheel(true) end
         end
     end
@@ -177,7 +181,8 @@ local function AskStart(page)
             button1 = L["Own keybinds, then start"],
             button2 = CANCEL or "Cancel",
             OnAccept = function(_, data)
-                if ns.InCombat() then return end
+                if ns.InCombat() then return ns.Print(L["Not in combat: try again when combat ends."]) end
+                if not data:IsVisible() then return end -- the tab closed while asking
                 ns.OwnKeybindsFirst()
                 StartBindMode(data)
             end,
@@ -408,7 +413,10 @@ local function Build(page, f)
         if MODIFIER_KEYS[key] then return end
         BindHovered(page, key)
     end)
-    catcher:SetScript("OnGamePadButtonDown", function(_, button) BindHovered(page, button) end)
+    catcher:SetScript("OnGamePadButtonDown", function(_, button)
+        if ns.PadModifiers()[button] then return end -- held as Shift, Ctrl or Alt
+        BindHovered(page, button)
+    end)
     -- Setting a key handler switches the frame's keyboard on (in game), so it's switched off
     -- after, and the frame stays hidden unless it's waiting for a key: a shown catcher took
     -- every key (Esc, Enter...) while the window was open (2026-09-28).
