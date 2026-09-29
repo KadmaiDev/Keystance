@@ -83,7 +83,7 @@ function ns.SaveProfile(name, replace)
     local p = Capture()
     if existing then
         local old = c.profiles[existing]
-        p.created, p.gear, p.itemrack = old.created, old.gear, old.itemrack -- Update keeps its gear
+        p.created, p.gear, p.itemrack, p.icon = old.created, old.gear, old.itemrack, old.icon -- Update keeps them
         c.profiles[existing] = nil
     end
     c.profiles[clean] = p
@@ -100,8 +100,13 @@ function ns.RenameProfile(old, new)
     if not clean then return nil, why end
     local other = ns.FindProfile(clean)
     if other and other ~= key then return nil, L["There's already a profile called %s."]:format(other) end
-    c.profiles[clean], c.profiles[key] = c.profiles[key], nil
+    if clean ~= key then c.profiles[clean], c.profiles[key] = c.profiles[key], nil end
     if c.active == key then c.active = clean end
+    -- A switch to it waiting for combat to end follows the new name.
+    if ns.pendingProfile == key then
+        ns.pendingProfile = nil
+        ns.ApplyProfile(clean)
+    end
     for _, rule in ipairs(c.rules) do
         if rule.profile == key then rule.profile = clean end -- rules follow the rename
     end
@@ -188,6 +193,36 @@ local function Report(what, slots, keys, failures)
     end
 end
 
+-- What a change touched: the slots and keys that differ between `before` and now, so an
+-- undo puts back those and nothing else (not changes the player made since).
+local function Touched(before)
+    local after = ns.CurrentState()
+    local slots, keys = {}, {}
+    for slot = 1, ns.MANAGED_SLOTS do
+        if not ns.SameAction(before.slots[slot], after.slots[slot]) then slots[slot] = true end
+    end
+    local was, now = {}, {}
+    for command, list in pairs(before.binds) do
+        for _, key in ipairs(list) do was[key] = command end
+    end
+    for command, list in pairs(after.binds) do
+        for _, key in ipairs(list) do now[key] = command end
+    end
+    for key, command in pairs(was) do
+        if now[key] ~= command then keys[key] = true end
+    end
+    for key, command in pairs(now) do
+        if was[key] ~= command then keys[key] = true end
+    end
+    return slots, keys
+end
+
+-- The undo record for a change from `before`: what it touched, with how things were.
+local function Record(before, label, gear)
+    local slots, keys = Touched(before)
+    return { state = before, only = slots, keys = keys, gear = gear, label = label, at = time() }
+end
+
 -- Applies a state now, recording the setup before it for Undo. `done` is said afterwards
 -- ("Prot applied"); `undo` names the change for the Undo button ("applying Prot").
 -- options.gearChanged says gear is going on too, and options.gearBefore is the gear it
@@ -201,7 +236,7 @@ local function Change(state, options, done, undo, onDone)
         return false
     end
     if slots + keys > 0 or options.gearChanged then
-        c.lastChange = { state = before, gear = options.gearBefore, label = undo, at = time() }
+        c.lastChange = Record(before, undo, options.gearBefore)
         if ns.StatusStale then ns.StatusStale() end
     end
     if onDone then onDone() end
@@ -215,7 +250,7 @@ ns.ApplyChange = Change
 -- Records the setup from before a change made elsewhere (a drop), for Undo.
 function ns.RecordChange(before, label)
     local c = Char()
-    if c then c.lastChange = { state = before, label = label, at = time() } end
+    if c then c.lastChange = Record(before, label) end
     if ns.StatusStale then ns.StatusStale() end -- the strip's Undo follows
 end
 
@@ -282,7 +317,9 @@ function ns.Undo()
             gearChanged = ok
             if not ok then Print(L["Gear not changed: %s."]:format(why)) end
         end
-        Change(last.state, { scope = "all", gearBefore = gearBefore, gearChanged = gearChanged },
+        -- Only what that change touched (records from before this was kept: everything).
+        Change(last.state, { scope = "all", only = last.only, onlyKeys = last.only and (last.keys or {}),
+            gearBefore = gearBefore, gearChanged = gearChanged },
             L["Undid %s"]:format(last.label), L["the undo"], function() c.active = nil end)
     end)
     if not now then Notify(L["Undo will happen when combat ends."]) end
@@ -308,13 +345,21 @@ function ns.SharedKeybinds()
     return GetCurrentBindingSet() == 1
 end
 
+-- Before a key is changed: the "Before Keystance" snapshot if it isn't taken yet, and this
+-- character's own keybinds if it shares the account's (so other characters keep theirs).
+-- Out of combat only (callers check).
+function ns.OwnKeybindsFirst()
+    ns.TakeSnapshot()
+    if ns.SharedKeybinds() then SaveBindings(2) end
+end
+
 -- Gives this character its own keybinds: the current ones are copied, so nothing changes
 -- on screen, and the account's set (what other characters use) is left untouched.
 -- SaveBindings(2) does this (measured 2026-09-28: every bind kept, survives relog).
 function ns.UseOwnKeybinds()
     if not ns.SharedKeybinds() then return Print(L["This character already has its own keybinds."]) end
     local now = ns.OutOfCombat("ownkeys", function()
-        SaveBindings(2)
+        ns.OwnKeybindsFirst()
         Notify(L["This character now has its own keybinds. Your other characters keep theirs."])
         ns.ProfilesChanged()
     end)
@@ -437,7 +482,7 @@ function ns.SetProfileKey(name, key)
         Notify(L["%s is already on %s."]:format(profile, key))
         return false
     end
-    if ns.SharedKeybinds() then SaveBindings(2) end -- this character's own keybinds first
+    ns.OwnKeybindsFirst()
     local before = ns.CurrentState()
     local state = ns.CurrentState()
     for cmd, keys in pairs(state.binds) do
@@ -473,7 +518,7 @@ function ns.ClearProfileKey(name)
     local before = ns.CurrentState()
     local state = ns.CurrentState()
     if state.binds[SlotCommand(n)] then
-        if ns.SharedKeybinds() then SaveBindings(2) end
+        ns.OwnKeybindsFirst()
         state.binds[SlotCommand(n)] = nil
         local ok, why = ns.ApplyState(state, { scope = "all" })
         if not ok then

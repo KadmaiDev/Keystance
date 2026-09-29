@@ -114,3 +114,19 @@ test("the Settings tab and the Options page switch rank upgrades off and on", fu
     click(choice(page.ranksRow, "Upgrade my bars"))
     eq(KeystanceDB.settings.ranksOff, nil)
 end)
+
+test("a rank the spellbook hasn't listed yet waits for it, and down-ranked slots stay", function()
+    warlockLogin()
+    learn(696, "Demon Skin", "Rank 2")
+    wow.runTimers()
+    wow.slots[12] = { kind = "spell", id = 687 } -- Rank 1 kept on purpose
+    -- Rank 3 learned, but the spellbook doesn't show it yet.
+    wow.fire("LEARNED_SPELL_IN_SKILL_LINE", 1086, 1, false)
+    wow.runTimers()
+    eq(wow.slots[60].id, 696, "nothing changed yet")
+    eq(wow.slots[12].id, 687)
+    table.insert(wow.spellbook[1].spells, { 1086, "Demon Skin", "Rank 3" })
+    wow.runTimers()
+    eq(wow.slots[60].id, 1086, "Rank 2 became Rank 3 once the spellbook caught up")
+    eq(wow.slots[12].id, 687, "Rank 1 stays")
+end)

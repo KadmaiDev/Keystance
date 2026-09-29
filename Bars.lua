@@ -178,7 +178,7 @@ local function AskStart(page)
             button2 = CANCEL or "Cancel",
             OnAccept = function(_, data)
                 if ns.InCombat() then return end
-                SaveBindings(2)
+                ns.OwnKeybindsFirst()
                 StartBindMode(data)
             end,
             timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,

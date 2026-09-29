@@ -67,6 +67,7 @@ end)
 
 -- The setup to undo to: from before the pick-up, if this came from here.
 local function Before()
+    ns.TakeSnapshot() -- the "Before Keystance" setup comes before Keystance's first change
     local s = source
     source = nil
     return s and s.before or ns.CurrentState(), s
@@ -160,7 +161,7 @@ local function AskToBind(text)
                 if not key then return end
                 if ns.SharedKeybinds() then
                     if ns.InCombat() then return Refused(L["Not in combat: drop it again when combat ends."]) end
-                    SaveBindings(2) -- this character's own keybinds first (same as /kst ownkeys)
+                    ns.OwnKeybindsFirst() -- this character's own keybinds first (same as /kst ownkeys)
                 end
                 PlaceAndBind(key)
             end,
@@ -293,7 +294,7 @@ end
 
 local function Bind(key, command, label)
     if ns.InCombat() then return Refused(L["Not in combat: try again when combat ends."]) end
-    if ns.SharedKeybinds() then SaveBindings(2) end -- this character's own keybinds first
+    ns.OwnKeybindsFirst()
     local before = ns.CurrentState()
     local state = ns.CurrentState()
     for cmd, keys in pairs(state.binds) do
@@ -333,7 +334,7 @@ function ns.ClearKeys(command, label)
         ns.Notify(L["%s has no key."]:format(label))
         return false
     end
-    if ns.SharedKeybinds() then SaveBindings(2) end -- this character's own keybinds first
+    ns.OwnKeybindsFirst()
     state.binds[command] = nil
     return ns.ApplyChange(state, { scope = "all" }, L["%s's keys cleared"]:format(label),
         L["clearing %s's keys"]:format(label))
@@ -433,7 +434,7 @@ end
 
 local function UnbindKey(key)
     if ns.InCombat() then return Refused(L["Not in combat: try again when combat ends."]) end
-    if ns.SharedKeybinds() then SaveBindings(2) end -- this character's own keybinds first
+    ns.OwnKeybindsFirst()
     local state = ns.CurrentState()
     Unbind(state, key)
     return ns.ApplyChange(state, { scope = "all" }, L["%s unbound"]:format(key), L["unbinding %s"]:format(key))

@@ -1,7 +1,9 @@
 -- Keystance's writer: makes the action bars and keybindings match a saved state (a profile,
 -- the "Before Keystance" snapshot, or an undo record). It changes only what differs, never
--- empties a slot it can't fill (the slot is left as it was and reported), and never runs in
--- combat (callers go through ns.OutOfCombat). The only code that writes to bars or keys.
+-- empties a slot it can't fill (the slot is left as it was and reported), never removes an
+-- action it couldn't put back (an equipment set, a mount), and never runs in combat
+-- (callers go through ns.OutOfCombat). The snapshot is taken before its first write. Drops
+-- (Drops.lua) place single actions with the game's own pick-up and place, as a player does.
 --
 -- A state is { slots = { [slot] = action from ns.DescribeSlot }, binds = { [command] = { keys } } }.
 -- Slots 1-180 are managed; 181 and above mirror the main bar (seen in a snapshot) and are
@@ -67,12 +69,46 @@ local function Same(want, have)
     if want.t == "macro" then return want.name == have.name end
     return want.id == have.id
 end
+ns.SameAction = Same
+
+-- The kinds of action Keystance can put in a slot (Pickup below). Anything else in a slot
+-- (an equipment set, a mount, a companion) is left alone: removed, it couldn't come back.
+local PLACEABLE = { spell = true, macro = true, item = true, flyout = true }
+
+-- A macro's index by name: the character's own or the account's, as saved (two can share a
+-- name); either if the saved kind has gone.
+local function MacroIndex(want)
+    if want.perChar ~= nil and GetMacroInfo then
+        local account = MAX_ACCOUNT_MACROS or 120
+        local first = want.perChar and account + 1 or 1
+        local last = want.perChar and account + (MAX_CHARACTER_MACROS or 18) or account
+        for i = first, last do
+            if GetMacroInfo(i) == want.name then return i end
+        end
+    end
+    return GetMacroIndexByName(want.name)
+end
+
+-- True if the character knows this very spell (a rank, or one outside the class spellbook,
+-- like a profession's).
+local function Knows(id, book)
+    if book.known[id] then return true end
+    if IsPlayerSpell then
+        local ok, known = pcall(IsPlayerSpell, id)
+        if ok and known then return true end
+    end
+    if IsSpellKnown then
+        local ok, known = pcall(IsSpellKnown, id)
+        if ok and known then return true end
+    end
+    return false
+end
 
 -- Puts the action on the cursor. Returns nil, or a reason it couldn't.
 local function Pickup(want, book)
     if want.t == "spell" then
         local id = want.id
-        if not book.known[id] then
+        if not Knows(id, book) then
             -- Not this rank (the player may have trained past it): the highest of that name.
             local ids = book.byName[want.name or ""]
             id = ids and ids[1]
@@ -80,7 +116,7 @@ local function Pickup(want, book)
         end
         C_Spell.PickupSpell(id)
     elseif want.t == "macro" then
-        local index = want.name and GetMacroIndexByName(want.name) or 0
+        local index = want.name and MacroIndex(want) or 0
         if not index or index == 0 then return L["macro '%s' not found"]:format(tostring(want.name)) end
         PickupMacro(index)
     elseif want.t == "item" then
@@ -98,16 +134,22 @@ end
 
 local function Describe(want)
     if not want then return L["empty"] end
-    return want.name or (want.t .. " " .. tostring(want.id))
+    return want.name or (tostring(want.t) .. " " .. tostring(want.id))
 end
 
--- Makes slots 1-180 match state.slots. Returns how many changed and a list of failures.
-local function ApplySlots(state, failures)
+-- Makes slots 1-180 (or only those in `only`) match state.slots. Returns how many changed
+-- and a list of failures.
+local function ApplySlots(state, failures, only)
     local book = ScanBook()
     local changed = 0
     for slot = 1, ns.MANAGED_SLOTS do
-        local want, have = state.slots[slot], ns.DescribeSlot(slot)
-        if not Same(want, have) then
+        local want, have = state.slots[slot], (not only or only[slot]) and ns.DescribeSlot(slot)
+        if only and not only[slot] then
+            -- not part of this change
+        elseif not Same(want, have) and have and not PLACEABLE[have.t] then
+            failures[#failures + 1] = L["slot %d holds %s, which Keystance couldn't put back, so it's left as it is"]
+                :format(slot, Describe(have))
+        elseif not Same(want, have) then
             if not want then
                 PickupAction(slot)
                 ClearCursor()
@@ -165,6 +207,25 @@ local function ApplyBinds(state, scope)
     return changed
 end
 
+-- Puts back only these keys as the state had them (bound to its command, or unbound):
+-- an undo touches the keys its change touched, nothing else.
+local function ApplyKeys(state, keys)
+    local was = {}
+    for command, list in pairs(state.binds or {}) do
+        for _, key in ipairs(list) do was[key] = command end
+    end
+    local changed = 0
+    for key in pairs(keys) do
+        local want, now = was[key], GetBindingAction(key)
+        if (want or "") ~= (now or "") then
+            if want then SetBinding(key, want) else SetBinding(key) end
+            changed = changed + 1
+        end
+    end
+    if changed > 0 then SaveBindings(GetCurrentBindingSet()) end
+    return changed
+end
+
 ---------------------------------------------------------------------------
 -- The whole state
 ---------------------------------------------------------------------------
@@ -176,17 +237,22 @@ function ns.CurrentState()
 end
 
 -- Applies a state now. Must not be called in combat (use ns.OutOfCombat). options:
--- scope = "bars" (default) or "all" for keys; keys = false leaves keys alone.
--- Returns ok, slotsChanged, keysChanged, failures; ok is false (with a reason) if it
--- didn't start.
+-- scope = "bars" (default) or "all" for keys; keys = false leaves keys alone; only = a set
+-- of slots and onlyKeys = a set of keys limit it to those (an undo). Returns ok,
+-- slotsChanged, keysChanged, failures; ok is false (with a reason) if it didn't start.
 function ns.ApplyState(state, options)
     options = options or {}
     if InCombatLockdown() then return false, L["in combat"] end
     if GetCursorInfo() then return false, L["put down what you're holding on the cursor first"] end
+    ns.TakeSnapshot() -- the "Before Keystance" setup comes before Keystance's first change
     local failures = {}
-    local slots = ApplySlots(state, failures)
+    local slots = ApplySlots(state, failures, options.only)
     local keys = 0
-    if options.keys ~= false then keys = ApplyBinds(state, options.scope or "bars") end
+    if options.onlyKeys then
+        keys = ApplyKeys(state, options.onlyKeys)
+    elseif options.keys ~= false then
+        keys = ApplyBinds(state, options.scope or "bars")
+    end
     return true, slots, keys, failures
 end
 
@@ -206,8 +272,11 @@ function ns.CountChanges(state, scope)
             for _, key in ipairs(list) do if want[key] ~= command then keys = keys + 1 end end
         end
     end
+    -- Keys the state binds that aren't bound that way yet (a key bound to another bar button
+    -- was counted above already: applying moves it once).
     for key, command in pairs(want) do
-        if GetBindingAction(key) ~= command then keys = keys + 1 end
+        local now = GetBindingAction(key)
+        if now ~= command and not (now ~= "" and inScope(now)) then keys = keys + 1 end
     end
     return slots, keys
 end

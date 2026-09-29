@@ -24,11 +24,16 @@ end
 local function Upgrade()
     local book = ns.ScanBook()
     local state = ns.CurrentState()
-    local changed, names = 0, {}
+    local changed, names, later = 0, {}, false
     for id in pairs(learned) do
         local name = C_Spell.GetSpellName(id)
         local ranks = name and book.byName[name] -- highest first
         local best = ranks and ranks[1]
+        -- The spellbook hasn't listed the new rank yet: without it, "the rank in use until
+        -- now" would be the wrong one (a lower, down-ranked one). Tried again shortly.
+        if not book.known[id] then
+            best, later = nil, true
+        end
         -- What gets replaced: the ranks just learned below the best (several bought at once),
         -- and the highest rank known before them, the one in use until now. Not lower ones.
         local replace = {}
@@ -53,7 +58,10 @@ local function Upgrade()
             end
         end
     end
-    for id in pairs(learned) do learned[id] = nil end
+    for id in pairs(learned) do
+        if book.known[id] or not later then learned[id] = nil end
+    end
+    if later then ns.RanksRetry() end
     if changed == 0 then return 0 end
     ns.ApplyChange(state, { keys = false }, L["Upgraded %s"]:format(table.concat(names, ", ")),
         L["the rank upgrade"])
@@ -67,6 +75,21 @@ local function Run()
         return
     end
     ns.OutOfCombat("ranks", Upgrade)
+end
+
+-- The spellbook hadn't listed a new rank yet: another look shortly, a few times at most.
+local retries = 0
+function ns.RanksRetry()
+    retries = retries + 1
+    if retries > 5 then
+        retries = 0
+        for id in pairs(learned) do learned[id] = nil end
+        return
+    end
+    if not scheduled then
+        scheduled = true
+        C_Timer.After(WAIT, Run)
+    end
 end
 
 ns.On("LEARNED_SPELL_IN_SKILL_LINE", function(spellID)

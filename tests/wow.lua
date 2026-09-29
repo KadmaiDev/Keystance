@@ -60,6 +60,7 @@ function M.load(files)
     -- The spellbook: skill lines in order, each a list of { spellID, name, subName, passive? }.
     M.spellbook = {}
     M.spellNames = {}  -- [spellID] = name (filled from the spellbook too)
+    M.otherSpells = {} -- [spellID] = true: known, but not in the class spellbook (First Aid...)
     M.itemCount = {}   -- [itemID] = count in bags
     -- Items are an item ID, or an item string ("item:1000:15") for a particular copy.
     M.inventory = {}   -- [inventory slot] = item equipped (16 main hand, 17 off hand)
@@ -483,7 +484,7 @@ function M.load(files)
     C_Spell = {
         PickupSpell = protect("C_Spell.PickupSpell", function(id)
             local s = spellInBook(id)
-            if s and not s.future then M.cursor = { "spell", 1, "spell", id } end
+            if (s and not s.future) or M.otherSpells[id] then M.cursor = { "spell", 1, "spell", id } end
         end),
         GetSpellName = function(id) local s = spellInBook(id) return s and s[2] or M.spellNames[id] end,
         GetSpellSubtext = function(id) local s = spellInBook(id) return s and s[3] or nil end,
@@ -491,6 +492,7 @@ function M.load(files)
         GetOverrideSpell = function(id) return id end,
     }
     IsSpellKnown = function(id) local s = spellInBook(id) return s ~= nil and not s.future end
+    IsPlayerSpell = function(id) return M.otherSpells[id] == true or IsSpellKnown(id) end
     -- Spells still to learn are in the spellbook with future = true and the level they come at.
     C_Spell.GetSpellLevelLearned = function(id) local s = spellInBook(id) return s and s.level or 0 end
     C_Spell.GetSpellLink = function(id) return "|Hspell:" .. id .. "|h[" .. tostring(C_Spell.GetSpellName(id)) .. "]|h" end
@@ -630,7 +632,10 @@ function M.load(files)
     StaticPopup_Show = function(which, text1, text2, data) M.popup = { which = which, text = text1, data = data } end
     -- Errors passed to the error handler (BugGrabber in game).
     M.errors = {}
-    geterrorhandler = function() return function(err) M.errors[#M.errors + 1] = err end end
+    -- One handler, as the game keeps one (a new function per call would be garbage the
+    -- addon doesn't make in game).
+    local errorHandler = function(err) M.errors[#M.errors + 1] = err end
+    geterrorhandler = function() return errorHandler end
     hooksecurefunc = function(t, name, fn)
         if type(t) == "string" then t, name, fn = _G, t, name end
         local orig = t[name]

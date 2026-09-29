@@ -37,14 +37,16 @@ local frame = CreateFrame("Frame")
 local handlers = {}
 
 -- Registering an event this client doesn't know throws on Forever, so guard it.
--- Several handlers can listen to one event; they run in the order added.
+-- Several handlers can listen to one event; they run in the order added, each on its own:
+-- an error in one is reported (BugGrabber) and doesn't stop the others.
 function ns.On(event, fn)
     if not pcall(frame.RegisterEvent, frame, event) then return false end
-    local prev = handlers[event]
-    handlers[event] = prev and function(...)
-        prev(...)
-        fn(...)
-    end or fn
+    local list = handlers[event]
+    if not list then
+        list = {}
+        handlers[event] = list
+    end
+    list[#list + 1] = fn
     return true
 end
 
@@ -55,8 +57,9 @@ function ns.Off(event)
 end
 
 frame:SetScript("OnEvent", function(_, event, ...)
-    local fn = handlers[event]
-    if fn then fn(...) end
+    local list = handlers[event]
+    if not list then return end
+    for i = 1, #list do xpcall(list[i], geterrorhandler(), ...) end
 end)
 
 ---------------------------------------------------------------------------
@@ -170,20 +173,16 @@ function ns.Waiting(key)
     return #order > 0
 end
 
+-- Runs the waiting work in order, each job taken off the queue before it runs, so one that
+-- fails (reported, not hidden) can't jam the rest. A job may queue more: if combat started
+-- again, that waits for the next end.
 ns.On("PLAYER_REGEN_ENABLED", function()
-    local i = 1
-    -- A queued job may queue more (if combat started again it waits for the next end).
-    while order[i] and not InCombatLockdown() do
-        local key = order[i]
+    while order[1] and not InCombatLockdown() do
+        local key = table.remove(order, 1)
         local fn = queued[key]
         queued[key] = nil
-        i = i + 1
-        fn()
+        if fn then xpcall(fn, geterrorhandler()) end
     end
-    local left = {}
-    for j = i, #order do left[#left + 1] = order[j] end
-    for j = #order, 1, -1 do order[j] = nil end
-    for j, key in ipairs(left) do order[j] = key end
 end)
 
 ---------------------------------------------------------------------------
