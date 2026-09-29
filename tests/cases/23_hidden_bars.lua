@@ -24,8 +24,10 @@ test("hidden bars are folded under the shown ones, dimmed, with their slots and 
     eq(rows[1].slots[1].icon:IsShown(), true, "what's in its slots")
     eq(rows[1].slots[1].keyText.text, "F5")
     eq(rows[1].point[5], -40 - 3 * 33, "under the two shown bars and the fold")
+    local row = rows[1]
     click(page.hiddenFold)
-    eq(rows[1]:IsShown(), false)
+    eq(row:IsShown(), false)
+    eq(#page.hiddenRows, 0)
 end)
 
 test("a hidden bar's slots take spells like any other", function()
@@ -273,5 +275,36 @@ test("if EllesmereUI lacks a piece Keystance needs (after an update), its page o
     eq(opened(), "EllesmereUIActionBars")
     eq(bars.Bar2.barVisibility, nil, "not touched")
     assert(printed():find("Switch Bar 2 off in EllesmereUI's Action Bars settings.", 1, true), printed())
+    EllesmereUI = nil
+end)
+
+test("more bars than fit: the tab scrolls, so every bar and hidden bar can be reached", function()
+    loginWithSetup(nil)
+    local bars = {}
+    for i = 1, 9 do bars[i == 1 and "MainBar" or ("Bar" .. i)] = {} end
+    bars.Bar10 = { barVisibility = "never" }
+    local eab = { db = { profile = { bars = bars } }, VisibilityCompat = {} }
+    for key in pairs(bars) do
+        local f = CreateFrame("Frame", "EABBar_" .. key)
+        f:SetShown(bars[key].barVisibility ~= "never")
+    end
+    CreateFrame("Button", "EABButton1"):SetAttribute("action", 1)
+    EllesmereUI = { Lite = { GetAddon = function() return eab end } }
+    local page = barsPage()
+    click(page.hiddenFold) -- nine bars and the fold fill the ten rows; unfolding adds Bar 10
+    eq(page.scroll:IsShown(), true)
+    eq(page.hiddenFold.point[5], -40 - 9 * 33 - 2, "the fold is on row 10")
+    page.scripts.OnMouseWheel(page, -1) -- down one
+    eq(page.offset, 1)
+    eq(page.rows[1].label.text, "Bar 2")
+    eq(page.rows[10].label.text, "Bar 10", "the hidden bar, now in reach")
+    eq(page.rows[10].show:IsShown(), true)
+    eq(page.rows[10].alpha, 0.55)
+    page.scripts.OnMouseWheel(page, -5)
+    eq(page.offset, 1, "no further than the end")
+    page.scroll.scripts.OnValueChanged(page.scroll, 0)
+    eq(page.rows[1].label.text, "Bar 1")
+    click(page.hiddenFold)
+    eq(page.scroll:IsShown(), false, "everything fits again")
     EllesmereUI = nil
 end)

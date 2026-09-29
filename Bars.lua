@@ -192,8 +192,11 @@ local function FillRow(page, row, bar)
     row.label:SetText(bar.name)
     local note = bar.note
     row.note:SetShown(note ~= nil)
-    row.label:ClearAllPoints()
-    row.label:SetPoint("LEFT", row, "LEFT", 0, note and 5 or 0)
+    if row.hasNote ~= (note ~= nil) then -- moved only when it changes: redraws stay cheap
+        row.hasNote = note ~= nil
+        row.label:ClearAllPoints()
+        row.label:SetPoint("LEFT", row, "LEFT", 0, note and 5 or 0)
+    end
     if note then row.note:SetText(note) end
     for i, b in ipairs(row.slots) do
         local btn = bar.buttons[i]
@@ -236,14 +239,6 @@ local function RowButton(page, row, text, title, fn)
     return b
 end
 
--- A hidden bar's row: dimmed, with Show beside it.
-local function HiddenRow(page, r)
-    local row = NewRow(page, r)
-    row:SetAlpha(0.55)
-    row.show = RowButton(page, row, L["Show"], L["Put this bar on screen"], ns.ShowBar)
-    return row
-end
-
 -- When a hidden bar comes on screen (from its addon's settings, or the game's), the tab
 -- follows. Hooked once per bar frame.
 local hooked = {}
@@ -256,72 +251,90 @@ local function Watch(frameName)
     end
 end
 
+-- The list the tab scrolls through: the shown bars, then the fold ("Hidden bars (n)"),
+-- then (unfolded) the hidden bars. Reused between redraws.
+local entries = {}
+local FOLD = {}
+
+local function MaxOffset() return math.max(0, #entries - MAX_ROWS) end
+
 local function Refresh(page)
     local bars, n = ns.ShownBars()
+    local hidden, h = ns.HiddenBars()
+    local open = ns.db.settings.hiddenBarsOpen and true or false
     page.bindButton:SetText(page.bindMode and L["Done"] or L["Keybind mode"])
     page.bindNote:SetShown(page.bindMode)
     page.source:SetText(SOURCE_NAMES[ns.BarSource()])
-    for r = 1, MAX_ROWS do
-        local row = page.rows[r]
-        local bar = bars[r]
-        if bar then
-            if not row then
-                row = NewRow(page, r)
-                row.hide = RowButton(page, row, L["Hide"], L["Take this bar off screen"], ns.HideBar)
-                page.rows[r] = row
-            end
-            row.bar = bar
-            FillRow(page, row, bar)
-            row:Show()
-            row.hide:SetShown(bar.canHide and true or false)
-        elseif row then
-            row:Hide()
-            row.hide:Hide()
-        end
+    local count = 0
+    for i = 1, n do
+        count = count + 1
+        entries[count] = bars[i]
     end
-    -- The hidden bars, folded under the shown ones.
-    local hidden, h = ns.HiddenBars()
-    local used = math.min(n, MAX_ROWS)
-    local open = ns.db.settings.hiddenBarsOpen and true or false
-    local fold = page.hiddenFold
-    fold:SetShown(h > 0 and used < MAX_ROWS)
     if h > 0 then
-        fold:ClearAllPoints()
-        fold:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -40 - used * ROW - 2)
-        if page.foldCount ~= h or page.foldOpen ~= open then -- the label only when it changes
-            page.foldCount, page.foldOpen = h, open
-            fold:SetText((open and "- " or "+ ") .. L["Hidden bars (%d)"]:format(h))
-        end
-    end
-    local room = open and math.max(0, MAX_ROWS - used - 1) or 0
-    for r = 1, math.max(#page.hiddenRows, h) do
-        local row = page.hiddenRows[r]
-        local bar = r <= room and hidden[r]
-        if bar then
-            if not row then
-                row = HiddenRow(page, used + 1 + r)
-                page.hiddenRows[r] = row
+        count = count + 1
+        entries[count] = FOLD
+        if open then
+            for i = 1, h do
+                count = count + 1
+                entries[count] = hidden[i]
             end
-            row:ClearAllPoints()
-            row:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -40 - (used + r) * ROW)
-            row.bar = bar
-            FillRow(page, row, bar)
-            row:Show()
-            row.show:Show()
-        elseif row then
-            row:Hide()
-            row.show:Hide()
         end
-        if hidden[r] then Watch(hidden[r].frameName) end
     end
+    for i = count + 1, #entries do entries[i] = nil end
+    local max = MaxOffset()
+    if page.offset > max then page.offset = max end
+    page.scroll:SetMinMaxValues(0, max)
+    page.scroll:SetValue(page.offset)
+    page.scroll:SetShown(max > 0)
+    -- Each visible row shows the entry at its place in the list.
+    local fold = page.hiddenFold
+    fold:Hide()
+    for i = #page.hiddenRows, 1, -1 do page.hiddenRows[i] = nil end
+    for r = 1, MAX_ROWS do
+        local index = page.offset + r
+        local entry = entries[index]
+        local row = page.rows[r]
+        if entry and entry ~= FOLD and not row then
+            row = NewRow(page, r)
+            row.hide = RowButton(page, row, L["Hide"], L["Take this bar off screen"], ns.HideBar)
+            row.show = RowButton(page, row, L["Show"], L["Put this bar on screen"], ns.ShowBar)
+            page.rows[r] = row
+        end
+        if entry == FOLD then
+            if page.foldRow ~= r then -- moved only when it changes
+                page.foldRow = r
+                fold:ClearAllPoints()
+                fold:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -40 - (r - 1) * ROW - 2)
+            end
+            if page.foldCount ~= h or page.foldOpen ~= open then -- the label only when it changes
+                page.foldCount, page.foldOpen = h, open
+                fold:SetText((open and "- " or "+ ") .. L["Hidden bars (%d)"]:format(h))
+            end
+            fold:Show()
+        end
+        if row then
+            if entry and entry ~= FOLD then
+                local isHidden = index > n
+                row.bar = entry
+                FillRow(page, row, entry)
+                row:SetAlpha(isHidden and 0.55 or 1) -- a hidden bar, dimmed
+                row:Show()
+                row.hide:SetShown(not isHidden and entry.canHide and true or false)
+                row.show:SetShown(isHidden)
+                if isHidden then page.hiddenRows[#page.hiddenRows + 1] = row end
+            else
+                row:Hide()
+                row.hide:Hide()
+                row.show:Hide()
+            end
+        end
+    end
+    for i = 1, h do Watch(hidden[i].frameName) end
     page.empty:SetShown(n == 0 and h == 0)
-    local extra = math.max(0, n - MAX_ROWS) + (open and math.max(0, h - room) or 0)
-    page.more:SetShown(extra > 0)
-    if extra > 0 then page.more:SetText(L["and %d more bars"]:format(extra)) end
 end
 
 local function Build(page, f)
-    page.window, page.rows, page.hiddenRows = f, {}, {}
+    page.window, page.rows, page.hiddenRows, page.offset = f, {}, {}, 0
     -- Folds the hidden bars away or out (remembered).
     local fold = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
     fold:SetSize(150, 22)
@@ -348,11 +361,29 @@ local function Build(page, f)
     empty:Hide()
     page.empty = empty
     f.texts[#f.texts + 1] = empty
-    local more = page:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    more:SetPoint("TOPLEFT", page, "TOPLEFT", 16 + LABEL_WIDTH, -40 - MAX_ROWS * ROW)
-    more:Hide()
-    page.more = more
-    f.texts[#f.texts + 1] = more
+    -- More bars than fit (EllesmereUI has ten, ElvUI up to fifteen, with hidden ones under
+    -- them): the rows scroll, with the mouse wheel or the bar at the side.
+    local function Scroll(to)
+        to = math.max(0, math.min(MaxOffset(), to))
+        if to ~= page.offset then
+            page.offset = to
+            ns.RefreshWindow()
+        end
+    end
+    page:EnableMouseWheel(true)
+    page:SetScript("OnMouseWheel", function(_, delta) Scroll(page.offset - delta) end)
+    local scroll = CreateFrame("Slider", nil, page)
+    scroll:SetOrientation("VERTICAL")
+    scroll:SetSize(6, MAX_ROWS * ROW - 4)
+    scroll:SetPoint("TOPRIGHT", page, "TOPRIGHT", -20, -40)
+    local thumb = scroll:CreateTexture(nil, "OVERLAY")
+    thumb:SetColorTexture(0.7, 0.7, 0.7, 0.6)
+    thumb:SetSize(6, 40)
+    scroll:SetThumbTexture(thumb)
+    scroll:SetValueStep(1)
+    scroll:SetScript("OnValueChanged", function(_, value) Scroll(math.floor(value + 0.5)) end)
+    scroll:Hide()
+    page.scroll = scroll
     -- Keybind mode.
     local bind = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
     bind:SetSize(130, 22)
