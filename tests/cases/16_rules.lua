@@ -171,3 +171,89 @@ test("the Rules tab's On/Off follows /kst auto and the minimap menu", function()
     eq(KeystanceDB.settings.autoOff, nil)
     eq(choice(page.auto, "On").chosen, true)
 end)
+
+test("rules act when what they want changes, not on every gear change: a hand-picked profile stays", function()
+    local c, ns = rulesLogin()
+    ns.SaveProfile("Holy")
+    ns.AddRule({ when = "shield", profile = "Prot" })
+    equip(17, 2129)
+    wow.runTimers()
+    eq(c.active, "Prot")
+    ns.ApplyProfile("Holy") -- the player's choice, shield still on
+    eq(c.active, "Holy")
+    equip(13, 1200) -- a trinket
+    wow.runTimers()
+    eq(c.active, "Holy", "not overridden by an unrelated swap")
+    -- Taking the shield off and putting it back is a change the rules act on again.
+    equip(17, nil)
+    wow.runTimers()
+    equip(17, 2129)
+    wow.runTimers()
+    eq(c.active, "Prot")
+end)
+
+test("an Undo isn't reversed by the next gear change", function()
+    local c, ns = rulesLogin()
+    ns.AddRule({ when = "shield", profile = "Prot" })
+    equip(17, 2129)
+    wow.runTimers()
+    eq(c.active, "Prot")
+    ns.Undo()
+    eq(c.active, nil)
+    equip(13, 1200)
+    wow.runTimers()
+    eq(c.active, nil, "the Undo stands")
+end)
+
+test("after Stay, the question isn't asked again until the gear changes what the rules want", function()
+    local c, ns = rulesLogin()
+    KeystanceDB.settings.askSwitch = true
+    ns.AddRule({ when = "shield", profile = "Prot" })
+    equip(17, 2129)
+    wow.runTimers()
+    eq(wow.popup.which, "KEYSTANCE_SWITCH")
+    wow.popup = nil -- Stay
+    equip(13, 1200)
+    wow.runTimers()
+    eq(wow.popup, nil, "not asked again")
+end)
+
+test("a switch the player queued in combat isn't replaced by a rule", function()
+    local c, ns = rulesLogin()
+    ns.SaveProfile("Holy")
+    ns.AddRule({ when = "shield", profile = "Prot" })
+    wow.enterCombat()
+    ns.ApplyProfile("Holy") -- queued
+    equip(17, 2129)
+    wow.runTimers()
+    eq(ns.pendingProfile, "Holy")
+    wow.leaveCombat()
+    eq(c.active, "Holy")
+end)
+
+test("a burst of gear events is checked once the gear has been still, not halfway", function()
+    local c, ns = rulesLogin()
+    ns.AddRule({ when = "twohand", profile = "Prot" })
+    wow.clock = 10
+    equip(16, 2132) -- the swap begins: a one-hander for a moment
+    wow.clock = 10.2
+    equip(16, 1680) -- then the two-hander, before the first check
+    wow.runTimers() -- the first check sees a later event and waits
+    eq(c.active, "Ret", "not decided mid-swap")
+    wow.runTimers()
+    eq(c.active, "Prot")
+    wow.clock = nil
+end)
+
+test("more than six rules: the Rules tab scrolls, so every rule can be moved and deleted", function()
+    local c, ns = rulesLogin()
+    for i = 1, 8 do ns.AddRule({ when = "item", id = 1000 + i, profile = "Prot" }) end
+    local page = rulesPage()
+    eq(page.more:IsShown(), true)
+    page.scripts.OnMouseWheel(page, -2)
+    eq(page.offset, 2)
+    eq(page.rows[6].index, 8, "the last rule, in reach")
+    click(page.rows[6].delete)
+    eq(#c.rules, 7)
+    eq(page.offset, 1, "no scrolling past the end")
+end)

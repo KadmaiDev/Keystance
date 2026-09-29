@@ -39,8 +39,10 @@ test("slots: click takes what's worn, a dropped item is used, right-click leaves
     click(view.slots[1], "RightButton")
     eq(c.profiles.Prot.gear, nil, "no slots left: no gear")
     eq(view.slots[1].name.text, "Head")
+    click(view.slots[1])
     click(view.slots[5])
-    eq(c.profiles.Prot.gear, nil, "nothing worn there: nothing taken")
+    eq(c.profiles.Prot.gear[1], gearString(1101), "nothing worn there: the saved gear stays")
+    eq(c.profiles.Prot.gear[5], nil)
 end)
 
 test("Take what I'm wearing fills every worn slot; No gear empties them; the row says so", function()
@@ -135,4 +137,21 @@ test("an item saved in the wrong slot before this check is shown in red", functi
     local view = gearView("Prot")
     eq(view.slots[7].wrong, true)
     eq(view.slots[7].name.text, "Stompers (wrong slot)")
+end)
+
+test("a two-hander and an off hand aren't saved together", function()
+    local c, ns = gearLogin()
+    ns.SaveProfile("Ret")
+    local view = gearView("Ret")
+    click(view.slots[17]) -- the worn shield
+    eq(c.profiles.Ret.gear[17], gearString(2129))
+    cursorItem(1680) -- a two-hander
+    click(view.slots[16])
+    eq(c.profiles.Ret.gear[16], gearString(1680))
+    eq(c.profiles.Ret.gear[17], nil, "the off hand is left out")
+    cursorItem(2129)
+    click(view.slots[17])
+    eq(c.profiles.Ret.gear[17], nil, "refused while the main hand is a two-hander")
+    assert(printed():find("No off hand with Headchopper", 1, true), printed())
+    wow.cursor = nil
 end)

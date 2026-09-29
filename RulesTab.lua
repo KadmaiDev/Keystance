@@ -103,14 +103,17 @@ local function Refresh(page)
     page.new.profile = page.new.profile or profiles[1]
     page.profile:SetText(page.new.profile and L["Use: %s"]:format(page.new.profile) or L["No profiles yet"])
     page.add:SetEnabled(page.new.profile ~= nil)
-    -- The rules.
-    for i = 1, ROWS do
+    -- The rules: six at a time, scrolling with the mouse wheel past that.
+    local max = math.max(0, #c.rules - ROWS)
+    if page.offset > max then page.offset = max end
+    for r = 1, ROWS do
+        local i = page.offset + r
         local rule = c.rules[i]
-        local row = page.rows[i]
+        local row = page.rows[r]
         if rule then
             if not row then
-                row = MakeRow(page, page.window, i)
-                page.rows[i] = row
+                row = MakeRow(page, page.window, r)
+                page.rows[r] = row
             end
             row.index = i
             row.text:SetText(i .. ".  " .. ns.RuleText(rule))
@@ -122,12 +125,22 @@ local function Refresh(page)
         end
     end
     page.empty:SetShown(#c.rules == 0)
-    page.more:SetShown(#c.rules > ROWS)
-    if #c.rules > ROWS then page.more:SetText(L["and %d more rules"]:format(#c.rules - ROWS)) end
+    page.more:SetShown(max > 0)
+    if max > 0 then page.more:SetText(L["%d rules: scroll to see them all."]:format(#c.rules)) end
 end
 
 local function Build(page, f)
-    page.window, page.rows = f, {}
+    page.window, page.rows, page.offset = f, {}, 0
+    page:EnableMouseWheel(true)
+    page:SetScript("OnMouseWheel", function(_, delta)
+        local c = ns.char
+        local max = c and math.max(0, #c.rules - ROWS) or 0
+        local to = math.max(0, math.min(max, page.offset - delta))
+        if to ~= page.offset then
+            page.offset = to
+            ns.RefreshWindow()
+        end
+    end)
     page.new = { when = "shield" }
     local title = Text(f, page, "GameFontNormalLarge", L["Switch profiles automatically"])
     title:SetPoint("TOPLEFT", 16, -14)

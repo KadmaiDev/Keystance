@@ -36,7 +36,19 @@ local function CursorItem()
     if kind == "item" then return ns.ItemString(link) end
 end
 
+-- Sets a slot of the profile's gear. A two-hander leaves no off hand: putting one in the main
+-- hand takes the saved off hand out (and says so), and an off hand is refused while the
+-- saved main hand is a two-hander (swapping would never settle).
 local function SetSlot(view, slot, item)
+    local p = Profile(view)
+    local gear = p and p.gear
+    if item and slot == 17 and gear and ns.IsTwoHandItem(gear[16]) then
+        return ns.Print(L["No off hand with %s: it's a two-hander."]:format(ns.GearItemName(gear[16])))
+    end
+    if item and slot == 16 and ns.IsTwoHandItem(item) and gear and gear[17] then
+        ns.SetGearSlot(view.profile, 17, nil)
+        ns.Notify(L["%s is a two-hander, so the off hand is left out."]:format(ns.GearItemName(item)))
+    end
     ns.SetGearSlot(view.profile, slot, item)
 end
 
@@ -95,14 +107,18 @@ local function MakeSlot(view, f, slot, x, y)
     b:SetScript("OnClick", function(self, button)
         if button == "RightButton" then return SetSlot(self.view, self.slot, nil) end
         if Drop(self) then return end
-        SetSlot(self.view, self.slot, ns.WornItem(self.slot))
+        if GetCursorInfo() then return end -- a spell or macro held: not for a gear slot
+        local worn = ns.WornItem(self.slot)
+        -- Nothing worn there (or not loaded yet): the saved item stays; right-click clears.
+        if not worn then return ns.Notify(L["Nothing is worn there. Right-click leaves this slot alone."]) end
+        SetSlot(self.view, self.slot, worn)
     end)
     b:SetScript("OnEnter", SlotTooltip)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
     return b
 end
 
-local function SetButton(view, f, i)
+local function SetButton(view, i)
     local b = CreateFrame("Button", nil, view.sets, "UIPanelButtonTemplate")
     b:SetSize(SET_W, 24)
     local column, row = math.floor((i - 1) / SETS_PER_COLUMN), (i - 1) % SETS_PER_COLUMN
@@ -223,7 +239,7 @@ local function RefreshSets(view, p)
     local max = SETS_PER_COLUMN * 3
     for i, set in ipairs(choices) do
         if i > max then break end
-        local b = view.setButtons[i] or SetButton(view, view.window, i)
+        local b = view.setButtons[i] or SetButton(view, i)
         view.setButtons[i] = b
         b.set = set or nil
         local on = (p.itemrack or false) == set

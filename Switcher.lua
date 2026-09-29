@@ -109,6 +109,8 @@ local function Build()
     f:SetHeight(SIZE + PAD * 2)
     f:SetFrameStrata("MEDIUM")
     f:SetMovable(true)
+    -- Its place is Keystance's to keep (settings.switcherPos), not the game's layout cache too.
+    if f.SetDontSavePosition then pcall(f.SetDontSavePosition, f, true) end
     f:SetClampedToScreen(true)
     f:EnableMouse(true)
     local pos = Settings().switcherPos
@@ -139,7 +141,6 @@ local function RefreshState()
         end
     end
 end
-ns.RefreshSwitcherState = RefreshState
 
 -- Everything: which profiles, their icons and keys (profiles changed), and whether it shows.
 function ns.RefreshSwitcher()
@@ -188,7 +189,24 @@ end
 ns.On("PLAYER_LOGIN", function() ns.RefreshSwitcher() end)
 ns.On("PLAYER_REGEN_DISABLED", RefreshState)
 ns.On("PLAYER_REGEN_ENABLED", RefreshState)
-ns.On("UPDATE_BINDINGS", function() if bar and bar:IsShown() then ns.RefreshSwitcher() end end)
+-- Keys change in bursts (applying a profile sets many): the labels, once, a moment later.
+local keysPending = false
+local function RefreshKeys()
+    keysPending = false
+    if not (bar and bar:IsShown()) then return end
+    for _, b in ipairs(bar.buttons) do
+        if b.profile then
+            local n = ns.ProfileSlot(b.profile)
+            local key = n and GetBindingKey(ns.ProfileSlotCommand(n))
+            b.key:SetText(key and ns.ShortKey(key) or "")
+        end
+    end
+end
+ns.On("UPDATE_BINDINGS", function()
+    if keysPending or not (bar and bar:IsShown()) then return end
+    keysPending = true
+    C_Timer.After(0.1, RefreshKeys)
+end)
 
 ns.AddCommand("switcher", function(arg)
     arg = (arg or ""):lower()

@@ -117,6 +117,7 @@ test("it follows profiles being added, renamed and given keys", function()
     ns.RenameProfile("Prot", "Tank")
     eq(switchButton("Tank") ~= nil, true)
     ns.SetProfileKey("Tank", "F2")
+    wow.runTimers() -- key labels follow a keybinding change a moment later
     eq(switchButton("Tank").key.text, "F2")
     ns.DeleteProfile("Ret")
     eq(switchButton("Ret"), nil)

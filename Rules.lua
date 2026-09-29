@@ -3,17 +3,20 @@
 --   { when = "set", set = "Healing" } (an equipment set; from = "itemrack" for one of
 --   ItemRack's), each with profile = "Prot".
 -- The first matching rule wins (the player orders them). Gear swaps fire several events,
--- so it checks once, 0.3 s after the last one, and only switches when a different profile
--- is wanted. Applying goes through ns.ApplyProfile, so in combat it waits for combat to
--- end, and shared keybinds are asked about first. Off with /kst auto off; "Ask before
--- switching" makes each switch a question. Gear changes Keystance makes itself (Gear.lua)
--- are ignored, and a switch leaves the new profile's gear alone.
+-- so it checks once, 0.3 s after the last one. It acts only when the profile the rules want
+-- changes (equipping a shield), not on every gear change: a profile the player picked by
+-- hand, an Undo, or "Stay" to the question isn't overridden by swapping a trinket later.
+-- Applying goes through ns.ApplyProfile, so in combat it waits for combat to end, and
+-- shared keybinds are asked about first; a switch the player queued in combat isn't
+-- replaced. Off with /kst auto off; "Ask before switching" makes each switch a question.
+-- Gear changes Keystance makes itself (Gear.lua) are ignored, and a switch leaves the new
+-- profile's gear alone.
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
 
 local ipairs, type = ipairs, type
-local GetInventoryItemID = GetInventoryItemID
+local GetInventoryItemID, GetTime = GetInventoryItemID, GetTime
 
 local MAIN_HAND, OFF_HAND = 16, 17
 local WAIT = 0.3
@@ -161,37 +164,46 @@ local function AskSwitch(rule, key)
     StaticPopup_Show("KEYSTANCE_SWITCH", reason:sub(1, 1):upper() .. reason:sub(2), key, key)
 end
 
-local scheduled = false
-local function Evaluate()
+local scheduled, lastEvent, scheduledAt = false, 0, 0
+local lastWanted -- the profile the rules wanted at the last check
+local Evaluate
+Evaluate = function()
+    -- Another gear event came in meanwhile: wait until the gear has been still for WAIT.
+    if lastEvent > scheduledAt then
+        scheduledAt = lastEvent
+        return C_Timer.After(WAIT, Evaluate)
+    end
     scheduled = false
     local c = Char()
     if not (c and ns.AutoOn()) then return end
-    -- Gear Keystance put on itself (a profile's gear, or Undo) isn't the player's choice.
-    if ns.GearQuiet() or ns.GearBusy() then return end
     local rule = ns.MatchingRule()
-    if not rule then return end
-    local key = ns.FindProfile(rule.profile)
-    if not key or key == c.active then return end
-    if ns.AskFirst() then return AskSwitch(rule, key) end
+    local want = rule and ns.FindProfile(rule.profile)
+    -- Gear Keystance put on itself (a profile's gear, or Undo) isn't the player's choice:
+    -- what it matches is simply where things stand now.
+    if ns.GearQuiet() or ns.GearBusy() then
+        lastWanted = want
+        return
+    end
+    if want == lastWanted then return end -- nothing the rules care about changed
+    lastWanted = want
+    if not want or want == c.active then return end
+    if ns.pendingProfile then return end -- the player's own queued switch comes first
+    if ns.AskFirst() then return AskSwitch(rule, want) end
     local reason = ns.RuleCondition(rule)
-    ns.Notify(L["%s: switching to %s."]:format(reason:sub(1, 1):upper() .. reason:sub(2), key))
-    Switch(key)
+    ns.Notify(L["%s: switching to %s."]:format(reason:sub(1, 1):upper() .. reason:sub(2), want))
+    Switch(want)
 end
-ns.EvaluateRules = Evaluate
 
 local function GearChanged()
+    lastEvent = GetTime()
     if scheduled then return end
-    scheduled = true
+    scheduled, scheduledAt = true, lastEvent
     C_Timer.After(WAIT, Evaluate)
 end
 ns.On("PLAYER_EQUIPMENT_CHANGED", GearChanged)
 ns.On("EQUIPMENT_SWAP_FINISHED", GearChanged)
--- ItemRack swaps one item at a time; it says when a whole set is on.
-ns.On("PLAYER_LOGIN", function()
-    if ns.ItemRackReady() and type(ItemRack.EndSetSwap) == "function" then
-        hooksecurefunc(ItemRack, "EndSetSwap", GearChanged)
-    end
-end)
+-- ItemRack swaps one item at a time; it says when a whole set is on (Gear.lua hooks it).
+ns.GearSetFinished = GearChanged
 
 ns.AddCommand("auto", function(arg)
     arg = (arg or ""):lower()

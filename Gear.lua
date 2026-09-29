@@ -65,6 +65,7 @@ local function IsTwoHand(s)
     local _, _, _, loc = C_Item.GetItemInfoInstant(s)
     return loc == "INVTYPE_2HWEAPON"
 end
+ns.IsTwoHandItem = IsTwoHand
 
 -- The item in a gear slot now, as an item string (nil if empty or not known yet).
 local function Worn(slot)
