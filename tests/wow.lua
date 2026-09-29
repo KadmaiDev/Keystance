@@ -698,7 +698,7 @@ function M.load(files)
     -- Sounds played, and the game's sound names (as listed on Forever).
     M.sounds = {}
     SOUNDKIT = { IG_ABILITY_ICON_DROP = 838, UI_CURSOR_PICKUP_OBJECT = 688, UI_CURSOR_DROP_OBJECT = 689,
-        IG_PLAYER_INVITE_DECLINE = 882 }
+        IG_QUEST_LOG_ABANDON_QUEST = 846 }
     PlaySound = function(id) M.sounds[#M.sounds + 1] = id end
     -- Other addons loaded (M.loadedAddons["EllesmereUIMinimap"] = true...).
     M.loadedAddons = {}

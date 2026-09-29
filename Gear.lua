@@ -488,9 +488,10 @@ function ns.EquipGear(items, done)
 end
 
 -- "Gear: 3 items put on." plus what couldn't be, for chat.
--- A short, soft sound when some gear didn't go on (the game's "invite declined" tone, else
--- the quest log's), once per swap however many items; the message says which.
-local PROBLEM_SOUNDS = { "IG_PLAYER_INVITE_DECLINE", "IG_QUEST_LOG_ABANDON_QUEST" }
+-- A short, soft sound when some gear didn't go on (the quest log's "abandon quest"; Forever
+-- has no IG_PLAYER_INVITE_DECLINE, measured 2026-09-29), once per swap however many items;
+-- the message says which.
+local PROBLEM_SOUNDS = { "IG_QUEST_LOG_ABANDON_QUEST" }
 
 function ns.GearReport(result)
     if result.why or next(result.missing or NONE) or next(result.failed or NONE) then ns.Sound(PROBLEM_SOUNDS) end

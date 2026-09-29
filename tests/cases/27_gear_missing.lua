@@ -114,14 +114,10 @@ test("a soft sound plays once when some of a profile's gear can't go on, and not
     ns.ApplyProfile("Prot")
     settleGear()
     eq(#wow.sounds, 1, "two items missing: one sound")
-    eq(wow.sounds[1], 882)
-    -- A client without that sound uses the next one; one without either stays silent.
-    SOUNDKIT.IG_PLAYER_INVITE_DECLINE, SOUNDKIT.IG_QUEST_LOG_ABANDON_QUEST = nil, 846
-    ns.ApplyProfile("Prot")
-    settleGear()
-    eq(wow.sounds[2], 846)
+    eq(wow.sounds[1], 846)
+    -- A client without that sound stays silent (no error).
     SOUNDKIT.IG_QUEST_LOG_ABANDON_QUEST = nil
     ns.ApplyProfile("Prot")
     settleGear()
-    eq(#wow.sounds, 2)
+    eq(#wow.sounds, 1)
 end)
