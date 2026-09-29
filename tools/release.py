@@ -33,7 +33,7 @@ EXTRA = ["LICENSE", "Bindings.xml",  # the game loads it by name: profile keybin
          "media/controller.tga", "media/circle.tga"]  # the Controller layout's drawing; badge and line dots
 ALLOWED = (".toc", ".lua")
 
-PROJECT_ID = None  # the CurseForge project, once the owner has created it
+PROJECT_ID = 1715774  # the Keystance project on CurseForge
 API = "https://wow.curseforge.com/api"
 GAME_VERSIONS = [17053]  # WoW Forever 1.60.1 (re-check GET /api/game/versions for newer clients)
 RELEASE_TYPE = "release"  # "release", "beta" or "alpha"
