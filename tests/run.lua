@@ -55,6 +55,7 @@ CASES = {
     "24_switcher.lua",
     "25_safety.lua",
     "26_gear_flyout.lua",
+    "27_gear_missing.lua",
 }
 do
     local where = {}

@@ -202,6 +202,14 @@ local function Note(p)
         local n = 0
         for _ in pairs(data) do n = n + 1 end
         note = L["%d items"]:format(n)
+        -- Some not on the character: how many, in amber ("5 items · 1 in bank").
+        local bank, missing = 0, 0
+        for _, where in pairs(ns.GearStatus(data) or {}) do
+            if where == "bank" then bank = bank + 1 else missing = missing + 1 end
+        end
+        if bank > 0 then note = note .. " · " .. L["%d in bank"]:format(bank) end
+        if missing > 0 then note = note .. " · " .. L["%d missing"]:format(missing) end
+        if bank + missing > 0 then return "  |cffffb030" .. note .. "|r" end
     end
     return note and ("  |cff9d9d9d" .. note .. "|r") or ""
 end

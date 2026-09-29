@@ -152,12 +152,17 @@ local function LocBag(loc) return BAGS[math.floor(loc / 1000)], loc % 1000 end
 local function InBank(loc) return loc >= BANK_LOC end
 ns.GearLocInBank = InBank
 
--- The bank's items can be read only while it's open (outside that its tabs look empty).
+-- The bank's items can be read only while it's open (outside that its tabs look empty), so
+-- what was there on the last visit is remembered for the character (c.bankSeen, a set of
+-- item Keys), to say "in your bank" about gear that isn't on the character.
 local bankOpen = false
 function ns.BankOpen() return bankOpen end
+-- Remember is below, once Key and the bag list are defined.
+local Remember
 local function BankShown(shown)
     return function()
         bankOpen = shown
+        if shown then Remember() end
         ns.RequestRefresh("profiles") -- the gear editor's list of items
     end
 end
@@ -172,13 +177,17 @@ if BANKER then
 end
 
 -- Every item worn, in the bags, and in the bank while it's open: { [loc] = item string },
--- and the places locked (the game hasn't finished a move yet, or the item sits in a trade
--- or mail window).
+-- the places locked (the game hasn't finished a move yet, or the item sits in a trade or
+-- mail window), and true if some item's details haven't loaded yet (right after login).
 local function Scan()
-    local where, locked = {}, {}
+    local where, locked, loading = {}, {}, false
     for slot = 1, 19 do
         where[slot] = Worn(slot)
         if IsInventoryItemLocked(slot) then locked[slot] = true end
+        if not where[slot] then
+            local id = GetInventoryItemID("player", slot)
+            if id and not Secret(id) then loading = true end
+        end
     end
     for i = 1, bankOpen and #BAGS or CARRIED do
         local bag = BAGS[i]
@@ -187,11 +196,41 @@ local function Scan()
             if info then
                 local loc = BagLoc(i, slot)
                 where[loc] = ItemString(info.hyperlink)
+                if not where[loc] then loading = true end
                 if info.isLocked then locked[loc] = true end
             end
         end
     end
-    return where, locked
+    return where, locked, loading
+end
+
+-- What's in the bank now, remembered for the character (only while the bank is open).
+Remember = function()
+    local c = ns.char
+    if not (c and bankOpen) then return end
+    local seen = {}
+    for i = CARRIED + 1, #BAGS do
+        local bag = BAGS[i]
+        for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            local s = info and ItemString(info.hyperlink)
+            if s then seen[Key(s)] = true end
+        end
+    end
+    c.bankSeen = seen
+end
+ns.On("BAG_UPDATE_DELAYED", function() if bankOpen then Remember() end end)
+
+-- True if the item (this copy, or another of the same item) was in the bank last visit.
+local function SeenInBank(item)
+    local seen = ns.char and ns.char.bankSeen
+    if not (seen and item) then return false end
+    if seen[Key(item)] then return true end
+    local id = ns.ItemStringID(item)
+    for key in pairs(seen) do
+        if ns.ItemStringID(key) == id then return true end
+    end
+    return false
 end
 
 -- An empty slot in a carried bag that holds anything (not a quiver or ammo pouch), not in
@@ -287,6 +326,21 @@ function ns.GearChanges(items)
     if not items or not next(items) then return 0 end
     local moves, missing = Plan(Scan(), items, NONE)
     return #moves + #missing
+end
+
+-- The items that aren't on the character (not worn, not in the bags, not in the bank while
+-- it's open): { [slot] = "bank" (there on the last bank visit) or "missing" }, empty if
+-- all are there, or nil while the game is still loading item details.
+function ns.GearStatus(items)
+    local status = {}
+    if not items or not next(items) then return status end
+    local where, _, loading = Scan()
+    if loading then return nil end
+    local _, missing = Plan(where, items, NONE)
+    for _, slot in ipairs(missing) do
+        status[slot] = SeenInBank(items[slot]) and "bank" or "missing"
+    end
+    return status
 end
 
 -- The gear slots a swap to `items` changes, for Undo: the items' own, and the off hand
@@ -438,8 +492,9 @@ function ns.GearReport(result)
     if result.why then ns.Print(L["Gear stopped: %s."]:format(result.why)) end
     if result.moved > 0 then ns.Notify(L["Gear: %d items put on."]:format(result.moved)) end
     for _, slot in ipairs(result.missing or {}) do
-        ns.Print(L["Gear: %s isn't in your bags (%s)."]:format(ns.GearItemName(result.items and result.items[slot]),
-            ns.GEAR_SLOT_NAMES[slot]))
+        local item = result.items and result.items[slot]
+        local text = SeenInBank(item) and L["Gear: %s is in your bank (%s)."] or L["Gear: %s isn't in your bags (%s)."]
+        ns.Print(text:format(ns.GearItemName(item), ns.GEAR_SLOT_NAMES[slot]))
     end
     for slot, why in pairs(result.failed or {}) do
         ns.Print(L["Gear: %s: %s."]:format(ns.GEAR_SLOT_NAMES[slot], why))

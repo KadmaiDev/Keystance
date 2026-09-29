@@ -4,7 +4,9 @@
 -- character sheet: click a slot to fly out what you have that fits it (worn, in the bags,
 -- and in the bank while it's open) and pick one, drop an item from the bags on it, or
 -- right-click to leave that slot alone. An item held over a slot it can't go in turns the
--- slot's highlight red. Built the first time it's opened.
+-- slot's highlight red. Saved gear that isn't on the character is shown in amber, with
+-- "In your bank" (seen there on the last visit) or "Not found". Built the first time it's
+-- opened.
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
@@ -79,6 +81,11 @@ local function SlotTooltip(b)
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine(L["Click: choose from what you have that fits."], 0.6, 0.8, 1, true)
     GameTooltip:AddLine(L["Drop an item from your bags here to use that."], 0.6, 0.8, 1, true)
+    if b.status == "bank" then
+        GameTooltip:AddLine(L["It's in your bank. Open your bank and apply again, or move it to your bags."], 1, 0.69, 0.19, true)
+    elseif b.status == "missing" then
+        GameTooltip:AddLine(L["It isn't worn or in your bags, and wasn't in your bank last time you visited."], 1, 0.69, 0.19, true)
+    end
     if item then GameTooltip:AddLine(L["Right-click: leave this slot alone."], 0.6, 0.8, 1, true) end
     GameTooltip:Show()
 end
@@ -244,8 +251,16 @@ local function MakeSlot(view, f, slot, x, y)
     name:SetJustifyH("LEFT")
     name:SetWordWrap(false)
     b.name = name
+    -- Under the name when the item isn't on the character: "In your bank" or "Not found".
+    local note = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    note:SetPoint("BOTTOMLEFT", icon, "BOTTOMRIGHT", 6, 1)
+    note:SetTextColor(1, 0.69, 0.19)
+    note:Hide()
+    b.note = note
     f.texts[#f.texts + 1] = name
+    f.texts[#f.texts + 1] = note
     ns.SkinText(name)
+    ns.SkinText(note)
     -- Its own highlight texture, so it can turn red under an item that can't go here.
     b.hl = b:CreateTexture(nil, "HIGHLIGHT")
     b.hl:SetAllPoints()
@@ -373,9 +388,28 @@ function ns.BuildGearView(view, f, back)
     for _, b in ipairs(source.buttons) do ns.SkinButton(b) end
 end
 
+-- The name alone, centred on the icon; or the name above a note.
+local function SetNote(b, text)
+    b.name:ClearAllPoints()
+    if text then
+        b.name:SetPoint("TOPLEFT", b.icon, "TOPRIGHT", 6, -1)
+        b.note:SetText(text)
+        b.note:Show()
+    else
+        b.name:SetPoint("LEFT", b.icon, "RIGHT", 6, 0)
+        b.note:Hide()
+    end
+    b.name:SetPoint("RIGHT", b, "RIGHT", 0, 0)
+end
+
+local STATUS_NOTES = { bank = L["In your bank"], missing = L["Not found"] }
+
 local function RefreshItems(view, p)
+    local status = ns.GearStatus(p.gear) or {} -- nil while item details load: nothing flagged
     for slot, b in pairs(view.slots) do
         local item = p.gear and p.gear[slot]
+        b.status = item and status[slot] or nil
+        SetNote(b, STATUS_NOTES[b.status])
         if item then
             b.icon:SetTexture(C_Item.GetItemIconByID(ns.ItemStringID(item)))
             b.icon:SetDesaturated(false)
@@ -384,7 +418,13 @@ local function RefreshItems(view, p)
             local fits = ns.ItemFitsSlot(item, slot)
             b.wrong = not fits or nil
             b.name:SetText(fits and ns.GearItemName(item) or L["%s (wrong slot)"]:format(ns.GearItemName(item)))
-            if fits then b.name:SetTextColor(1, 1, 1) else b.name:SetTextColor(1, 0.3, 0.3) end
+            if not fits then
+                b.name:SetTextColor(1, 0.3, 0.3)
+            elseif b.status then
+                b.name:SetTextColor(1, 0.69, 0.19)
+            else
+                b.name:SetTextColor(1, 1, 1)
+            end
         else
             b.icon:SetTexture(EmptyIcon(slot))
             b.icon:SetDesaturated(true)
