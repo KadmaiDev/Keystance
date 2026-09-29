@@ -140,3 +140,41 @@ test("an item held over a slot it can't go in highlights red and says why; one t
     legs.scripts.OnEnter(legs)
     eq(colour(legs.hl), "1,1,1", "back to normal once the item is put down")
 end)
+
+test("a click anywhere off the flyout closes it; clicks on it or on a slot don't", function()
+    local c, ns = gearLogin()
+    ns.SaveProfile("Prot")
+    local view = gearView("Prot")
+    click(view.slots[1])
+    local fly = view.flyout
+    wow.mouseFoci = { fly.cells[2] }
+    wow.fire("GLOBAL_MOUSE_DOWN", "LeftButton")
+    eq(fly:IsShown(), true, "a click on one of its items")
+    wow.mouseFoci = { fly }
+    wow.fire("GLOBAL_MOUSE_DOWN", "LeftButton")
+    eq(fly:IsShown(), true, "a click between its items")
+    wow.mouseFoci = { view.slots[5] }
+    wow.fire("GLOBAL_MOUSE_DOWN", "LeftButton")
+    eq(fly:IsShown(), true, "a slot's own click moves or closes it")
+    wow.mouseFoci = { view.back }
+    wow.fire("GLOBAL_MOUSE_DOWN", "LeftButton")
+    eq(fly:IsShown(), false, "a click elsewhere in the window")
+    click(view.slots[1])
+    wow.mouseFoci = {}
+    wow.fire("GLOBAL_MOUSE_DOWN", "RightButton")
+    eq(fly:IsShown(), false, "a click out in the world, either button")
+    wow.mouseFoci = {}
+    eq(c.profiles.Prot.gear, nil, "closing picks nothing")
+end)
+
+test("the flyout listens for clicks only while it's open", function()
+    local c, ns = gearLogin()
+    ns.SaveProfile("Prot")
+    local view = gearView("Prot")
+    click(view.slots[1])
+    local listening = 0
+    for _, f in ipairs(wow.frames) do if f.events.GLOBAL_MOUSE_DOWN then listening = listening + 1 end end
+    eq(listening, 1)
+    click(view.flyout.cells[1])
+    for _, f in ipairs(wow.frames) do eq(f.events.GLOBAL_MOUSE_DOWN, nil, "stopped once closed") end
+end)

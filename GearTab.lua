@@ -9,7 +9,7 @@ local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
 
-local ipairs, pairs, pcall, CreateFrame = ipairs, pairs, pcall, CreateFrame
+local ipairs, pairs, pcall, type, CreateFrame = ipairs, pairs, pcall, type, CreateFrame
 local GetCursorInfo, ClearCursor = GetCursorInfo, ClearCursor
 
 -- The slots in three columns, as on the character sheet: armour down the left, hands to
@@ -198,8 +198,21 @@ local function MakeFlyout(view)
     fly.texts[1], fly.texts[2] = fly.title, fly.note
     ns.SkinWindow(fly)
     fly:Hide()
-    -- It closes with the editor (Back, another tab, the window closing).
+    -- It closes with the editor (Back, another tab, the window closing), and on a click
+    -- anywhere but on it or a gear slot (a slot's own click moves or closes it). It listens
+    -- for clicks only while it's open.
     view:HookScript("OnHide", function() fly:Hide() end)
+    fly:SetScript("OnShow", function(self) pcall(self.RegisterEvent, self, "GLOBAL_MOUSE_DOWN") end)
+    fly:SetScript("OnHide", function(self) self:UnregisterEvent("GLOBAL_MOUSE_DOWN") end)
+    fly:SetScript("OnEvent", function(self)
+        local foci = GetMouseFoci and GetMouseFoci()
+        local target = type(foci) == "table" and foci[1] or nil
+        while target do
+            if target == self or target.isGearSlot then return end
+            target = target:GetParent()
+        end
+        self:Hide()
+    end)
     return fly
 end
 
@@ -220,7 +233,7 @@ local function MakeSlot(view, f, slot, x, y)
     local b = CreateFrame("Button", nil, view.items)
     b:SetSize(COLUMN_W - 8, ICON)
     b:SetPoint("TOPLEFT", view.items, "TOPLEFT", x, y)
-    b.view, b.slot = view, slot
+    b.view, b.slot, b.isGearSlot = view, slot, true
     local icon = b:CreateTexture(nil, "ARTWORK")
     icon:SetSize(ICON, ICON)
     icon:SetPoint("LEFT")
