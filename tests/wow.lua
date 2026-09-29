@@ -139,6 +139,7 @@ function M.load(files)
         end
     end
     function frameMethods:GetParent() return self.parent end
+    function frameMethods:SetParent(p) self.parent = p end
     function frameMethods:GetPoint() if self.point then return unpack(self.point) end end
     function frameMethods:ClearAllPoints() self.point = nil end
     function frameMethods:Show()

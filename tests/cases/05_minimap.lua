@@ -213,3 +213,50 @@ test("every menu option has a slash command listed in /kst help", function()
     assert(printed():find("mem", 1, true))
     assert(printed():find("/kst opens Keystance", 1, true))
 end)
+
+-- MinimapButtonButton, as its code behaves: it moves a collected button into a container
+-- under its own button, clears the button's drag scripts, and lays its grid out again when
+-- the button's own Show or Hide runs (it hooks them).
+local function minimapButtonButton(b)
+    local main = CreateFrame("Frame", "MinimapButtonButtonButton", UIParent)
+    local container = CreateFrame("Frame", nil, main)
+    container:SetParent(main)
+    b:SetParent(container)
+    local mbb = { layouts = 0 }
+    hooksecurefunc(b, "Show", function() mbb.layouts = mbb.layouts + 1 end)
+    hooksecurefunc(b, "Hide", function() mbb.layouts = mbb.layouts + 1 end)
+    return mbb
+end
+
+test("held by MinimapButtonButton, the button can't be dragged, and hides and shows through it", function()
+    local ns = start(nil)
+    local b = KeystanceMinimapButton
+    local mbb = minimapButtonButton(b)
+    eq(ns.MinimapButtonHolder(), "mbb")
+    b.scripts.OnDragStart(b)
+    eq(b.scripts.OnUpdate, nil, "not dragged round the minimap")
+    b.scripts.OnEnter(b)
+    for _, line in ipairs(GameTooltip.lines) do assert(not tostring(line[1]):find("Drag", 1, true), "no drag hint") end
+    slash("minimap")
+    eq(b:IsShown(), false)
+    eq(mbb.layouts, 1, "its grid is laid out again")
+    slash("minimap")
+    eq(b:IsShown(), true)
+    eq(mbb.layouts, 2)
+end)
+
+test("in EllesmereUI's tray, the button can't be dragged either", function()
+    start(nil)
+    local b = KeystanceMinimapButton
+    ellesmereTray(b)
+    b.scripts.OnDragStart(b)
+    eq(b.scripts.OnUpdate, nil)
+end)
+
+test("moved off the minimap by some other collector, it isn't dragged round the minimap", function()
+    start(nil)
+    local b = KeystanceMinimapButton
+    b:SetParent(CreateFrame("Frame", "SomeButtonBag", UIParent))
+    b.scripts.OnDragStart(b)
+    eq(b.scripts.OnUpdate, nil)
+end)

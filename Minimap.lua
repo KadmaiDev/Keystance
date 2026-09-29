@@ -1,7 +1,9 @@
 -- Keystance minimap button (no library) and the minimap's addon compartment entry.
--- Click: open the window. Right-click: options menu. Drag: move around the minimap edge.
--- EllesmereUI's minimap collects named buttons on the minimap into its tray, so the button
--- is made as soon as our saved data loads, before that scan at login.
+-- Click: open the window. Right-click: options menu. Drag: move around the minimap edge,
+-- unless a button collector holds it (EllesmereUI's tray, MinimapButtonButton, or another
+-- that moved it off the minimap), which places it itself. EllesmereUI's minimap collects
+-- named buttons on the minimap into its tray, so the button is made as soon as our saved
+-- data loads, before that scan at login.
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
@@ -13,6 +15,8 @@ local L = ns.L
 local ICON = "Interface\\AddOns\\" .. ADDON .. "\\media\\minimap.tga"
 local DEFAULT_ANGLE = 200
 local mmButton
+-- Which button collector holds the button (defined below, used by the button's scripts).
+local Holder
 
 ---------------------------------------------------------------------------
 -- Options menu (right-click on the button or the compartment entry)
@@ -72,7 +76,7 @@ local function ButtonTooltip(self)
     GameTooltip:AddLine("Keystance")
     GameTooltip:AddLine(L["Click: open Keystance"], 1, 1, 1)
     GameTooltip:AddLine(L["Right-click: options"], 1, 1, 1)
-    GameTooltip:AddLine(L["Drag: move around the minimap"], 1, 1, 1)
+    if not Holder() then GameTooltip:AddLine(L["Drag: move around the minimap"], 1, 1, 1) end
     GameTooltip:Show()
 end
 
@@ -111,7 +115,11 @@ function ns.CreateMinimapButton()
     end)
     b:SetScript("OnEnter", ButtonTooltip)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    b:SetScript("OnDragStart", function(self) self:SetScript("OnUpdate", FollowCursor) end)
+    -- Dragging round the minimap edge only while it's on the minimap itself: a collector
+    -- places it in its own grid (the owner's report, 2026-09-29).
+    b:SetScript("OnDragStart", function(self)
+        if not Holder() then self:SetScript("OnUpdate", FollowCursor) end
+    end)
     b:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
     mmButton = b
     Place(ns.db.settings.minimapAngle or DEFAULT_ANGLE)
@@ -161,10 +169,39 @@ local function RegridTray()
     end
 end
 
+-- Which button collector holds the button: "ellesmere" (its tray), "mbb"
+-- (MinimapButtonButton, which moves collected buttons into a container under its own
+-- button, MinimapButtonButtonButton), "other" (something moved it off the minimap), or nil
+-- (on the minimap itself).
+Holder = function()
+    if not mmButton then return nil end
+    if InTray() then return "ellesmere" end
+    local mbb, parent = _G.MinimapButtonButtonButton, mmButton:GetParent()
+    local p = parent
+    while type(p) == "table" do
+        if mbb and p == mbb then return "mbb" end
+        p = p.GetParent and p:GetParent() or nil
+    end
+    if parent ~= Minimap then return "other" end
+    return nil
+end
+ns.MinimapButtonHolder = Holder
+
 function ns.SetMinimapButton(on)
     ns.db.settings.minimapHidden = not on or nil
     ns.CreateMinimapButton()
     if not mmButton then return end
+    if Holder() == "mbb" then
+        -- MinimapButtonButton lays its grid out again when a button's own Show or Hide runs
+        -- (it hooks them), so those are used here; SetShown would leave a gap in its grid.
+        if on then
+            mmButton:Show()
+            mmButton:SetAlpha(1)
+        else
+            mmButton:Hide()
+        end
+        return
+    end
     if not InTray() then
         -- On the minimap itself (no EllesmereUI tray).
         mmButton:SetShown(on)
