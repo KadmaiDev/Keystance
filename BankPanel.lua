@@ -244,9 +244,34 @@ local function Button(parent, bankFrame, size, round)
     return b
 end
 
--- Where each bank window gets its button (as Alts Forever places its own, which is then
--- to our right). Each returns the button, or nil if the window isn't there yet.
--- EllesmereUI's fields are not its official API: they're checked before use.
+-- The left end of a header's row of buttons: from `start` (the search box), each next
+-- button is the shown one anchored by its RIGHT to the previous one's LEFT (EllesmereUI:
+-- sort, then Show Bags, then anything another addon chained on, such as Alts Forever's).
+-- Following the anchors rather than fixed offsets keeps working when EllesmereUI adds,
+-- hides or moves a button, and whichever of Keystance and Alts Forever comes second goes
+-- to the left of the other (Alts Forever does the same).
+local function RowEnd(start)
+    local parent, current = start:GetParent(), start
+    for _ = 1, 20 do
+        local found
+        for _, child in ipairs({ parent:GetChildren() }) do
+            if child ~= current and child:IsShown() and child.GetPoint then
+                for i = 1, (child.GetNumPoints and child:GetNumPoints() or 1) do
+                    local point, rel, relPoint = child:GetPoint(i)
+                    if point == "RIGHT" and rel == current and relPoint == "LEFT" then found = child end
+                end
+            end
+        end
+        if not found then return current end
+        current = found
+    end
+    return current
+end
+
+-- Where each bank window gets its button (Blizzard's and ElvUI's beside where Alts Forever
+-- places its own, which is then to our right). Each returns the button, or nil if the
+-- window isn't there yet. EllesmereUI's fields are not its official API: they're checked
+-- before use.
 local PLACES = {
     -- Blizzard's bank: in the title area, left of the search box.
     BankFrame = function(af)
@@ -264,13 +289,15 @@ local PLACES = {
         b:SetPoint("TOPLEFT", f, "TOPLEFT", af and 32 or 6, -6)
         return b
     end,
-    -- EllesmereUI: left of its sort button, which sits 13 px left of the search box.
-    EUI_BankFrame = function(af)
+    -- EllesmereUI: at the left end of its header row (left of sort, Show Bags and any
+    -- other addon's button there).
+    EUI_BankFrame = function()
         local f = _G.EUI_BankFrame
         local search = f and f._searchBox
         if not (search and search.GetParent) then return end
+        local anchor = RowEnd(search)
         local b = Button(search:GetParent(), f, 24, true)
-        b:SetPoint("RIGHT", search, "LEFT", af and -73 or -43, 0)
+        b:SetPoint("RIGHT", anchor, "LEFT", -6, 0)
         return b
     end,
 }

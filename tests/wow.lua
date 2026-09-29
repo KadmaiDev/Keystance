@@ -156,6 +156,14 @@ function M.load(files)
     function frameMethods:GetParent() return self.parent end
     function frameMethods:SetParent(p) self.parent = p end
     function frameMethods:GetPoint() if self.point then return unpack(self.point) end end
+    function frameMethods:GetNumPoints() return self.point and 1 or 0 end
+    function frameMethods:GetChildren()
+        local list = {}
+        for _, f in ipairs(M.frames) do
+            if f.parent == self then list[#list + 1] = f end
+        end
+        return unpack(list)
+    end
     function frameMethods:ClearAllPoints() self.point = nil end
     function frameMethods:Show()
         local was = self.shown

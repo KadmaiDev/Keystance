@@ -147,11 +147,43 @@ test("the panel explains when no profile uses Keystance's own gear", function()
     assert(panel.empty.text:find("Gear button", 1, true), panel.empty.text)
 end)
 
-test("EllesmereUI's and ElvUI's bank windows get the button too", function()
-    local c, ns = bankLogin()
+-- EllesmereUI's bank header row as its code builds it: the search box, sort anchored to its
+-- left, Show Bags to sort's left (Show Bags isn't stored anywhere another addon can reach).
+local function euiBank()
     local eui = CreateFrame("Frame", "EUI_BankFrame", UIParent)
     local header = CreateFrame("Frame", nil, eui)
     eui._searchBox = CreateFrame("EditBox", nil, header)
+    local sort = CreateFrame("Button", nil, header)
+    sort:SetPoint("RIGHT", eui._searchBox, "LEFT", -13, 0)
+    local showBags = CreateFrame("Button", nil, header)
+    showBags:SetPoint("RIGHT", sort, "LEFT", -6, 0)
+    return eui, header, sort, showBags
+end
+
+test("on EllesmereUI's bank, the button goes at the left end of the header row", function()
+    local c, ns = bankLogin()
+    local eui, header, sort, showBags = euiBank()
+    wow.openBank()
+    wow.runTimers()
+    local b = ns.BankButtons().EUI_BankFrame
+    eq(b.point[1], "RIGHT")
+    eq(b.point[2], showBags, "left of Show Bags, not on top of it")
+end)
+
+test("on EllesmereUI's bank, a hidden button is skipped and Alts Forever's is followed", function()
+    local c, ns = bankLogin()
+    local eui, header, sort, showBags = euiBank()
+    showBags:Hide() -- sort switched off in EllesmereUI, say
+    local altsForever = CreateFrame("Button", nil, header)
+    altsForever:SetPoint("RIGHT", sort, "LEFT", -6, 0)
+    wow.openBank()
+    wow.runTimers()
+    eq(ns.BankButtons().EUI_BankFrame.point[2], altsForever, "left of Alts Forever's, which came first")
+end)
+
+test("EllesmereUI's and ElvUI's bank windows get the button too", function()
+    local c, ns = bankLogin()
+    local eui, header = euiBank()
     CreateFrame("Frame", "ElvUI_BankContainerFrame", UIParent)
     wow.openBank()
     wow.runTimers()
