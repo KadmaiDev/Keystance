@@ -190,8 +190,17 @@ function M.load(files)
     function frameMethods:SetAlpha(a) self.alpha = a end
     function frameMethods:SetFrameLevel(n) self.level = n end
     function frameMethods:GetFrameLevel() return self.level or 1 end
-    function frameMethods:SetVertexColor(r, g, b, a) self.vertex = { r, g, b, a } end
-    function frameMethods:SetTextColor(r, g, b) self.color = { r, g, b } end
+    -- Colours reuse their table, so they don't count as the addon's garbage in perf.lua.
+    function frameMethods:SetVertexColor(r, g, b, a)
+        local t = self.vertex or {}
+        t[1], t[2], t[3], t[4] = r, g, b, a
+        self.vertex = t
+    end
+    function frameMethods:SetTextColor(r, g, b)
+        local t = self.color or {}
+        t[1], t[2], t[3] = r, g, b
+        self.color = t
+    end
     function frameMethods:SetTexCoord(...) self.texCoord = { ... } end
     function frameMethods:IsProtected() return false end
     function frameMethods:EnableKeyboard(on) self.keyboard = on end
