@@ -29,6 +29,7 @@ Keyboard.lua
 Bars.lua
 ProfilesTab.lua
 GearTab.lua
+BankPanel.lua
 IconPicker.lua
 Guide.lua
 Switcher.lua

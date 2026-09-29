@@ -75,6 +75,7 @@ function M.load(files)
     M.bagFamily = {}   -- [bag] = family (0, or e.g. 1 for a quiver)
     M.locked = {}      -- places the game is still moving: [slot] or ["bag:slot"] = true
     M.lockMoves = false -- true: every move locks its places until wow.unlock()
+    M.refusePlace = nil -- true: putting an item down fails, as the game refuses a place
     M.dead = false
     M.equipLoc = { [2129] = "INVTYPE_SHIELD", [1680] = "INVTYPE_2HWEAPON", [2132] = "INVTYPE_WEAPON",
         [1000] = "INVTYPE_FINGER", [1001] = "INVTYPE_FINGER", [1100] = "INVTYPE_HEAD", [1101] = "INVTYPE_HEAD",
@@ -417,7 +418,8 @@ function M.load(files)
             end
             return
         end
-        -- Putting down what's held.
+        -- Putting down what's held (M.refusePlace: the game won't put it there).
+        if M.refusePlace then return end
         local from = M.held
         local item, there = get(from), get(place)
         if lockKey(from) == lockKey(place) then M.held, M.cursor = nil, nil; return end

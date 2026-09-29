@@ -553,6 +553,178 @@ function ns.EquipGear(items, done, homes, record)
     return true
 end
 
+---------------------------------------------------------------------------
+-- Moving a profile's gear between the bags and the bank (the bank panel, while the bank
+-- is open). Get: the profile's items in the bank go to the bags. Put: its items in the bags
+-- go to the bank, except what another of the character's profiles uses (kept in the bags,
+-- so switching still works anywhere) and what's worn. Moves like the gear swaps: one pass,
+-- then wait until the game has finished moving, then plan again from what's there.
+---------------------------------------------------------------------------
+local BAG_FIRST = 1000 -- places from here up to BANK_LOC are in the carried bags
+
+-- The first unclaimed place in a range holding the item: this copy first, then any copy.
+local function FindIn(where, want, claimed, first, last)
+    local key, id = Key(want), ns.ItemStringID(want)
+    local byID
+    for loc, have in pairs(where) do
+        if loc >= first and loc <= last and not claimed[loc] then
+            if Key(have) == key then return loc end
+            if not byID and ns.ItemStringID(have) == id then byID = loc end
+        end
+    end
+    return byID
+end
+
+-- True if another of the character's profiles saves this item (by item ID, so copies count).
+local function UsedElsewhere(name, item)
+    local id = ns.ItemStringID(item)
+    for other, p in pairs(ns.char and ns.char.profiles or NONE) do
+        if other ~= name and type(p.gear) == "table" then
+            for _, s in pairs(p.gear) do
+                if ns.ItemStringID(s) == id then return true end
+            end
+        end
+    end
+    return false
+end
+
+-- Where a profile's own gear is: { worn = n, bags = n, bank = n (while it's open, else what
+-- was seen there last visit), missing = n, shared = n (in the bags, used by another profile),
+-- toBags = { bank places }, toBank = { bag places } }. `name` is the profile's key.
+function ns.ProfileGearPlaces(name)
+    local p = ns.char and ns.char.profiles[name]
+    local out = { worn = 0, bags = 0, bank = 0, missing = 0, shared = 0, toBags = {}, toBank = {} }
+    if not (p and type(p.gear) == "table") then return out end
+    local where = Scan()
+    local claimed = {}
+    for _, slot in ipairs(ns.GEAR_ORDER) do
+        local item = p.gear[slot]
+        if item then
+            local loc = FindIn(where, item, claimed, 1, 19)
+            if loc then
+                out.worn = out.worn + 1
+            else
+                loc = FindIn(where, item, claimed, BAG_FIRST, BANK_LOC - 1)
+                if loc then
+                    out.bags = out.bags + 1
+                    if UsedElsewhere(name, item) then
+                        out.shared = out.shared + 1
+                    else
+                        out.toBank[#out.toBank + 1] = loc
+                    end
+                elseif bankOpen then
+                    loc = FindIn(where, item, claimed, BANK_LOC, math.huge)
+                    if loc then
+                        out.bank = out.bank + 1
+                        out.toBags[#out.toBags + 1] = loc
+                    else
+                        out.missing = out.missing + 1
+                    end
+                elseif SeenInBank(item) then
+                    out.bank = out.bank + 1
+                else
+                    out.missing = out.missing + 1
+                end
+            end
+            if loc then claimed[loc] = true end
+        end
+    end
+    return out
+end
+
+-- An empty bank slot not in `avoid`.
+local function FreeBankSlot(where, avoid)
+    for i = CARRIED + 1, #BAGS do
+        for slot = 1, C_Container.GetContainerNumSlots(BAGS[i]) or 0 do
+            local loc = BagLoc(i, slot)
+            if not where[loc] and not avoid[loc] then return loc end
+        end
+    end
+end
+
+-- The move under way: { name, dir = "get" | "put", done, moved, full, failed = { [loc] = true },
+-- passes, waits, touched, gen }.
+local mover
+local moverGen = 0
+
+function ns.BankMoveBusy() return mover ~= nil end
+
+local function MoverFinish(why)
+    local m = mover
+    mover = nil
+    local refused = 0
+    for _ in pairs(m.failed) do refused = refused + 1 end
+    if m.done then m.done({ moved = m.moved, full = m.full, refused = refused, why = why }) end
+end
+
+local MoverPass
+local function MoverNext()
+    local mine = moverGen
+    C_Timer.After(TICK, function() if mover and mover.gen == mine then MoverPass() end end)
+end
+
+MoverPass = function()
+    local m = mover
+    if not bankOpen then return MoverFinish(L["the bank closed"]) end
+    if CursorHasItem() or GetCursorInfo() then return MoverFinish(L["something is on your cursor"]) end
+    m.passes = m.passes + 1
+    if m.passes > MAX_PASSES then return MoverFinish(L["the game didn't finish moving items"]) end
+    -- Waits while the game is still moving what the last pass touched (other locked items,
+    -- in a trade or mail window, don't matter).
+    local where, locked = Scan()
+    local waiting = false
+    for loc in pairs(m.touched) do
+        if locked[loc] then waiting = true end
+    end
+    if waiting then
+        m.waits = m.waits + 1
+        if m.waits > MAX_WAITS then return MoverFinish(L["the game didn't finish moving items"]) end
+        return MoverNext()
+    end
+    local places = ns.ProfileGearPlaces(m.name)
+    local list = m.dir == "get" and places.toBags or places.toBank
+    local claimed, any = {}, false
+    m.full, m.touched = 0, claimed
+    for _, from in ipairs(list) do
+        if not m.failed[from] then
+            local to
+            if m.dir == "get" then to = FreeBagSlot(where, claimed) else to = FreeBankSlot(where, claimed) end
+            if not to then
+                m.full = m.full + 1
+            else
+                claimed[to], claimed[from] = true, true
+                Pickup(from)
+                Pickup(to)
+                if CursorHasItem() then
+                    ClearCursor() -- back where it was
+                    m.failed[from] = true
+                else
+                    m.moved = m.moved + 1
+                    any = true
+                end
+            end
+        end
+    end
+    if not any then return MoverFinish() end
+    m.waits = 0
+    MoverNext()
+end
+
+-- Moves profile `name`'s gear: dir "get" (bank to bags) or "put" (bags to bank), then calls
+-- done({ moved = n, full = n (no room for them), refused = n (the game wouldn't move them;
+-- not tried again), why = reason it stopped early }). Returns false and why if it can't
+-- start.
+function ns.MoveProfileGear(name, dir, done)
+    if not bankOpen then return false, L["the bank isn't open"] end
+    if mover or ns.GearBusy() then return false, L["gear is still being moved"] end
+    if CursorHasItem() or GetCursorInfo() then return false, L["something is on your cursor"] end
+    moverGen = moverGen + 1
+    mover = { name = name, dir = dir, done = done, moved = 0, full = 0, failed = {}, passes = 0, waits = 0,
+        touched = {}, gen = moverGen }
+    MoverPass()
+    return true
+end
+
 -- "Gear: 3 items put on." plus what couldn't be, for chat.
 -- A short, soft sound when some gear didn't go on (the quest log's "abandon quest"; Forever
 -- has no IG_PLAYER_INVITE_DECLINE, measured 2026-09-29), once per swap however many items;
