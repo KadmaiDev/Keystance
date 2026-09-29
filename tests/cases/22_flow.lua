@@ -188,3 +188,43 @@ test("the guide is a small framed window like the main one, its text clear of th
     eq(bar.all.point[4], -16, "in from the right edge")
     eq(bar.all.point[5], 12, "up from the bottom")
 end)
+
+-- A character with every step done: two profiles, own keybinds, a key, gear skipped.
+local function allDone()
+    local c, ns = profileLogin()
+    ns.SaveProfile("Ret")
+    wow.slots[1] = { kind = "spell", id = 647 }
+    ns.SaveProfile("Prot")
+    ns.SetProfileKey("Prot", "F2")
+    c.guide = { skipped = { gear = true } }
+    return c, ns
+end
+
+test("'You're all set' shows once: closing the window after seeing it ends the guide", function()
+    local c = allDone()
+    slash("")
+    eq(KeystanceGuideBar.title.text, "You're all set")
+    slash("") -- the window closed without Got it
+    eq(c.guide.finished, true)
+    slash("")
+    eq(KeystanceGuideBar:IsShown(), false, "not back")
+end)
+
+test("closing 'You're all set' with its X ends the guide, not just hides it", function()
+    local c = allDone()
+    slash("")
+    click(KeystanceGuideBar.close)
+    eq(c.guide.finished, true)
+    assert(not printed():find("Guide hidden", 1, true), "no 'hidden' message for a finished guide")
+    eq(KeystanceGuideBar:IsShown(), false)
+end)
+
+test("closing the window mid-guide keeps the guide for next time", function()
+    local c, ns = profileLogin()
+    slash("")
+    assert(KeystanceGuideBar:IsShown())
+    slash("")
+    eq(c.guide.finished, nil)
+    slash("")
+    eq(KeystanceGuideBar:IsShown(), true)
+end)

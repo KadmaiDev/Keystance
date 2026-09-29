@@ -119,6 +119,15 @@ function ns.ShowGuideBar()
     ns.ProfilesChanged()
 end
 
+-- The guide is done with: it doesn't come back (/kst guide still shows it). `quiet` when the
+-- window is closing anyway.
+function ns.FinishGuide(quiet)
+    local c = Char()
+    if not c then return end
+    State(c).finished = true
+    if not quiet then ns.ProfilesChanged() end
+end
+
 function ns.SkipGuideStep(key)
     local g = State(Char())
     g.skipped = g.skipped or {}
@@ -181,7 +190,16 @@ local function BuildBar(window)
     f.text:SetJustifyV("TOP")
     f.text:SetJustifyH("LEFT")
     f.close = f.CloseButton -- where EllesmereUI and ElvUI look for a window's X to restyle it
-    f.close:SetScript("OnClick", function() ns.HideGuide() end)
+    f.close:SetScript("OnClick", function()
+        -- Closing "You're all set" is being done with it, not hiding a guide still under way.
+        if f.allSet then return ns.FinishGuide() end
+        ns.HideGuide()
+    end)
+    -- Once "You're all set" has been seen, closing the window ends the guide too: it's shown
+    -- once, not every time (the owner's report, 2026-09-29).
+    window:HookScript("OnHide", function()
+        if f.allSet and f:IsShown() then ns.FinishGuide(true) end
+    end)
     f.all = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     f.all:SetSize(80, 22)
     f.all:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -16, 12)
@@ -209,6 +227,7 @@ function ns.RefreshGuide(window)
     if not bar then BuildBar(window) end
     local step, i = ns.GuideNext(c)
     for _, b in ipairs(bar.actions) do b:Hide() end
+    bar.allSet = step == nil
     if step then
         bar.step:SetText(L["Step %d of %d"]:format(i, #ns.GUIDE_STEPS))
         bar.title:SetText(step.title)
@@ -231,10 +250,7 @@ function ns.RefreshGuide(window)
         bar.text:SetText(L["Switch with your keys, rules or the buttons along the bottom. Undo and Restore are on the Profiles tab; /kst guide shows this again."])
         local b = bar.actions[1]
         b:SetText(L["Got it"])
-        b.fn = function()
-            State(c).finished = true
-            ns.ProfilesChanged()
-        end
+        b.fn = function() ns.FinishGuide() end
         b:Show()
     end
     -- The text stops before the leftmost button, however wide the window is (the Keyboard
