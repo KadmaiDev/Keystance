@@ -66,6 +66,21 @@ local TESTS = {
     end,
 }
 
+-- False for a rule that can't match: one watching an ItemRack set while ItemRack isn't
+-- loaded (disabled) or has no set of that name. Such rules are skipped, and shown in red.
+-- Allocates nothing: it runs on gear events.
+local function Usable(rule)
+    if rule.when ~= "set" or rule.from ~= "itemrack" then return true end
+    return ns.ItemRackReady() and type(ItemRackUser.Sets[rule.set]) == "table"
+end
+
+-- Why a rule is ignored ("ItemRack isn't loaded"), or nil if it isn't.
+function ns.RuleProblem(rule)
+    if Usable(rule) then return nil end
+    if not ns.ItemRackReady() then return L["ItemRack isn't loaded"] end
+    return L["ItemRack has no set called %s"]:format(tostring(rule.set))
+end
+
 -- The equipment sets' names, for the Rules tab.
 function ns.EquipmentSetNames()
     local names = {}
@@ -141,7 +156,7 @@ function ns.MatchingRule()
     if not c then return nil end
     for _, rule in ipairs(c.rules) do
         local test = TESTS[rule.when]
-        if test and ns.FindProfile(rule.profile) and test(rule) then return rule end
+        if test and Usable(rule) and ns.FindProfile(rule.profile) and test(rule) then return rule end
     end
 end
 

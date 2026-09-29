@@ -186,10 +186,12 @@ function M.load(files)
     function frameMethods:SetID(id) self.id = id end
     function frameMethods:SetSize(w, h) self.width, self.height = w, h end
     function frameMethods:SetWidth(w) self.width = w end
+    function frameMethods:GetWidth() return self.width or 0 end
     function frameMethods:SetAlpha(a) self.alpha = a end
     function frameMethods:SetFrameLevel(n) self.level = n end
     function frameMethods:GetFrameLevel() return self.level or 1 end
     function frameMethods:SetVertexColor(r, g, b, a) self.vertex = { r, g, b, a } end
+    function frameMethods:SetTextColor(r, g, b) self.color = { r, g, b } end
     function frameMethods:SetTexCoord(...) self.texCoord = { ... } end
     function frameMethods:IsProtected() return false end
     function frameMethods:EnableKeyboard(on) self.keyboard = on end

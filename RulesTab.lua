@@ -66,6 +66,19 @@ local function MakeRow(page, f, i)
     text:SetJustifyH("LEFT")
     text:SetWordWrap(false)
     row.text = text
+    -- The whole sentence (and why it's ignored), in case it doesn't fit.
+    row:EnableMouse(true)
+    row:SetScript("OnEnter", function(self)
+        local rule = ns.char and ns.char.rules[self.index]
+        if not rule then return end
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine(ns.RuleText(rule), 1, 1, 1, true)
+        if self.problem then
+            GameTooltip:AddLine(L["Ignored: %s. It works again when it can."]:format(self.problem), 1, 0.3, 0.3, true)
+        end
+        GameTooltip:Show()
+    end)
+    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
     row.delete = Button(f, row, L["Delete"], 60, function() ns.DeleteRule(row.index) end)
     row.delete:SetPoint("RIGHT", -4, 0)
     row.down = Button(f, row, L["Down"], 56, function() ns.MoveRule(row.index, 1) end)
@@ -83,6 +96,12 @@ local function Refresh(page)
     page.auto:Refresh()
     page.ask:Refresh()
     -- The new rule's controls.
+    -- "a set" only when there are sets to watch (the game's, or ItemRack's while it's loaded).
+    local sets = SetChoices()
+    local setButton = page.when.buttons[4]
+    setButton:SetShown(#sets > 0)
+    page.when:SetWidth(#sets > 0 and page.whenWidth or (page.whenWidth - setButton:GetWidth() - 4))
+    if #sets == 0 and page.new.when == "set" then page.new.when = "shield" end
     page.when:Refresh()
     local when = page.new.when
     page.item:SetShown(when == "item")
@@ -94,7 +113,6 @@ local function Refresh(page)
         page.item.icon:SetTexture(nil)
         page.item:SetText(L["Drop an item here"])
     end
-    local sets = SetChoices()
     if page.new.set and not Has(sets, page.new.set) then page.new.set = nil end
     page.new.set = page.new.set or sets[1]
     page.set:SetText(page.new.set and L["Set: %s"]:format(SetLabel(page.new.set)) or L["No equipment sets"])
@@ -116,7 +134,16 @@ local function Refresh(page)
                 page.rows[r] = row
             end
             row.index = i
-            row.text:SetText(i .. ".  " .. ns.RuleText(rule))
+            -- A rule that can't match (ItemRack disabled, say) is red, says why, and is skipped.
+            local problem = ns.RuleProblem(rule)
+            row.problem = problem
+            if problem then
+                row.text:SetText(i .. ".  " .. ns.RuleText(rule) .. "  " .. L["(ignored: %s)"]:format(problem))
+                row.text:SetTextColor(1, 0.3, 0.3)
+            else
+                row.text:SetText(i .. ".  " .. ns.RuleText(rule))
+                row.text:SetTextColor(1, 1, 1)
+            end
             row.up:SetEnabled(i > 1)
             row.down:SetEnabled(c.rules[i + 1] ~= nil)
             row:Show()
@@ -163,6 +190,7 @@ local function Build(page, f)
         ns.RefreshWindow()
     end, 96)
     page.when:SetPoint("LEFT", newLabel, "RIGHT", 10, 0)
+    page.whenWidth = page.when:GetWidth()
     local equipped = Text(f, page, "GameFontNormal", L["is equipped,"])
     equipped:SetPoint("LEFT", page.when, "RIGHT", 10, 0)
 

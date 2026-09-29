@@ -258,3 +258,40 @@ test("more than six rules: the Rules tab scrolls, so every rule can be moved and
     eq(#c.rules, 7)
     eq(page.offset, 1, "no scrolling past the end")
 end)
+
+local function red(fs) return fs.color and fs.color[1] == 1 and fs.color[2] < 0.5 end
+
+test("without ItemRack, its rules show red and are skipped, and 'a set' is hidden when there are no sets", function()
+    local c, ns = rulesLogin()
+    -- Made while ItemRack was on; now it's disabled (not loaded).
+    ns.AddRule({ when = "set", set = "Tank", from = "itemrack", profile = "Prot" })
+    ns.AddRule({ when = "shield", profile = "Prot" })
+    local page = rulesPage()
+    eq(red(page.rows[1].text), true, "the ItemRack rule is red")
+    assert(page.rows[1].text.text:find("ItemRack isn't loaded", 1, true), page.rows[1].text.text)
+    eq(red(page.rows[2].text), false, "the shield rule isn't")
+    eq(ns.RuleProblem(c.rules[1]), "ItemRack isn't loaded")
+    eq(ns.RuleProblem(c.rules[2]), nil)
+    eq(ns.MatchingRule(), nil, "no shield yet: nothing matches")
+    equip(17, 2129)
+    wow.runTimers()
+    eq(ns.MatchingRule(), c.rules[2], "the shield rule, past the ignored one")
+    eq(c.active, "Prot")
+    eq(choice(page.when, "a set"):IsShown(), false, "no ItemRack and no equipment sets: nothing to choose")
+    wow.sets = { { name = "Healing", equipped = false } }
+    wow.fire("EQUIPMENT_SETS_CHANGED")
+    wow.runTimers()
+    eq(choice(page.when, "a set"):IsShown(), true, "the game's own sets still can be")
+end)
+
+test("a rule for an ItemRack set that no longer exists is red and skipped too", function()
+    local c, ns = gearLogin({ Tank = { [1] = 1100 } })
+    ns.SaveProfile("Prot")
+    ns.AddRule({ when = "set", set = "Gone", from = "itemrack", profile = "Prot" })
+    eq(ns.RuleProblem(c.rules[1]), "ItemRack has no set called Gone")
+    ItemRackUser.CurrentSet = "Gone"
+    eq(ns.MatchingRule(), nil)
+    local page = rulesPage()
+    eq(red(page.rows[1].text), true)
+    eq(choice(page.when, "a set"):IsShown(), true, "ItemRack is loaded: its sets can be chosen")
+end)
