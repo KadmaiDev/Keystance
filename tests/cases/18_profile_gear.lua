@@ -69,11 +69,12 @@ test("a profile's own gear goes on with its bars, and Undo puts the old gear bac
     assert(printed():find("Gear: 2 items put on.", 1, true), printed())
     eq(c.lastChange.gear[16], gearString(2132), "the gear it replaced, for Undo")
     eq(c.lastChange.gear[1], gearString(1101))
-    eq(c.lastChange.gear[17], nil, "only the profile's slots are recorded")
+    eq(c.lastChange.gear[17], gearString(2129), "the shield the two-hander displaced, recorded too")
 
     ns.Undo()
     settleGear()
     eq(wow.inventory[16], 2132)
+    eq(wow.idOf(wow.inventory[17]), 2129, "and the shield back on")
     eq(wow.idOf(wow.inventory[1]), 1101)
     eq(slotId(1), 1866)
     -- A second Undo puts the profile's gear on again.
@@ -275,4 +276,51 @@ test("ItemRack finishing a set checks the rules again, after its slower swaps", 
     ItemRack.EndSetSwap("Tank")
     wow.runTimers()
     eq(c.active, "Prot")
+end)
+
+test("a set ItemRack never finishes counts as Keystance's only until its deadline", function()
+    local c, ns = gearLogin({ Tank = { [1] = 1100 } })
+    wow.clock = 100
+    ItemRack.EquipSet = function() end -- deferred, and never done
+    eq(ns.ItemRackEquip("Tank"), true)
+    eq(ns.GearBusy(), true)
+    wow.clock = 111
+    eq(ns.GearBusy(), false, "the player's own ItemRack swaps count again")
+    wow.clock = nil
+end)
+
+test("gear stays as it is when the game hasn't loaded item links yet, so Undo can't lose it", function()
+    local c, ns = gearLogin()
+    ns.SaveProfile("Ret")
+    ns.SetProfileGear("Ret", { [1] = gearString(1100) })
+    wow.slots[1] = { kind = "spell", id = 647 }
+    wow.linksNotReady = true
+    ns.ApplyProfile("Ret")
+    settleGear()
+    wow.linksNotReady = nil
+    eq(wow.idOf(wow.inventory[1]), 1101, "gear unchanged")
+    assert(printed():find("Gear not changed", 1, true), printed())
+    eq(slotId(1), 1866, "the bars still change")
+end)
+
+test("a rule's switch leaves gear alone even through the shared-keybinds question", function()
+    local c, ns = gearLogin()
+    wow.bindingSet = 1
+    ns.SaveProfile("Ret")
+    wow.slots[1] = { kind = "spell", id = 647 }
+    wow.bindings.F7 = "ACTIONBUTTON2"
+    ns.SaveProfile("Prot")
+    ns.SetProfileGear("Prot", { [1] = gearString(1100) })
+    wow.bindings.F7 = nil
+    wow.slots[1] = { kind = "spell", id = 1866 }
+    c.active = "Ret"
+    ns.AddRule({ when = "twohand", profile = "Prot" })
+    wow.inventory[16] = 1680
+    wow.fire("PLAYER_EQUIPMENT_CHANGED", 16, false)
+    wow.runTimers()
+    eq(wow.popup.which, "KEYSTANCE_SHARED_KEYS")
+    StaticPopupDialogs.KEYSTANCE_SHARED_KEYS.OnAccept(nil, wow.popup.data)
+    settleGear()
+    eq(c.active, "Prot")
+    eq(wow.idOf(wow.inventory[1]), 1101, "the helm stays as the player has it")
 end)

@@ -236,7 +236,7 @@ function ns.ApplyProfile(name, keys, asked, noGear)
     if not key then return Print(L["No profile called %s. /kst profiles lists them."]:format(tostring(name))) end
     if keys ~= false and not asked and ns.SharedKeybinds() then
         local _, keyChanges = ns.CountChanges(c.profiles[key], "bars")
-        if keyChanges > 0 then return ns.AskSharedKeybinds(key) end
+        if keyChanges > 0 then return ns.AskSharedKeybinds(key, noGear) end
     end
     local now = ns.OutOfCombat("apply", function()
         ns.pendingProfile = nil
@@ -277,9 +277,7 @@ function ns.Undo()
         -- The gear from before goes back on (kept for a second Undo in turn).
         local gearBefore, gearChanged
         if last.gear and ns.GearChanges(last.gear) > 0 and not GetCursorInfo() then
-            local slots = {}
-            for slot in pairs(last.gear) do slots[slot] = true end
-            gearBefore = ns.CaptureGear(slots)
+            gearBefore = ns.CaptureGear(ns.GearSlotsOf(last.gear))
             local ok, why = ns.EquipGear(last.gear, ns.GearReport)
             gearChanged = ok
             if not ok then Print(L["Gear not changed: %s."]:format(why)) end
@@ -542,8 +540,9 @@ local function Typed(dialog)
     return box and box:GetText() or ""
 end
 
--- Asks what to do when a profile would change keybinds shared by every character.
-function ns.AskSharedKeybinds(name)
+-- Asks what to do when a profile would change keybinds shared by every character. `noGear`
+-- (a rule's switch) is carried through the answer.
+function ns.AskSharedKeybinds(name, noGear)
     Dialog("KEYSTANCE_SHARED_KEYS", {
         text = L["Your keybinds are shared by all your characters, so %s would change them for everyone.\n\nKeystance recommends giving this character its own keybinds first: nothing changes on screen, and your other characters keep theirs."],
         button1 = L["Own keybinds, then apply"],
@@ -551,11 +550,11 @@ function ns.AskSharedKeybinds(name)
         button3 = L["Bars only"],
         OnAccept = function(_, data)
             ns.UseOwnKeybinds()
-            ns.ApplyProfile(data, nil, true)
+            ns.ApplyProfile(data.name, nil, true, data.noGear)
         end,
-        OnAlt = function(_, data) ns.ApplyProfile(data, false) end,
+        OnAlt = function(_, data) ns.ApplyProfile(data.name, false, nil, data.noGear) end,
     })
-    StaticPopup_Show("KEYSTANCE_SHARED_KEYS", name, nil, name)
+    StaticPopup_Show("KEYSTANCE_SHARED_KEYS", name, nil, { name = name, noGear = noGear })
 end
 
 -- Asks before putting the original setup back.

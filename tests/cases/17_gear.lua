@@ -181,3 +181,42 @@ test("Keystance's own gear changes keep rules quiet for a moment", function()
     eq(ns.GearQuiet(), false)
     wow.clock = nil
 end)
+
+test("an item changed since it was saved (enchanted, say) still counts as the one worn", function()
+    local _, ns = loginWithSetup(nil)
+    wow.inventory[16] = item(2132, 15) -- enchanted since
+    eq(ns.GearChanges({ [16] = item(2132) }), 0)
+    local result = equip(ns, { [16] = item(2132) })
+    eq(result.moved, 0)
+    eq(#result.missing, 0, "not reported missing")
+end)
+
+test("two such copies in both hands don't swap with each other forever", function()
+    local _, ns = loginWithSetup(nil)
+    wow.inventory[16], wow.inventory[17] = item(2132, 15), item(2132, 16)
+    local result = equip(ns, { [16] = item(2132), [17] = item(2132) })
+    eq(result.moved, 0)
+    eq(#wow.timers, 0, "finished")
+end)
+
+test("a profile saved with a two-hander and an off hand puts the two-hander on and settles", function()
+    local _, ns = loginWithSetup(nil)
+    wow.inventory[16], wow.inventory[17] = 2132, 2129
+    wow.bags[0] = { size = 3, [2] = 1680 }
+    local result = equip(ns, { [16] = item(1680), [17] = item(2129) })
+    eq(wow.inventory[16], 1680)
+    eq(wow.inventory[17], nil, "no off hand with a two-hander")
+    eq(#wow.timers, 0, "finished, not swapping back and forth")
+    eq(ns.GearChanges({ [16] = item(1680), [17] = item(2129) }), 0, "and counts as on")
+end)
+
+test("an item locked elsewhere (in a trade window) doesn't hold the swap up", function()
+    local _, ns = loginWithSetup(nil)
+    wow.inventory[1] = 1101
+    wow.bags[0] = { size = 6, 1100, [5] = 6948 }
+    wow.locked["0:5"] = true
+    local result = equip(ns, { [1] = item(1100) })
+    eq(result.why, nil)
+    eq(wow.idOf(wow.inventory[1]), 1100)
+    wow.locked = {}
+end)
