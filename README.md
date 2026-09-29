@@ -6,22 +6,61 @@ A keybind and action bar manager for **World of Warcraft: Forever**, by **Kadmai
 
 Keep a set of bars, keybinds and gear for each role, and switch between them with one click, a key, or automatically when you equip a shield or a two-hander. A paladin can have Retribution, Protection and Holy setups, each with its own bars, keys and weapons.
 
-## What it does
+## Profiles for each role
 
-- **Profiles:** save your action bars and the keys of their buttons as a profile, and apply it later. Each character has its own profiles. Every change can be undone, and a profile can be updated with how your bars are now.
-- **Switching:** click a profile, press its own key (set it from the profile's row), step through them with a "next profile" key, or use the profile switcher: a small bar you can place anywhere on screen. A switch you ask for in combat waits until combat ends.
-- **Rules:** switch profile automatically when you equip a shield, a two-handed weapon, a particular item, or a gear set (the game's own equipment sets or ItemRack's). You can ask to be asked first.
-- **Gear:** a profile can put on gear before its bars: one of your ItemRack sets, or Keystance's own set.
-  - Pick each slot's item from a list of what you have that fits: worn, in your bags, and in your bank while it's open.
-  - Items left in the bank are marked "In your bank" (Keystance remembers what was there on your last visit), and a soft sound plays if something can't go on.
-  - Undo puts gear back where it came from, including back into the bank while it's open.
-- **Bank panel:** a Keystance button on the bank window (Blizzard's, EllesmereUI's or ElvUI's) opens a panel to fetch a profile's gear from the bank, or store it there. Items another profile uses stay in your bags, so switching keeps working anywhere.
-- **Keyboard view:** see which key does what on an on-screen keyboard (US or UK layout, with or without the numpad), with the Shift, Ctrl and Alt layers, or on a controller.
-- **Bars view:** your action bars with their keys. Show or hide bars (Blizzard's, or EllesmereUI's in one click), and a keybind mode where you hover a button and press a key.
+Save your action bars and the keys of their buttons as a profile, and apply it later. Each character has its own profiles, each with its own icon. Every change can be undone, and a profile can be updated with how your bars are now. A strip along the bottom shows which profile is in use and whether your bars still match it.
+
+![The Profiles tab: Prot and Ret, each with its key, gear and buttons to apply, update, rename, copy or delete](media/profiles.png)
+
+## Switching, by hand or by rule
+
+- Click a profile, press its own key (set it from the profile's row), step through them with a "next profile" key, or use the profile switcher: a small bar you can place anywhere on screen. A switch you ask for in combat waits until combat ends.
+- **Rules** switch profile automatically when you equip a shield, a two-handed weapon, a particular item, or a gear set (the game's own equipment sets or ItemRack's). You can ask to be asked first. A rule that can't work (ItemRack turned off, say) shows in red and is skipped.
+
+![The Rules tab: rules for sets, a shield and a two-hander, two ItemRack rules shown in red while ItemRack is off](media/rules.png)
+
+## Gear, and the bank
+
+A profile can put on gear before its bars: one of your ItemRack sets, or Keystance's own set.
+
+- Click a slot to pick from what you have that fits: worn, in your bags, and in your bank while it's open.
+- Items left in the bank are marked "In your bank" (Keystance remembers what was there on your last visit), and a soft sound plays if something can't go on.
+- Undo puts gear back where it came from, including back into the bank while it's open.
+
+![The gear editor for Prot, with the Feet slot's choices flown out](media/gear-panel.png)
+
+A Keystance button on the bank window (Blizzard's, EllesmereUI's or ElvUI's) opens a panel to fetch a profile's gear from the bank, or store it there. Items another profile uses stay in your bags, so switching keeps working anywhere.
+
+![EllesmereUI's bank with the Keystance panel beside it: Get and Put for Prot and Ret](media/bank.png)
+
+## See and set your keys
+
+- **Keyboard:** see which key does what on an on-screen keyboard (US or UK layout, with or without the numpad), with the Shift, Ctrl and Alt layers, or on a controller.
 - **Actions panel:** your spells (and the ones still to learn), macros, raid markers, profiles and commands in one searchable list. Drag them onto your bars or straight onto a key.
-- **New spell ranks:** when you learn a new rank, the old one on your bars is replaced. Ranks you placed on purpose (lower than the highest you know) are left alone, and you can turn it off.
-- **Getting started:** a short guide walks you through your first profiles, and a status strip shows which profile is in use and whether your bars still match it.
-- **Looks at home** with the default UI, EllesmereUI or ElvUI, and its minimap button works with EllesmereUI's tray and MinimapButtonButton.
+
+![The keyboard with the numpad, each key showing its spell or command, and the Actions panel's Commands beside it](media/keyboard-binding.png)
+
+- **Bars:** your action bars with their keys. Show or hide bars (Blizzard's, or EllesmereUI's in one click), and a keybind mode where you hover a button and press a key.
+
+![The Bars tab with EllesmereUI's bars, hidden bars folded below, and the Actions panel's spells](media/bars.png)
+
+## New spell ranks
+
+When you learn a new rank, the old one on your bars is replaced. Ranks you placed on purpose (lower than the highest you know) are left alone, and you can turn it off.
+
+## Getting started
+
+A short guide walks you through backing up, your first profiles and how to switch. Each step ticks itself off as you do it.
+
+![Getting started: six steps, all ticked](media/getting-started.png)
+
+## Settings
+
+Keystance takes on the look of your UI (the default UI, EllesmereUI or ElvUI), and its minimap button works with EllesmereUI's tray and MinimapButtonButton. Its settings are on its own Settings tab and in the game's Options > AddOns.
+
+![The Settings tab: look, minimap button, profile switcher, messages, spell ranks and the original setup](media/settings.png)
+
+![Keystance's page in Options > AddOns](media/settings-wowsettings.png)
 
 ## Your setup is safe
 
