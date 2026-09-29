@@ -370,7 +370,7 @@ end
 -- Keybinds (Bindings.xml, under Keystance in the game's Key Bindings): Next profile,
 -- Profile 1-6 and Open Keystance. Each Profile N keybind belongs to one profile
 -- (c.keySlots[N] = name), so a profile keeps its key when others are added or renamed.
--- A key is set from the profile's row (or the spell panel), or in Key Bindings.
+-- A key is set from the profile's row (or the Actions panel), or in Key Bindings.
 ---------------------------------------------------------------------------
 local BINDABLE = 6
 

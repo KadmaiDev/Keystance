@@ -6,7 +6,7 @@
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 
-local pcall, select, time = pcall, select, time
+local select, time = select, time
 
 -- Every bound command and its keys: { [command] = { "1", "SHIFT-1" } }.
 function ns.ReadBindings()

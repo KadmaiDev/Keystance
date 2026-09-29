@@ -12,9 +12,9 @@ local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
 
-local pairs, ipairs, type = pairs, ipairs, type
-local HasAction, GetActionInfo, GetCursorInfo, ClearCursor = HasAction, GetActionInfo, GetCursorInfo, ClearCursor
-local PickupAction, PlaceAction, GetBindingKey, GetBindingAction = PickupAction, PlaceAction, GetBindingKey, GetBindingAction
+local pairs, ipairs = pairs, ipairs
+local GetCursorInfo, ClearCursor = GetCursorInfo, ClearCursor
+local PickupAction, PlaceAction, GetBindingAction = PickupAction, PlaceAction, GetBindingAction
 
 ns.MANAGED_SLOTS = 180
 

@@ -1,13 +1,12 @@
--- Keystance spell list: the character's class spells as data for the spell panel, grouped
+-- Keystance spell list: the character's class spells as data for the Actions panel, grouped
 -- by the spellbook's sections (General, then the class's), one entry per spell at its
 -- highest known rank, with its other ranks, whether it's on a bar, and the spells (and
 -- ranks) still to learn with the level they come at. Passive abilities are left out.
 -- Built when the panel needs it; marked stale when spells or bars change.
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
-local L = ns.L
 
-local pairs, ipairs, type = pairs, ipairs, type
+local ipairs, type = ipairs, type
 
 local BANK = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 0
 local SPELL, FUTURE, FLYOUT = 1, 2, 4

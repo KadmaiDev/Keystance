@@ -71,9 +71,6 @@ function ns.ChoiceRow(owner, parent, choices, get, set, width)
 end
 
 ---------------------------------------------------------------------------
--- Refresh: what the header and the open page show
----------------------------------------------------------------------------
----------------------------------------------------------------------------
 -- The status strip: the profile in use, whether the bars and keys still match it, and a
 -- button per profile. Worked out again only when bars, keys or profiles change (statusStale),
 -- so redraws stay free of garbage.
@@ -289,7 +286,7 @@ local function CreateWindow()
     if not f.TitleText then title:SetPoint("TOP", 0, -6) end
     title:SetText("Keystance")
 
-    -- Header strip: the combat note (the active profile joins it with profiles).
+    -- The combat note, on the bottom strip in place of the profile buttons while in combat.
     local combat = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     combat:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -STRIP_SIDE, STRIP_BOTTOM + 4)
     combat:SetTextColor(1, 0.5, 0.25)
@@ -332,7 +329,7 @@ local function CreateWindow()
 
     BuildStatus(f)
 
-    -- The spell panel, which sits against this window.
+    -- The Actions panel, which sits against this window.
     local spells = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     spells:SetSize(90, 22)
     spells:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -30)
@@ -352,7 +349,7 @@ local function CreateWindow()
     f:SetScript("OnShow", function()
         statusStale = true
         Refresh()
-        ns.WindowOpened(TABS[f.selected].key) -- the spell panel opens beside it (SpellPanel.lua)
+        ns.WindowOpened(TABS[f.selected].key) -- the Actions panel opens beside it (SpellPanel.lua)
     end)
     f:SetScript("OnHide", function() ns.WindowClosed() end)
     -- Escape closes it, like Blizzard's own windows.
@@ -393,11 +390,14 @@ end
 ns.On("PLAYER_REGEN_DISABLED", Refresh)
 ns.On("PLAYER_REGEN_ENABLED", Refresh)
 -- What's on the bars and which page they show.
-for _, event in ipairs({ "ACTIONBAR_SLOT_CHANGED", "ACTIONBAR_PAGE_CHANGED", "UPDATE_BONUS_ACTIONBAR" }) do
+for _, event in ipairs({ "ACTIONBAR_PAGE_CHANGED", "UPDATE_BONUS_ACTIONBAR" }) do
     ns.On(event, function() ns.RequestRefresh() end)
 end
 -- Bars and keys changing may make them differ from the profile in use (or match it again).
-ns.On("ACTIONBAR_SLOT_CHANGED", function() statusStale = true end)
+ns.On("ACTIONBAR_SLOT_CHANGED", function()
+    statusStale = true
+    ns.RequestRefresh()
+end)
 ns.On("UPDATE_BINDINGS", function()
     statusStale = true
     ns.RequestRefresh()

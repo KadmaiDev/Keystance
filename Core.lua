@@ -26,7 +26,7 @@ local DB_VERSION = 1
 -- Builders for the window's tabs, by tab key: fn(page, window). Filled by the tab files.
 ns.pageBuilders = {}
 
-local pcall, type, pairs, ipairs, print = pcall, type, pairs, ipairs, print
+local pcall, type, pairs, print = pcall, type, pairs, print
 local issecretvalue = issecretvalue or function() return false end
 local UnitName, UnitClass, InCombatLockdown = UnitName, UnitClass, InCombatLockdown
 

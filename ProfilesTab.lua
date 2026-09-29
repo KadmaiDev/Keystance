@@ -1,8 +1,10 @@
--- Keystance Profiles tab: the character's profiles, each with its key (click, then press
--- the key that switches to it), Apply, Gear, Update, Rename, Copy and Delete; New profile from the current setup; Undo; Restore original setup; and,
--- while the character shares the account's keybinds, a note with the one-click switch.
--- Anything that would change bars or keys is greyed out in combat. A profile's Gear button
--- swaps the list for its gear editor (GearTab.lua) until Back.
+-- Keystance Profiles tab: the character's profiles, each with its icon, its key (click,
+-- then press the key that switches to it), Apply, Gear, Update, Rename, Copy and Delete;
+-- New profile from the current setup and Restore original setup (Undo is on the window's
+-- bottom strip); Getting started; and, while the character shares the account's
+-- keybinds, a note with the one-click switch. Anything that would change bars or keys is
+-- greyed out in combat. A profile's Gear button, or Getting started, swaps the list for
+-- the gear editor (GearTab.lua) or the guide's steps (Guide.lua) until Back.
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
@@ -192,17 +194,16 @@ end
 
 -- A grey note after a profile's name: its gear ("ItemRack: Tank" or "12 items"), or "".
 local function Note(p)
-    local parts = {}
     local kind, data = ns.ProfileGear(p)
+    local note
     if kind == "itemrack" then
-        parts[#parts + 1] = L["ItemRack: %s"]:format(data)
+        note = L["ItemRack: %s"]:format(data)
     elseif kind == "items" then
         local n = 0
         for _ in pairs(data) do n = n + 1 end
-        parts[#parts + 1] = L["%d items"]:format(n)
+        note = L["%d items"]:format(n)
     end
-    if #parts == 0 then return "" end
-    return "  |cff9d9d9d" .. table.concat(parts, "  ·  ") .. "|r"
+    return note and ("  |cff9d9d9d" .. note .. "|r") or ""
 end
 
 -- Shows a profile's gear editor in place of the list (nil: back to the list).

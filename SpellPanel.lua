@@ -12,14 +12,15 @@
 --    shows the key it's on.
 -- Search as you type; filters for what's on a bar, not on a bar, or still to learn. Drag or
 -- click a spell or macro to pick it up, then drop it on a bar or a key in the Keyboard tab.
--- It opens only with the Keystance window (some of what it holds only goes on Keystance's
--- keys) and sits against it unless moved; it closes with the window.
+-- It opens only with the Keystance window, from its Actions button (the owner's choice: no
+-- menu entry or command; some of what it holds only goes on Keystance's keys), sits against
+-- it unless moved, and closes with it.
 -- Built on first open; refreshed only while shown. Picking up is blocked in combat.
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
 
-local ipairs, pairs, CreateFrame = ipairs, pairs, CreateFrame
+local ipairs, CreateFrame = ipairs, CreateFrame
 
 local WIDTH, HEIGHT = 330, 520
 local ROWS, ROW_HEIGHT = 13, 27
@@ -558,7 +559,7 @@ local function Create()
     if UISpecialFrames then UISpecialFrames[#UISpecialFrames + 1] = "KeystanceSpellPanel" end
     f:Hide()
     -- Closed by the player while the Keystance window is open: remembered, so opening the
-    -- window doesn't bring it back until the Spells button does. (Closing with the window,
+    -- window doesn't bring it back until the Actions button does. (Closing with the window,
     -- or with Escape after the window, isn't the player turning it off.)
     f:SetScript("OnHide", function(self)
         if not self.closingWithWindow and ns.WindowShown() then Settings().spellPanelHidden = true end
@@ -566,7 +567,7 @@ local function Create()
     end)
 end
 
--- Opens or closes the spell panel; `open` only ever opens it.
+-- Redraws the panel if it's open (a profile's icon changed, say).
 function ns.RefreshSpellPanel()
     if panel and panel:IsShown() then panel:Refresh() end
 end
@@ -579,9 +580,8 @@ function ns.ToggleSpellPanel(open)
     panel:Show()
 end
 
--- The panel opens with the Keystance window (docked beside it) unless the player closed it,
--- and a docked panel closes with the window.
--- Tabs where the panel belongs: things are dragged from it onto keys and bars.
+-- The panel opens with the window (docked beside it) on the tabs where things are dragged
+-- from it, Keyboard and Bars, unless the player closed it; it closes with the window.
 local PANEL_TABS = { keyboard = true, bars = true }
 
 function ns.WindowOpened(tab)
@@ -624,4 +624,3 @@ for _, event in ipairs({ "SPELLS_CHANGED", "LEARNED_SPELL_IN_SKILL_LINE", "ACTIO
     ns.On(event, Changed)
 end
 
--- Opened with the window's Actions button only (the owner's choice: no menu entry or command).

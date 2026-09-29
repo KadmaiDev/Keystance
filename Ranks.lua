@@ -11,7 +11,7 @@ local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
 
-local pairs, ipairs = pairs, ipairs
+local pairs = pairs
 
 local WAIT = 3
 local learned, scheduled = {}, false

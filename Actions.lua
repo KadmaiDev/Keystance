@@ -1,6 +1,8 @@
 -- Keystance actions: what's in each action slot, which slot a binding command triggers, and
 -- which bars are on screen or hidden, for Blizzard's bars, EllesmereUI's and ElvUI's. Reads
--- only, except ns.SetBarShown, which shows or hides a bar (never touching its slots).
+-- only, except ns.SetBarShown, which shows or hides a bar (never touching its slots): the
+-- game's bar switches, or EllesmereUI's Visibility for one of its bars (remembering the old
+-- setting in settings.euiVisibility).
 -- Slot numbers and binding commands were measured with the phase 0 probe (AGENTS.md).
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
@@ -378,7 +380,8 @@ function ns.HiddenBars() return Collect(hiddenList, false) end
 -- as ticking it in Options > Action Bars does (measured 2026-09-29: the switch alone is
 -- stored but changes nothing on screen until MultiActionBar_Update runs). EllesmereUI's and
 -- ElvUI's bars belong to those addons, so their action bar settings open for the player to
--- switch it there (Keystance doesn't change another addon's settings). Never in combat (the
+-- switch it there (except EllesmereUI's, switched in one click with its own Visibility
+-- control, the owner's decision: ns.SetEuiBarShown). Never in combat (the
 -- bars are secure frames). A hidden bar keeps its spells and keys.
 function ns.SetBarShown(bar, on)
     if ns.InCombat() then

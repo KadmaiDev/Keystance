@@ -1,4 +1,4 @@
--- Keystance icon picker: chooses the picture a profile shows (its row, the spell panel's
+-- Keystance icon picker: chooses the picture a profile shows (its row, the Actions panel's
 -- Profiles tab). First "Automatic" (ns.AutoProfileIcon: its ItemRack set, main-hand weapon
 -- or first spell), then the profile's own icons (its gear and the actions on its bars),
 -- then every icon the game offers for macros. A grid with a scrollbar; built the first
@@ -7,7 +7,7 @@ local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
 
-local ipairs, pairs, pcall, CreateFrame = ipairs, pairs, pcall, CreateFrame
+local ipairs, pcall, CreateFrame = ipairs, pcall, CreateFrame
 
 local COLUMNS, ROWS, SIZE, GAP = 8, 7, 32, 4
 local AUTO = "auto"

@@ -83,14 +83,14 @@ local function State(c)
     return c.guide
 end
 
-function ns.GuideStepDone(c, step)
+local function StepDone(c, step)
     return step.check(c) or (step.optional and State(c).skipped and State(c).skipped[step.key]) or false
 end
 
 -- The first step not done, and its number; nil when every step is.
-function ns.GuideNext(c)
+local function NextStep(c)
     for i, step in ipairs(ns.GUIDE_STEPS) do
-        if not ns.GuideStepDone(c, step) then return step, i end
+        if not StepDone(c, step) then return step, i end
     end
 end
 
@@ -142,7 +142,7 @@ ns.AddCommand("guide", function() ns.ShowGuideBar() end)
 ---------------------------------------------------------------------------
 local bar
 
-local function ActionButton(parent, i)
+local function ActionButton(parent)
     local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
     b:SetSize(110, 22)
     b:SetScript("OnClick", function(self) if self.fn then self.fn() end end)
@@ -191,7 +191,7 @@ local function BuildBar(window)
     f.all:SetText(L["All steps"])
     f.all:SetScript("OnClick", function() ns.ShowGuideSteps() end)
     ns.SkinButton(f.all)
-    f.actions = { ActionButton(f, 1), ActionButton(f, 2) }
+    f.actions = { ActionButton(f), ActionButton(f) } -- a step has at most one action and Skip, or two
     f.actions[1]:SetPoint("RIGHT", f.all, "LEFT", -6, 0)
     f.actions[2]:SetPoint("RIGHT", f.actions[1], "LEFT", -4, 0)
     for _, fs in ipairs({ heading, f.step, f.title, f.text }) do
@@ -210,7 +210,7 @@ function ns.RefreshGuide(window)
         return
     end
     if not bar then BuildBar(window) end
-    local step, i = ns.GuideNext(c)
+    local step, i = NextStep(c)
     for _, b in ipairs(bar.actions) do b:Hide() end
     bar.allSet = step == nil
     if step then
@@ -223,8 +223,9 @@ function ns.RefreshGuide(window)
             b.fn = a[2]
             b:Show()
         end
-        if step.optional then
-            local b = bar.actions[#(step.actions or {}) + 1]
+        local skip = step.optional and bar.actions[#(step.actions or {}) + 1]
+        if skip then -- an optional step's Skip, in the button after its action
+            local b = skip
             b:SetText(L["Skip"])
             b.fn = function() ns.SkipGuideStep(step.key) end
             b:Show()
@@ -322,7 +323,7 @@ function ns.RefreshGuideView(view)
     if not c then return end
     for i, step in ipairs(ns.GUIDE_STEPS) do
         local row = view.rows[i]
-        local done = ns.GuideStepDone(c, step)
+        local done = StepDone(c, step)
         row.done = done
         row.mark:SetTexture(done and "Interface\\RaidFrame\\ReadyCheck-Ready" or nil)
         row.number:SetText(done and "" or i)
