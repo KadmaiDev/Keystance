@@ -40,6 +40,10 @@ A Keystance button on the bank window (Blizzard's, EllesmereUI's or ElvUI's) ope
 
 ![The keyboard with the numpad, each key showing its spell or command, and the Actions panel's Commands beside it](media/keyboard-binding.png)
 
+Playing with a controller? The same view shows each button with what it does, and your controller's Shift and Ctrl buttons as layers.
+
+![The controller view: each button's binding named beside a drawing of the controller](media/controller-binding.png)
+
 - **Bars:** your action bars with their keys. Show or hide bars (Blizzard's, or EllesmereUI's in one click), and a keybind mode where you hover a button and press a key.
 
 ![The Bars tab with EllesmereUI's bars, hidden bars folded below, and the Actions panel's spells](media/bars.png)
