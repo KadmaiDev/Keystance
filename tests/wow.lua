@@ -84,7 +84,16 @@ function M.load(files)
     GetTime = function() return M.clock or 0 end
     GetLocale = function() return M.locale or "enUS" end
     date = os.date
-    print = function(msg) M.printed[#M.printed + 1] = msg end
+    M.chat, M.onScreen = {}, {}
+    print = function(msg)
+        M.printed[#M.printed + 1] = msg
+        M.chat[#M.chat + 1] = msg
+    end
+    -- The game's notices at the top of the screen, which fade after a few seconds.
+    UIErrorsFrame = { AddMessage = function(_, msg)
+        M.printed[#M.printed + 1] = msg
+        M.onScreen[#M.onScreen + 1] = msg
+    end }
     SlashCmdList = {}
     Enum = {
         SpellBookSpellBank = { Player = 0, Pet = 1 },

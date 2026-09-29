@@ -421,7 +421,7 @@ function ns.SetBarShown(bar, on)
     -- Whether it changed: if not, say where to do it.
     C_Timer.After(0.5, function()
         if ok and Shown(frameName) == on then
-            ns.Print(on and L["%s is on screen now."]:format(name)
+            ns.Notify(on and L["%s is on screen now."]:format(name)
                 or L["%s is hidden now. It keeps its spells and keys; Show brings it back."]:format(name))
         else
             ns.Print(on and L["%s didn't appear: switch it on in the game's Options, under Action Bars."]:format(name)
@@ -465,7 +465,7 @@ function ns.SetEuiBarShown(bar, on)
         local done = EuiMode(set) == mode and (mode ~= "never" or not Shown(frameName))
             and (mode ~= "always" or Shown(frameName))
         if done then
-            ns.Print(on and L["%s is back (%s)."]:format(name, mode == "always" and L["always shown"] or ModeNote(mode))
+            ns.Notify(on and L["%s is back (%s)."]:format(name, mode == "always" and L["always shown"] or ModeNote(mode))
                 or L["%s is hidden now (its Visibility is Never in EllesmereUI). It keeps its spells and keys; Show brings it back."]:format(name))
         else
             ns.Print(L["%s didn't change: switch it in EllesmereUI's Action Bars settings (/eui)."]:format(name))

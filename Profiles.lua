@@ -20,6 +20,7 @@ local GetBindingAction, GetBindingKey, GetBindingText = GetBindingAction, GetBin
 local MAX_NAME = 24
 
 local function Print(msg) ns.Print(msg) end
+local function Notify(msg) ns.Notify(msg) end
 
 local function Copy(t)
     if type(t) ~= "table" then return t end
@@ -179,7 +180,7 @@ end
 -- Applying, undo and restore
 ---------------------------------------------------------------------------
 local function Report(what, slots, keys, failures)
-    Print(L["%s (%d slots, %d keys changed)."]:format(what, slots, keys))
+    Notify(L["%s (%d slots, %d keys changed)."]:format(what, slots, keys))
     if #failures > 0 then
         Print(L["%d couldn't be set and were left as they were:"]:format(#failures))
         for i = 1, math.min(#failures, 6) do Print("  " .. failures[i]) end
@@ -249,7 +250,7 @@ function ns.ApplyProfile(name, keys, asked, noGear)
     if not now then
         -- Shown on the profile switcher until combat ends (another click changes or cancels it).
         ns.pendingProfile = key
-        Print(L["%s will apply when combat ends."]:format(key))
+        Notify(L["%s will apply when combat ends."]:format(key))
         ns.ProfilesChanged()
     end
 end
@@ -260,7 +261,7 @@ function ns.CancelPendingProfile()
     if not key then return false end
     ns.pendingProfile = nil
     ns.CancelWaiting("apply")
-    Print(L["Switching to %s cancelled."]:format(key))
+    Notify(L["Switching to %s cancelled."]:format(key))
     ns.ProfilesChanged()
     return true
 end
@@ -286,7 +287,7 @@ function ns.Undo()
         Change(last.state, { scope = "all", gearBefore = gearBefore, gearChanged = gearChanged },
             L["Undid %s"]:format(last.label), L["the undo"], function() c.active = nil end)
     end)
-    if not now then Print(L["Undo will happen when combat ends."]) end
+    if not now then Notify(L["Undo will happen when combat ends."]) end
 end
 
 -- Puts back the bars and every key as they were before Keystance (undoable).
@@ -298,7 +299,7 @@ function ns.RestoreOriginal()
         Change(c.snapshot, { scope = "all" }, L["Your original setup is back"], L["restoring your original setup"],
             function() c.active = nil end)
     end)
-    if not now then Print(L["Your original setup will come back when combat ends."]) end
+    if not now then Notify(L["Your original setup will come back when combat ends."]) end
 end
 
 ---------------------------------------------------------------------------
@@ -316,10 +317,10 @@ function ns.UseOwnKeybinds()
     if not ns.SharedKeybinds() then return Print(L["This character already has its own keybinds."]) end
     local now = ns.OutOfCombat("ownkeys", function()
         SaveBindings(2)
-        Print(L["This character now has its own keybinds. Your other characters keep theirs."])
+        Notify(L["This character now has its own keybinds. Your other characters keep theirs."])
         ns.ProfilesChanged()
     end)
-    if not now then Print(L["This character gets its own keybinds when combat ends."]) end
+    if not now then Notify(L["This character gets its own keybinds when combat ends."]) end
 end
 
 ---------------------------------------------------------------------------
@@ -435,7 +436,7 @@ function ns.SetProfileKey(name, key)
     local command = SlotCommand(n)
     local was = GetBindingAction(key)
     if was == command then
-        Print(L["%s is already on %s."]:format(profile, key))
+        Notify(L["%s is already on %s."]:format(profile, key))
         return false
     end
     if ns.SharedKeybinds() then SaveBindings(2) end -- this character's own keybinds first
@@ -456,7 +457,7 @@ function ns.SetProfileKey(name, key)
     end
     ns.RecordChange(before, L["putting %s on %s"]:format(profile, key))
     NameBindings()
-    Print(L["%s is now on %s."]:format(profile, key))
+    Notify(L["%s is now on %s."]:format(profile, key))
     if was and was ~= "" then Print(L["(%s was %s.)"]:format(key, ns.CommandName(was))) end
     ns.ProfilesChanged()
     return true
@@ -485,7 +486,7 @@ function ns.ClearProfileKey(name)
     end
     Slots()[n] = nil
     NameBindings()
-    Print(L["%s has no key now."]:format(profile))
+    Notify(L["%s has no key now."]:format(profile))
     ns.ProfilesChanged()
     return true
 end
@@ -577,7 +578,7 @@ function ns.ConfirmDelete(name)
         button2 = CANCEL or "Cancel",
         OnAccept = function(_, data)
             local ok, why = ns.DeleteProfile(data)
-            Print(ok and L["Deleted %s."]:format(ok) or why)
+            if ok then Notify(L["Deleted %s."]:format(ok)) else Print(why) end
         end,
     })
     StaticPopup_Show("KEYSTANCE_DELETE", name, nil, name)
@@ -621,21 +622,21 @@ end
 function ns.NewProfile()
     ns.AskName(L["Name the profile (for example Ret, Prot or Holy):"], function(name)
         local saved, why = ns.SaveProfile(name)
-        Print(saved and L["Saved your bars and keys as %s."]:format(saved) or why)
+        if saved then Notify(L["Saved your bars and keys as %s."]:format(saved)) else Print(why) end
     end)
 end
 
 function ns.AskRename(name)
     ns.AskName(L["New name for %s:"]:format(name), function(new)
         local ok, why = ns.RenameProfile(name, new)
-        Print(ok and L["Renamed %s to %s."]:format(name, ok) or why)
+        if ok then Notify(L["Renamed %s to %s."]:format(name, ok)) else Print(why) end
     end, name)
 end
 
 function ns.AskDuplicate(name)
     ns.AskName(L["Name for the copy of %s:"]:format(name), function(new)
         local ok, why = ns.DuplicateProfile(name, new)
-        Print(ok and L["Copied %s as %s."]:format(name, ok) or why)
+        if ok then Notify(L["Copied %s as %s."]:format(name, ok)) else Print(why) end
     end, name .. " 2")
 end
 
@@ -647,7 +648,7 @@ function ns.ConfirmUpdate(name)
         button2 = CANCEL or "Cancel",
         OnAccept = function(_, data)
             local ok, why = ns.SaveProfile(data, true)
-            Print(ok and L["Updated %s from your current setup."]:format(ok) or why)
+            if ok then Notify(L["Updated %s from your current setup."]:format(ok)) else Print(why) end
         end,
     })
     StaticPopup_Show("KEYSTANCE_UPDATE", name, nil, name)

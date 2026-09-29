@@ -46,11 +46,12 @@ local function RefreshPage(page)
     local inUse, chosen = ns.SkinName(), ns.SkinNameFor(ns.db.settings.skin)
     page.lookNote:SetText(inUse == chosen and L["In use: %s."]:format(LOOK_NAMES[inUse])
         or L["In use: %s until you reload."]:format(LOOK_NAMES[inUse]))
-    page.minimap:SetText(ns.MinimapButtonOn() and L["Minimap button: shown"] or L["Minimap button: hidden"])
-    page.ranksRow:Refresh()
+    page.minimapRow:Refresh()
     page.switcherRow:Refresh()
+    page.messagesRow:Refresh()
+    page.ranksRow:Refresh()
     local snap = ns.char and ns.char.snapshot
-    page.snapshot:SetText(snap and L["Your bars and keys as they were before Keystance were saved on %s (%d slots, %d keys). Restore puts them back; before uninstalling Keystance, use it to get your original setup back."]
+    page.snapshot:SetText(snap and L["Your bars and keys as they were before Keystance, saved %s (%d slots, %d keys). Restore puts them back; use it before uninstalling Keystance."]
         :format(date("%d %b %Y", snap.at), snap.nSlots, snap.nBinds)
         or L["Keystance saves your bars and keys as they are now, shortly after you log in, so you can always get them back."])
     local combat = ns.InCombat()
@@ -109,89 +110,134 @@ function ns.ChooseSkin(choice)
         ns.AskReload(L["Keystance's new look shows after the interface reloads. Reload now?"],
             L["Type /reload to see the new look."])
     else
-        ns.Print(L["Look set to %s."]:format(LOOK_NAMES[choice]))
+        ns.Notify(L["Look set to %s."]:format(LOOK_NAMES[choice]))
     end
     RefreshAll()
     return true
 end
 
 -- Builds the settings controls into `page`, below `top` (a region to sit under, or nil for
--- the page's top). Widgets are listed in owner.buttons and owner.texts for skinning.
+-- the page's top), as a form: each setting's name in a left column and its choices lined up
+-- to its right, a note under the choices where one helps. Widgets are listed in
+-- owner.buttons and owner.texts for skinning.
+local LABEL_WIDTH = 150
+
 function ns.BuildSettings(page, owner, top)
-    local label = Text(owner, page, "GameFontNormal", L["Look"])
+    local form = CreateFrame("Frame", nil, page)
     if top then
-        label:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 0, -16)
+        form:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 0, -14)
     else
-        label:SetPoint("TOPLEFT", 16, -16)
+        form:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -16)
     end
-    local row = ns.ChoiceRow(owner, page, {
+    form:SetSize(650, 300)
+    page.form = form
+    local y = 0
+    -- A setting's row: its name on the left, `control` to its right; `gap` below it.
+    local function Row(name, control, gap)
+        local label = Text(owner, form, "GameFontNormal", name)
+        label:SetPoint("TOPLEFT", form, "TOPLEFT", 0, -y - 4)
+        label:SetWidth(LABEL_WIDTH - 10)
+        label:SetJustifyH("LEFT")
+        control:SetPoint("TOPLEFT", form, "TOPLEFT", LABEL_WIDTH, -y)
+        y = y + (gap or 30)
+        return label
+    end
+    -- A small grey note under a row's choices.
+    local function Note(text)
+        local note = Text(owner, form, "GameFontDisableSmall", text)
+        note:SetPoint("TOPLEFT", form, "TOPLEFT", LABEL_WIDTH, -y + 4)
+        note:SetWidth(470)
+        note:SetJustifyH("LEFT")
+        y = y + 16
+        return note
+    end
+    local function Hint(button, title, text)
+        button:SetScript("OnEnter", function(self) Tooltip(self, title, text) end)
+        button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    end
+
+    -- Look.
+    local look = ns.ChoiceRow(owner, form, {
         { "auto", LOOK_NAMES.auto }, { "classic", LOOK_NAMES.classic },
         { "ellesmere", LOOK_NAMES.ellesmere }, { "elvui", LOOK_NAMES.elvui },
     }, function() return ns.db.settings.skin end, ns.ChooseSkin, 96)
-    row:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -6)
-    row.buttons[1]:SetScript("OnEnter", function(self)
-        Tooltip(self, L["Automatic"], L["Matches EllesmereUI or ElvUI when you use one, and Blizzard's look otherwise."])
-    end)
-    row.buttons[1]:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    page.lookRow = row
-    local note = Text(owner, page, "GameFontDisableSmall")
-    note:SetPoint("TOPLEFT", row, "BOTTOMLEFT", 0, -6)
-    page.lookNote = note
-    local minimap = Button(owner, page, "")
-    minimap:SetPoint("TOPLEFT", note, "BOTTOMLEFT", 0, -14)
-    minimap:SetScript("OnClick", function()
-        ns.RunCommand("minimap")
-        RefreshAll()
-    end)
-    page.minimap = minimap
+    Row(L["Look"], look, 26)
+    Hint(look.buttons[1], L["Automatic"], L["Matches EllesmereUI or ElvUI when you use one, and Blizzard's look otherwise."])
+    page.lookRow = look
+    page.lookNote = Note("")
+    y = y + 6
+
+    -- Minimap button.
+    local minimap = ns.ChoiceRow(owner, form, { { true, L["Shown"], 80 }, { false, L["Hidden"], 80 } },
+        function() return ns.MinimapButtonOn() end,
+        function(on)
+            ns.SetMinimapButton(on)
+            RefreshAll()
+        end)
+    Row(L["Minimap button"], minimap)
+    page.minimapRow = minimap
+
     -- The profile switcher on screen: off (default), on (movable) or locked.
-    local switcherLabel = Text(owner, page, "GameFontNormal", L["Profile switcher"])
-    switcherLabel:SetPoint("LEFT", minimap, "RIGHT", 16, 0)
-    local switcher = ns.ChoiceRow(owner, page, { { "hidden", L["Off"], 56 }, { "shown", L["On"], 56 },
-        { "locked", L["Locked"], 70 } },
+    local switcher = ns.ChoiceRow(owner, form, { { "hidden", L["Off"], 80 }, { "shown", L["On"], 80 },
+        { "locked", L["Locked"], 80 } },
         function() return ns.SwitcherMode() end,
         function(mode)
             ns.SetSwitcherMode(mode)
             RefreshAll()
         end)
-    switcher:SetPoint("LEFT", switcherLabel, "RIGHT", 10, 0)
-    switcher.buttons[1]:SetScript("OnEnter", function(self)
-        Tooltip(self, L["Profile switcher"], L["A row of your profiles that stays on screen: click one to switch (in combat it switches when combat ends). On: drag it where you like. Locked: it stays put."])
-    end)
-    switcher.buttons[1]:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    Row(L["Profile switcher"], switcher)
+    Hint(switcher.buttons[1], L["Profile switcher"], L["A row of your profiles that stays on screen: click one to switch (in combat it switches when combat ends). On: drag it where you like. Locked: it stays put."])
     page.switcherRow = switcher
+
+    -- Where everyday messages go (problems always go to chat).
+    local messages = ns.ChoiceRow(owner, form, { { "screen", L["On screen"], 96 }, { "chat", L["Chat"], 80 },
+        { "quiet", L["Off"], 80 } },
+        function() return ns.MessagesMode() end,
+        function(mode)
+            ns.db.settings.messages = mode ~= "screen" and mode or nil
+            RefreshAll()
+        end)
+    Row(L["Messages"], messages, 26)
+    page.messagesRow = messages
+    Hint(messages.buttons[1], L["Messages"], L["Where Keystance says what it did (a profile applied, gear put on, a key set). On screen: briefly, at the top of the screen. Chat: in your chat window. Off: not at all. Problems always go to chat."])
+    Note(L["Problems, and answers to /kst commands, always go to chat."])
+    y = y + 6
+
     -- New spell ranks: upgrade the bars (the rank in use until now) or leave them.
-    local ranksLabel = Text(owner, page, "GameFontNormal", L["New spell ranks"])
-    ranksLabel:SetPoint("TOPLEFT", minimap, "BOTTOMLEFT", 0, -16)
-    local ranks = ns.ChoiceRow(owner, page, { { true, L["Upgrade my bars"], 130 }, { false, L["Leave them"], 100 } },
+    local ranks = ns.ChoiceRow(owner, form, { { true, L["Upgrade my bars"], 130 }, { false, L["Leave them"], 100 } },
         function() return ns.RanksOn() end,
         function(on)
             ns.db.settings.ranksOff = not on or nil
             RefreshAll()
         end)
-    ranks:SetPoint("LEFT", ranksLabel, "RIGHT", 10, 0)
+    Row(L["New spell ranks"], ranks, 26)
     page.ranksRow = ranks
-    local ranksNote = Text(owner, page, "GameFontDisableSmall",
-        L["Learning a rank replaces the one you were using. Lower ranks you put on your bars on purpose are left alone."])
-    ranksNote:SetPoint("TOPLEFT", ranksLabel, "BOTTOMLEFT", 0, -8)
-    ranksNote:SetWidth(460)
-    ranksNote:SetJustifyH("LEFT")
-    local snapshot = Text(owner, page, "GameFontHighlightSmall")
-    snapshot:SetPoint("TOPLEFT", ranksNote, "BOTTOMLEFT", 0, -16)
-    snapshot:SetWidth(460)
+    Note(L["A new rank replaces the one you were using; lower ranks you placed on purpose stay."])
+
+    -- The original setup, and Restore.
+    local line = form:CreateTexture(nil, "ARTWORK")
+    line:SetColorTexture(1, 1, 1, 0.1)
+    line:SetPoint("TOPLEFT", form, "TOPLEFT", 0, -y - 6)
+    line:SetSize(620, 1)
+    y = y + 16
+    local snapshot = Text(owner, form, "GameFontHighlightSmall")
+    Row(L["Original setup"], snapshot, 0)
+    snapshot:SetWidth(470)
     snapshot:SetJustifyH("LEFT")
     page.snapshot = snapshot
-    local restore = Button(owner, page, L["Restore original setup"])
+    local restore = Button(owner, form, L["Restore original setup"], 200)
     restore:SetPoint("TOPLEFT", snapshot, "BOTTOMLEFT", 0, -8)
     restore:SetScript("OnClick", function() ns.ConfirmRestore() end)
     page.restore = restore
-    local ownKeys = Button(owner, page, L["Give this character its own keybinds"], 260)
-    ownKeys:SetPoint("TOPLEFT", restore, "BOTTOMLEFT", 0, -16)
+
+    -- Own keybinds, while this character shares the account's.
+    local ownKeys = Button(owner, form, L["Give this character its own keybinds"], 260)
+    ownKeys:SetPoint("TOPLEFT", restore, "BOTTOMLEFT", 0, -14)
     ownKeys:SetScript("OnClick", function() ns.UseOwnKeybinds() end)
     page.ownKeys = ownKeys
-    local ownKeysNote = Text(owner, page, "GameFontDisableSmall")
+    local ownKeysNote = Text(owner, form, "GameFontDisableSmall")
     ownKeysNote:SetPoint("TOPLEFT", ownKeys, "BOTTOMLEFT", 0, -4)
-    ownKeysNote:SetWidth(460)
+    ownKeysNote:SetWidth(470)
     ownKeysNote:SetJustifyH("LEFT")
     ownKeysNote:SetText(L["Recommended: your keybinds are shared by all your characters, so a profile's keys would change them everywhere. Nothing changes on screen, and your other characters keep theirs."])
     page.ownKeysNote = ownKeysNote

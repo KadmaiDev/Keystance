@@ -228,3 +228,59 @@ test("closing the window mid-guide keeps the guide for next time", function()
     slash("")
     eq(KeystanceGuideBar:IsShown(), true)
 end)
+
+test("everyday messages show briefly on screen by default; problems always go to chat", function()
+    local c, ns = gearLogin()
+    ns.SaveProfile("Ret")
+    ns.SetProfileGear("Ret", { [13] = "item:1200:0:0:0:0:0:0:0:20" }) -- a trinket not in the bags
+    wow.slots[1] = { kind = "spell", id = 647 }
+    wow.chat, wow.onScreen = {}, {}
+    ns.ApplyProfile("Ret")
+    settleGear()
+    local screen, chat = table.concat(wow.onScreen, "\n"), table.concat(wow.chat, "\n")
+    assert(screen:find("Keystance: Ret applied", 1, true), screen)
+    assert(not chat:find("Ret applied", 1, true), "not in chat")
+    assert(chat:find("Lucky Charm isn't in your bags", 1, true), "the problem, in chat: " .. chat)
+end)
+
+test("the Messages setting sends everyday messages to chat, or nowhere", function()
+    local c, ns = profileLogin()
+    ns.SaveProfile("Ret")
+    slash("")
+    click(tabNamed("Settings"))
+    local page = pageFor("settings")
+    eq(choice(page.messagesRow, "On screen").chosen, true, "the default")
+    click(choice(page.messagesRow, "Chat"))
+    eq(KeystanceDB.settings.messages, "chat")
+    wow.chat, wow.onScreen = {}, {}
+    wow.slots[1] = { kind = "spell", id = 647 }
+    ns.ApplyProfile("Ret")
+    assert(table.concat(wow.chat, "\n"):find("Ret applied", 1, true))
+    eq(#wow.onScreen, 0)
+    click(choice(page.messagesRow, "Off"))
+    wow.chat, wow.onScreen = {}, {}
+    wow.slots[1] = { kind = "spell", id = 647 }
+    ns.ApplyProfile("Ret")
+    eq(#wow.onScreen, 0)
+    assert(not table.concat(wow.chat, "\n"):find("Ret applied", 1, true), "quiet")
+    -- A /kst command still answers in chat.
+    slash("profiles")
+    assert(table.concat(wow.chat, "\n"):find("Profiles: Ret", 1, true))
+    click(choice(page.messagesRow, "On screen"))
+    eq(KeystanceDB.settings.messages, nil)
+end)
+
+test("Settings is a tidy form: every setting's choices start in one column", function()
+    local c, ns = profileLogin()
+    slash("")
+    click(tabNamed("Settings"))
+    local page = pageFor("settings")
+    for _, row in ipairs({ page.lookRow, page.minimapRow, page.switcherRow, page.messagesRow, page.ranksRow }) do
+        eq(row.point[4], 150, "lined up")
+    end
+    local last = 1
+    for _, row in ipairs({ page.lookRow, page.minimapRow, page.switcherRow, page.messagesRow, page.ranksRow }) do
+        assert(row.point[5] < last, "each below the one before")
+        last = row.point[5]
+    end
+end)

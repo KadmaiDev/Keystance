@@ -194,6 +194,23 @@ local function Print(msg)
 end
 ns.Print = Print
 
+-- Where everyday messages go ("Prot applied", "Gear: 3 items put on"): "screen" (the
+-- default: briefly at the top of the screen, where the game's own notices fade), "chat" or
+-- "quiet". Problems, and answers to /kst commands, always use ns.Print (chat).
+function ns.MessagesMode()
+    return ns.db and ns.db.settings.messages or "screen"
+end
+
+function ns.Notify(msg)
+    local mode = ns.MessagesMode()
+    if mode == "quiet" then return end
+    if mode == "screen" and UIErrorsFrame and UIErrorsFrame.AddMessage then
+        UIErrorsFrame:AddMessage("Keystance: " .. msg, 1, 0.82, 0)
+        return
+    end
+    Print(msg)
+end
+
 local commands = {}
 
 function commands.minimap()

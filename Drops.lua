@@ -80,7 +80,7 @@ function ns.DropOnSlot(slot)
     local before, from = Before()
     PlaceAction(slot)
     ns.RecordChange(before, (from and L["moving %s"] or L["placing %s"]):format(label))
-    ns.Print(L["%s placed in slot %d."]:format(label, slot))
+    ns.Notify(L["%s placed in slot %d."]:format(label, slot))
     ns.RefreshWindow()
     return true
 end
@@ -135,12 +135,12 @@ local function PlaceAndBind(key)
     ns.ApplyState(state, { scope = "all" })
     if moving then
         ns.RecordChange(before, L["moving %s to %s"]:format(label, key))
-        ns.Print(L["%s moved to %s."]:format(label, key))
+        ns.Notify(L["%s moved to %s."]:format(label, key))
     else
         ns.RecordChange(before, L["placing %s on %s"]:format(label, key))
         -- A key with no bar button yet: the first empty slot on screen took it. Say which,
         -- as it may not be where the player would have put it.
-        ns.Print(L["%s went on %s, button %d, with the key %s. Move it on the Bars tab if you'd like it somewhere else."]
+        ns.Notify(L["%s went on %s, button %d, with the key %s. Move it on the Bars tab if you'd like it somewhere else."]
             :format(label, barName, index, key))
     end
     ns.RefreshWindow()
@@ -218,7 +218,7 @@ end
 local function HintKeysOnly()
     if not held or held.hinted then return end
     held.hinted = true
-    ns.Print(L["%s goes on a key, not on a bar: click a key on Keystance's Keyboard tab. Right-click drops it."]:format(held.label))
+    ns.Notify(L["%s goes on a key, not on a bar: click a key on Keystance's Keyboard tab. Right-click drops it."]:format(held.label))
 end
 ns.HintKeysOnly = HintKeysOnly
 
@@ -308,7 +308,7 @@ local function Bind(key, command, label)
     if not ok then return Refused(L["Nothing changed: %s."]:format(why)) end
     ns.RecordChange(before, L["putting %s on %s"]:format(label, key))
     Sound(DROP_SOUNDS)
-    ns.Print(L["%s is now on %s."]:format(label, key))
+    ns.Notify(L["%s is now on %s."]:format(label, key))
     ns.RefreshWindow()
     return true
 end
@@ -317,7 +317,7 @@ end
 function ns.QuickBind(key, command, label)
     local was = GetBindingAction(key)
     if was == command then
-        ns.Print(L["%s is already on %s."]:format(label, key))
+        ns.Notify(L["%s is already on %s."]:format(label, key))
         return false
     end
     local ok = Bind(key, command, label)
@@ -330,7 +330,7 @@ function ns.ClearKeys(command, label)
     if ns.InCombat() then return Refused(L["Not in combat: try again when combat ends."]) end
     local state = ns.CurrentState()
     if not state.binds[command] then
-        ns.Print(L["%s has no key."]:format(label))
+        ns.Notify(L["%s has no key."]:format(label))
         return false
     end
     if ns.SharedKeybinds() then SaveBindings(2) end -- this character's own keybinds first
@@ -374,7 +374,7 @@ function ns.BindHeld(fullKey, current)
         h.command = n and ns.ProfileSlotCommand(n) -- nil until it has a key
     end
     if current == h.command then
-        ns.Print(L["%s is already on %s."]:format(h.label, fullKey))
+        ns.Notify(L["%s is already on %s."]:format(h.label, fullKey))
         ns.RefreshWindow()
         return true
     end

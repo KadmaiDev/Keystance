@@ -322,7 +322,7 @@ end
 -- "Gear: 3 items put on." plus what couldn't be, for chat.
 function ns.GearReport(result)
     if result.why then ns.Print(L["Gear stopped: %s."]:format(result.why)) end
-    if result.moved > 0 then ns.Print(L["Gear: %d items put on."]:format(result.moved)) end
+    if result.moved > 0 then ns.Notify(L["Gear: %d items put on."]:format(result.moved)) end
     for _, slot in ipairs(result.missing or {}) do
         ns.Print(L["Gear: %s isn't in your bags (%s)."]:format(ns.GearItemName(result.items and result.items[slot]),
             ns.GEAR_SLOT_NAMES[slot]))
@@ -502,7 +502,7 @@ function ns.StartProfileGear(p)
             ns.Print(L["ItemRack couldn't put on %s."]:format(data))
             return nil, false
         end
-        ns.Print(L["Gear: ItemRack is putting on %s."]:format(data))
+        ns.Notify(L["Gear: ItemRack is putting on %s."]:format(data))
         return before, true
     end
     return nil, false

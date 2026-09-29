@@ -176,7 +176,7 @@ function ns.SwitchTo(name)
     local c = ns.char
     if not c then return end
     if ns.pendingProfile and name == c.active then return ns.CancelPendingProfile() end
-    if name == c.active and not ns.pendingProfile then return ns.Print(L["%s is in use."]:format(name)) end
+    if name == c.active and not ns.pendingProfile then return ns.Notify(L["%s is in use."]:format(name)) end
     ns.ApplyProfile(name)
 end
 

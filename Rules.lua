@@ -174,7 +174,7 @@ local function Evaluate()
     if not key or key == c.active then return end
     if ns.AskFirst() then return AskSwitch(rule, key) end
     local reason = ns.RuleCondition(rule)
-    ns.Print(L["%s: switching to %s."]:format(reason:sub(1, 1):upper() .. reason:sub(2), key))
+    ns.Notify(L["%s: switching to %s."]:format(reason:sub(1, 1):upper() .. reason:sub(2), key))
     Switch(key)
 end
 ns.EvaluateRules = Evaluate

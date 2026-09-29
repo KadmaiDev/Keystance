@@ -84,7 +84,7 @@ function ns.ConfirmApply(name)
     if not (c and key) then return end
     local slots, keys = ns.CountChanges(c.profiles[key], "bars")
     local gear = ns.ProfileGearChanges(c.profiles[key])
-    if slots + keys + gear == 0 then return ns.Print(L["%s is already in place."]:format(key)) end
+    if slots + keys + gear == 0 then return ns.Notify(L["%s is already in place."]:format(key)) end
     if keys > 0 and ns.SharedKeybinds() then return ns.AskSharedKeybinds(key) end
     if not StaticPopupDialogs.KEYSTANCE_APPLY then
         StaticPopupDialogs.KEYSTANCE_APPLY = {
