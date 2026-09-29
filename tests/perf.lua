@@ -95,6 +95,8 @@ garbage("  entering and leaving combat", 5000, function() wow.enterCombat() wow.
 garbage("  a modifier key pressed", 5000, function() wow.fire("MODIFIER_STATE_CHANGED", "LSHIFT", 1) end)
 garbage("  an action bar slot changed", 5000, function() wow.fire("ACTIONBAR_SLOT_CHANGED", 1) end)
 garbage("  keybindings changed", 5000, function() wow.fire("UPDATE_BINDINGS") end)
+garbage("  bags changed (looting)", 5000, function() wow.fire("BAG_UPDATE_DELAYED") end)
+garbage("  gear changed", 5000, function() wow.fire("PLAYER_EQUIPMENT_CHANGED", 1, false) end)
 
 out(" window open:")
 SlashCmdList.KEYSTANCE("")

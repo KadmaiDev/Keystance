@@ -1,13 +1,15 @@
 -- Keystance gear editor: what a profile puts on, shown in the Profiles tab in place of the
 -- list (its row's Gear button). With ItemRack as the gear source, the profile picks one of
 -- the character's ItemRack sets; with Keystance's own, it shows the gear slots like a
--- character sheet: click a slot to take what's worn there now, drop an item from the bags
--- on it, right-click to leave that slot alone. Built the first time it's opened.
+-- character sheet: click a slot to fly out what you have that fits it (worn, in the bags,
+-- and in the bank while it's open) and pick one, drop an item from the bags on it, or
+-- right-click to leave that slot alone. An item held over a slot it can't go in turns the
+-- slot's highlight red. Built the first time it's opened.
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
 
-local ipairs, pairs, CreateFrame = ipairs, pairs, CreateFrame
+local ipairs, pairs, pcall, CreateFrame = ipairs, pairs, pcall, CreateFrame
 local GetCursorInfo, ClearCursor = GetCursorInfo, ClearCursor
 
 -- The slots in three columns, as on the character sheet: armour down the left, hands to
@@ -21,6 +23,8 @@ local SLOT_FRAMES = {
 }
 local ICON, ROW, COLUMN_W, TOP = 28, 31, 222, -104
 local SETS_PER_COLUMN, SET_W = 8, 216
+local FLY_COLUMNS, FLY_ROWS, FLY_SIZE, FLY_GAP = 6, 5, 32, 4
+local HIGHLIGHT = "Interface\\Buttons\\ButtonHilight-Square"
 
 -- The empty-slot picture the character sheet uses.
 local function EmptyIcon(slot)
@@ -56,6 +60,16 @@ local function SlotTooltip(b)
     local p = Profile(b.view)
     local item = p and p.gear and p.gear[b.slot]
     GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
+    -- Holding an item: red if it can't go here (the usual highlight looks like it can).
+    local held = CursorItem()
+    local fits, why = true, nil
+    if held then fits, why = ns.ItemFitsSlot(held, b.slot) end
+    if fits then b.hl:SetVertexColor(1, 1, 1) else b.hl:SetVertexColor(1, 0.1, 0.1) end
+    if not fits then
+        GameTooltip:AddLine(ns.GEAR_SLOT_NAMES[b.slot])
+        GameTooltip:AddLine(why, 1, 0.3, 0.3, true)
+        return GameTooltip:Show()
+    end
     if item then
         GameTooltip:SetHyperlink(item)
     else
@@ -63,10 +77,143 @@ local function SlotTooltip(b)
         GameTooltip:AddLine(L["Not part of this profile's gear: whatever you wear there stays on."], 1, 1, 1, true)
     end
     GameTooltip:AddLine(" ")
-    GameTooltip:AddLine(L["Click: take what you're wearing there now."], 0.6, 0.8, 1, true)
+    GameTooltip:AddLine(L["Click: choose from what you have that fits."], 0.6, 0.8, 1, true)
     GameTooltip:AddLine(L["Drop an item from your bags here to use that."], 0.6, 0.8, 1, true)
     if item then GameTooltip:AddLine(L["Right-click: leave this slot alone."], 0.6, 0.8, 1, true) end
     GameTooltip:Show()
+end
+
+---------------------------------------------------------------------------
+-- The flyout: what you have that fits a slot, as a grid of icons under it. The one worn
+-- there comes first; bank items (only while the bank is open) have a blue border.
+---------------------------------------------------------------------------
+local function FlyoutTooltip(cell)
+    if not cell.item then return end
+    GameTooltip:SetOwner(cell, "ANCHOR_RIGHT")
+    GameTooltip:SetHyperlink(cell.item)
+    GameTooltip:AddLine(" ")
+    if cell.worn then
+        GameTooltip:AddLine(L["You're wearing this."], 0.6, 0.8, 1, true)
+    elseif cell.bank then
+        GameTooltip:AddLine(L["In your bank: put on while the bank is open, or move it to your bags first."], 0.3, 0.6, 1, true)
+    end
+    GameTooltip:Show()
+end
+
+local function FlyoutCell(fly, i)
+    local b = CreateFrame("Button", nil, fly)
+    b:SetSize(FLY_SIZE, FLY_SIZE)
+    local c, r = (i - 1) % FLY_COLUMNS, math.floor((i - 1) / FLY_COLUMNS)
+    b:SetPoint("TOPLEFT", fly, "TOPLEFT", 8 + c * (FLY_SIZE + FLY_GAP), -26 - r * (FLY_SIZE + FLY_GAP))
+    b.border = b:CreateTexture(nil, "BACKGROUND")
+    b.border:SetPoint("TOPLEFT", -2, 2)
+    b.border:SetPoint("BOTTOMRIGHT", 2, -2)
+    b.border:SetColorTexture(0.25, 0.55, 1)
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetAllPoints()
+    b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    b.chosen = b:CreateTexture(nil, "OVERLAY")
+    b.chosen:SetPoint("TOPLEFT", -3, 3)
+    b.chosen:SetPoint("BOTTOMRIGHT", 3, -3)
+    b.chosen:SetTexture("Interface\\Buttons\\CheckButtonHilight")
+    b.chosen:SetBlendMode("ADD")
+    b:SetHighlightTexture(HIGHLIGHT, "ADD")
+    b:SetScript("OnClick", function(self)
+        if not self.item then return end
+        fly:Hide()
+        SetSlot(fly.view, fly.slot, self.item)
+    end)
+    b:SetScript("OnEnter", FlyoutTooltip)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return b
+end
+
+local function RefreshFlyout(fly)
+    local p = Profile(fly.view)
+    if not p then return fly:Hide() end
+    local saved = p.gear and p.gear[fly.slot]
+    local list = ns.GearChoices(fly.slot)
+    local max = FLY_COLUMNS * FLY_ROWS
+    local first = fly.offset * FLY_COLUMNS
+    for i = 1, math.min(#list - first, max) do
+        fly.cells[i] = fly.cells[i] or FlyoutCell(fly, i)
+    end
+    for i, cell in ipairs(fly.cells) do
+        local entry = list[first + i]
+        if entry and i <= max then
+            cell.item, cell.worn, cell.bank = entry.item, entry.worn, entry.bank
+            cell.icon:SetTexture(C_Item.GetItemIconByID(ns.ItemStringID(entry.item)))
+            cell.border:SetShown(entry.bank == true)
+            cell.chosen:SetShown(saved ~= nil and ns.ItemStringID(saved) == ns.ItemStringID(entry.item))
+            cell:Show()
+        else
+            cell.item, cell.worn, cell.bank = nil, nil, nil
+            cell:Hide()
+        end
+    end
+    local shown = math.max(1, math.min(#list - first, max))
+    local rows = math.ceil(shown / FLY_COLUMNS)
+    local note = #list == 0 and L["Nothing you have fits here."] or ""
+    if #list > max then note = L["Scroll for more (%d items)."]:format(#list) end
+    if not ns.BankOpen() then
+        note = (note ~= "" and (note .. " ") or "") .. L["Open your bank to see what's in it too."]
+    end
+    fly.note:SetText(note)
+    fly.title:SetText(ns.GEAR_SLOT_NAMES[fly.slot])
+    local width = FLY_COLUMNS * (FLY_SIZE + FLY_GAP) - FLY_GAP + 16
+    fly:SetSize(width, 26 + rows * (FLY_SIZE + FLY_GAP) + (note ~= "" and 34 or 6))
+end
+
+local function MakeFlyout(view)
+    local fly = CreateFrame("Frame", nil, view.items, "BackdropTemplate")
+    fly.view, fly.cells, fly.offset, fly.texts = view, {}, 0, {}
+    if fly.SetBackdrop then
+        pcall(fly.SetBackdrop, fly, {
+            bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true, tileSize = 16, edgeSize = 16,
+            insets = { left = 4, right = 4, top = 4, bottom = 4 },
+        })
+        if fly.SetBackdropColor then fly:SetBackdropColor(0.05, 0.05, 0.05, 0.95) end
+    end
+    fly:SetFrameLevel(view.items:GetFrameLevel() + 20)
+    fly:SetClampedToScreen(true)
+    fly:EnableMouse(true) -- clicks between its icons don't reach the slots under it
+    fly:EnableMouseWheel(true)
+    fly:SetScript("OnMouseWheel", function(self, delta)
+        local total = #ns.GearChoices(self.slot)
+        local most = math.max(0, math.ceil(total / FLY_COLUMNS) - FLY_ROWS)
+        local offset = math.max(0, math.min(most, self.offset - delta))
+        if offset ~= self.offset then
+            self.offset = offset
+            RefreshFlyout(self)
+        end
+    end)
+    fly.title = fly:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    fly.title:SetPoint("TOPLEFT", 10, -8)
+    fly.note = fly:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    fly.note:SetPoint("BOTTOMLEFT", 10, 8)
+    fly.note:SetPoint("BOTTOMRIGHT", -10, 8)
+    fly.note:SetJustifyH("LEFT")
+    fly.texts[1], fly.texts[2] = fly.title, fly.note
+    ns.SkinWindow(fly)
+    fly:Hide()
+    -- It closes with the editor (Back, another tab, the window closing).
+    view:HookScript("OnHide", function() fly:Hide() end)
+    return fly
+end
+
+-- Opens the flyout under a slot, or closes it if it's already open there.
+local function ToggleFlyout(b)
+    local view = b.view
+    view.flyout = view.flyout or MakeFlyout(view)
+    local fly = view.flyout
+    if fly:IsShown() and fly.slot == b.slot then return fly:Hide() end
+    fly.slot, fly.offset = b.slot, 0
+    fly:ClearAllPoints()
+    fly:SetPoint("TOPLEFT", b.icon, "BOTTOMLEFT", 0, -2)
+    fly:Show()
+    RefreshFlyout(fly)
 end
 
 local function MakeSlot(view, f, slot, x, y)
@@ -86,7 +233,12 @@ local function MakeSlot(view, f, slot, x, y)
     b.name = name
     f.texts[#f.texts + 1] = name
     ns.SkinText(name)
-    b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+    -- Its own highlight texture, so it can turn red under an item that can't go here.
+    b.hl = b:CreateTexture(nil, "HIGHLIGHT")
+    b.hl:SetAllPoints()
+    b.hl:SetTexture(HIGHLIGHT)
+    b.hl:SetBlendMode("ADD")
+    b.hl:SetVertexColor(1, 1, 1)
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     local function Drop(self)
         local item = CursorItem()
@@ -105,13 +257,11 @@ local function MakeSlot(view, f, slot, x, y)
     end
     b:SetScript("OnReceiveDrag", Drop)
     b:SetScript("OnClick", function(self, button)
+        if self.view.flyout and button == "RightButton" then self.view.flyout:Hide() end
         if button == "RightButton" then return SetSlot(self.view, self.slot, nil) end
         if Drop(self) then return end
         if GetCursorInfo() then return end -- a spell or macro held: not for a gear slot
-        local worn = ns.WornItem(self.slot)
-        -- Nothing worn there (or not loaded yet): the saved item stays; right-click clears.
-        if not worn then return ns.Notify(L["Nothing is worn there. Right-click leaves this slot alone."]) end
-        SetSlot(self.view, self.slot, worn)
+        ToggleFlyout(self)
     end)
     b:SetScript("OnEnter", SlotTooltip)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -276,10 +426,13 @@ function ns.RefreshGearView(view, name)
         view.help:SetText(L["Applying %s asks ItemRack to put this set on. Make and change sets in ItemRack."]:format(name))
         RefreshSets(view, p)
     else
-        view.help:SetText(L["Applying %s puts these on first. Click a slot to take what you're wearing there, drop an item from your bags on it, or right-click to leave that slot alone."]:format(name))
+        view.help:SetText(L["Applying %s puts these on first. Click a slot to choose from what you have (your bank too while it's open), drop an item from your bags on it, or right-click to leave that slot alone."]:format(name))
         RefreshItems(view, p)
+        if view.flyout and view.flyout:IsShown() then RefreshFlyout(view.flyout) end
     end
 end
 
--- Keep the editor current while gear changes (a closed window costs one check).
+-- Keep the editor current while gear and bags change (a closed window costs one check);
+-- the bank opening and closing asks too (Gear.lua).
 ns.On("PLAYER_EQUIPMENT_CHANGED", function() ns.RequestRefresh("profiles") end)
+ns.On("BAG_UPDATE_DELAYED", function() ns.RequestRefresh("profiles") end)

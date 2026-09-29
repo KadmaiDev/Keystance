@@ -8,6 +8,8 @@
 -- moving (nothing locked) and plans again. Two identical rings or trinkets are kept apart
 -- (each place is claimed once); a two-hander first puts the off hand in a free bag slot;
 -- missing items are named; a slot the game refuses is reported once and not retried.
+-- While the bank is open, its items can be taken too (bags first), swapping places with
+-- what was worn, as the game does when an item is dragged from the bank.
 -- Nothing here runs in combat: callers go through ns.OutOfCombat, and a swap that meets
 -- combat halfway waits for it to end.
 local ADDON, ns = ...
@@ -22,7 +24,6 @@ local InCombatLockdown, UnitIsDeadOrGhost, GetTime = InCombatLockdown, UnitIsDea
 local GetMacroInfo = GetMacroInfo
 
 local MAIN_HAND, OFF_HAND = 16, 17
-local FIRST_BAG, LAST_BAG = 0, NUM_BAG_SLOTS or 4
 local TICK = 0.1       -- seconds between passes
 local MAX_WAITS = 40   -- passes spent waiting on the game (4 s) before giving up
 local MAX_PASSES = 60  -- a safety net: a swap that hasn't settled by then stops
@@ -135,24 +136,56 @@ end
 
 
 ---------------------------------------------------------------------------
--- Where things are: gear slots 1-19, and bag slots as (bag + 1) * 100 + slot
+-- Where things are: gear slots 1-19, and bag slots as 1000 * (the bag's place in BAGS) + slot
 ---------------------------------------------------------------------------
-local function BagLoc(bag, slot) return (bag + 1) * 100 + slot end
-local function LocBag(loc) return math.floor(loc / 100) - 1, loc % 100 end
+-- The bags carried (not the keyring or reagent bag: no gear goes there), then the bank's
+-- tabs (an unbought tab has no slots), by the game's own numbers for them.
+local BagIndex = Enum and Enum.BagIndex or {}
+local BAGS = {}
+for i, name in ipairs({ "Backpack", "Bag_1", "Bag_2", "Bag_3", "Bag_4" }) do BAGS[i] = BagIndex[name] or (i - 1) end
+local CARRIED = #BAGS
+for i = 1, 9 do BAGS[#BAGS + 1] = BagIndex["CharacterBankTab_" .. i] end
+local BANK_LOC = (CARRIED + 1) * 1000 -- places from here on are in the bank
 
--- Every item worn or in the bags: { [loc] = item string }, and the places locked (the game
--- hasn't finished a move yet, or the item sits in a trade or mail window).
+local function BagLoc(i, slot) return i * 1000 + slot end
+local function LocBag(loc) return BAGS[math.floor(loc / 1000)], loc % 1000 end
+local function InBank(loc) return loc >= BANK_LOC end
+ns.GearLocInBank = InBank
+
+-- The bank's items can be read only while it's open (outside that its tabs look empty).
+local bankOpen = false
+function ns.BankOpen() return bankOpen end
+local function BankShown(shown)
+    return function()
+        bankOpen = shown
+        ns.RequestRefresh("profiles") -- the gear editor's list of items
+    end
+end
+ns.On("BANKFRAME_OPENED", BankShown(true))
+ns.On("BANKFRAME_CLOSED", BankShown(false))
+-- The client announces the banker through the interaction manager too.
+local BANKER = Enum and Enum.PlayerInteractionType and Enum.PlayerInteractionType.Banker
+if BANKER then
+    local opened, closed = BankShown(true), BankShown(false)
+    ns.On("PLAYER_INTERACTION_MANAGER_FRAME_SHOW", function(kind) if kind == BANKER then opened() end end)
+    ns.On("PLAYER_INTERACTION_MANAGER_FRAME_HIDE", function(kind) if kind == BANKER then closed() end end)
+end
+
+-- Every item worn, in the bags, and in the bank while it's open: { [loc] = item string },
+-- and the places locked (the game hasn't finished a move yet, or the item sits in a trade
+-- or mail window).
 local function Scan()
     local where, locked = {}, {}
     for slot = 1, 19 do
         where[slot] = Worn(slot)
         if IsInventoryItemLocked(slot) then locked[slot] = true end
     end
-    for bag = FIRST_BAG, LAST_BAG do
-        for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
+    for i = 1, bankOpen and #BAGS or CARRIED do
+        local bag = BAGS[i]
+        for slot = 1, bag and C_Container.GetContainerNumSlots(bag) or 0 do
             local info = C_Container.GetContainerItemInfo(bag, slot)
             if info then
-                local loc = BagLoc(bag, slot)
+                local loc = BagLoc(i, slot)
                 where[loc] = ItemString(info.hyperlink)
                 if info.isLocked then locked[loc] = true end
             end
@@ -161,13 +194,15 @@ local function Scan()
     return where, locked
 end
 
--- An empty slot in a bag that holds anything (not a quiver or ammo pouch), not in `avoid`.
+-- An empty slot in a carried bag that holds anything (not a quiver or ammo pouch), not in
+-- `avoid`.
 local function FreeBagSlot(where, avoid)
-    for bag = LAST_BAG, FIRST_BAG, -1 do
+    for i = CARRIED, 1, -1 do
+        local bag = BAGS[i]
         local _, family = C_Container.GetContainerNumFreeSlots(bag)
         if family == 0 or family == nil then
             for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
-                local loc = BagLoc(bag, slot)
+                local loc = BagLoc(i, slot)
                 if not where[loc] and not avoid[loc] then return loc end
             end
         end
@@ -182,18 +217,24 @@ local function Pickup(loc)
     end
 end
 
--- Where to find `want` for `slot`: the same copy first (by Key), then any of that item.
--- Places already claimed (kept or taken this plan) are skipped, as is the slot itself.
+-- Where to find `want` for `slot`: the same copy first (by Key), then any of that item;
+-- each worn or in the bags before the bank. Places already claimed (kept or taken this
+-- plan) are skipped, as is the slot itself.
 local function Find(where, want, slot, claimed)
     local key, id = Key(want), ns.ItemStringID(want)
-    local byID
+    local exactBank, byID, byIDBank
     for loc, have in pairs(where) do
         if loc ~= slot and not claimed[loc] then
-            if Key(have) == key then return loc end
-            if not byID and ns.ItemStringID(have) == id then byID = loc end
+            local bank = InBank(loc)
+            if Key(have) == key then
+                if not bank then return loc end
+                exactBank = exactBank or loc
+            elseif ns.ItemStringID(have) == id then
+                if bank then byIDBank = byIDBank or loc else byID = byID or loc end
+            end
         end
     end
-    return byID
+    return exactBank or byID or byIDBank
 end
 
 -- True if an unclaimed place holds this very copy of the item (by Key).
@@ -255,6 +296,26 @@ function ns.GearSlotsOf(items)
     for slot in pairs(items) do slots[slot] = true end
     if slots[MAIN_HAND] then slots[OFF_HAND] = true end
     return slots
+end
+
+-- What could go in `slot`, for the gear editor: { { item = item string, worn = true |
+-- bank = true }, ... }, each item once (by Key), the one worn there first, then the rest
+-- worn, the bags and the bank (while it's open), in that order.
+function ns.GearChoices(slot)
+    local list, seen = {}, {}
+    local where = Scan()
+    local function Add(loc)
+        local item = where[loc]
+        if not item or seen[Key(item)] or not ns.ItemFitsSlot(item, slot) then return end
+        seen[Key(item)] = true
+        list[#list + 1] = { item = item, worn = loc < 1000 or nil, bank = InBank(loc) or nil }
+    end
+    Add(slot)
+    for s = 1, 19 do if s ~= slot then Add(s) end end
+    for i = 1, #BAGS do
+        for bagSlot = 1, C_Container.GetContainerNumSlots(BAGS[i]) or 0 do Add(BagLoc(i, bagSlot)) end
+    end
+    return list
 end
 
 ---------------------------------------------------------------------------

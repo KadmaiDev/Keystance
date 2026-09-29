@@ -18,6 +18,8 @@ local KNOWN_EVENTS = {
     SPELLS_CHANGED = true, LEARNED_SPELL_IN_SKILL_LINE = true,
     PLAYER_EQUIPMENT_CHANGED = true, UNIT_INVENTORY_CHANGED = true,
     ITEM_LOCK_CHANGED = true, BAG_UPDATE_DELAYED = true,
+    BANKFRAME_OPENED = true, BANKFRAME_CLOSED = true,
+    PLAYER_INTERACTION_MANAGER_FRAME_SHOW = true, PLAYER_INTERACTION_MANAGER_FRAME_HIDE = true,
 }
 
 -- Functions the client blocks for addons in combat (measured 2026-09-28 with the phase 0
@@ -66,6 +68,10 @@ function M.load(files)
     M.inventory = {}   -- [inventory slot] = item equipped (16 main hand, 17 off hand)
     -- Bags: M.bags[bag] = { size = n, [slot] = item }; the backpack (0) has 16 slots.
     M.bags = { [0] = { size = 16 }, [1] = { size = 0 }, [2] = { size = 0 }, [3] = { size = 0 }, [4] = { size = 0 } }
+    -- Bank tabs (bags 6-14; unbought ones have no slots). Their items can be read and
+    -- picked up only while the bank is open (wow.openBank / wow.closeBank).
+    for bag = 6, 14 do M.bags[bag] = { size = 0 } end
+    M.bankOpen = false
     M.bagFamily = {}   -- [bag] = family (0, or e.g. 1 for a quiver)
     M.locked = {}      -- places the game is still moving: [slot] or ["bag:slot"] = true
     M.lockMoves = false -- true: every move locks its places until wow.unlock()
@@ -99,6 +105,13 @@ function M.load(files)
     Enum = {
         SpellBookSpellBank = { Player = 0, Pet = 1 },
         SpellBookItemType = { None = 0, Spell = 1, FutureSpell = 2, PetAction = 3, Flyout = 4 },
+        -- Forever's bags: the values are retail's (not measured on Forever, so the addon
+        -- mustn't depend on them beyond reading them from here).
+        BagIndex = { Keyring = -1, Backpack = 0, Bag_1 = 1, Bag_2 = 2, Bag_3 = 3, Bag_4 = 4, ReagentBag = 5,
+            CharacterBankTab_1 = 6, CharacterBankTab_2 = 7, CharacterBankTab_3 = 8, CharacterBankTab_4 = 9,
+            CharacterBankTab_5 = 10, CharacterBankTab_6 = 11, CharacterBankTab_7 = 12, CharacterBankTab_8 = 13,
+            CharacterBankTab_9 = 14 },
+        PlayerInteractionType = { Banker = 8, Merchant = 5 },
     }
 
     -- Frames: real behaviour for events, scripts, text and visibility; any other widget
@@ -174,6 +187,9 @@ function M.load(files)
     function frameMethods:SetSize(w, h) self.width, self.height = w, h end
     function frameMethods:SetWidth(w) self.width = w end
     function frameMethods:SetAlpha(a) self.alpha = a end
+    function frameMethods:SetFrameLevel(n) self.level = n end
+    function frameMethods:GetFrameLevel() return self.level or 1 end
+    function frameMethods:SetVertexColor(r, g, b, a) self.vertex = { r, g, b, a } end
     function frameMethods:SetTexCoord(...) self.texCoord = { ... } end
     function frameMethods:IsProtected() return false end
     function frameMethods:EnableKeyboard(on) self.keyboard = on end
@@ -378,8 +394,10 @@ function M.load(files)
         end
     end
     M.held = nil -- the place the item on the cursor came from
+    local function BankBag(bag) return bag >= 6 and bag <= 14 end
     local function pickupAt(place)
         if M.cursor and M.cursor[1] ~= "item" then return end
+        if place[1] == "bag" and BankBag(place[2]) and not M.bankOpen then return end
         if not M.held then
             local item = get(place)
             if item and not M.locked[lockKey(place)] then
@@ -408,6 +426,17 @@ function M.load(files)
         for _, p in ipairs({ from, place }) do
             if p[1] == "inv" then M.fire("PLAYER_EQUIPMENT_CHANGED", p[2], get(p) == nil) end
         end
+    end
+    -- Talking to a banker, and walking away (the interaction manager's events come too).
+    function M.openBank()
+        M.bankOpen = true
+        M.fire("PLAYER_INTERACTION_MANAGER_FRAME_SHOW", Enum.PlayerInteractionType.Banker)
+        M.fire("BANKFRAME_OPENED")
+    end
+    function M.closeBank()
+        M.bankOpen = false
+        M.fire("BANKFRAME_CLOSED")
+        M.fire("PLAYER_INTERACTION_MANAGER_FRAME_HIDE", Enum.PlayerInteractionType.Banker)
     end
     function M.unlock()
         M.locked = {}
@@ -453,6 +482,7 @@ function M.load(files)
             return n, M.bagFamily[bag] or 0
         end,
         GetContainerItemInfo = function(bag, slot)
+            if BankBag(bag) and not M.bankOpen then return nil end -- read as empty, as in game
             local item = M.bags[bag] and M.bags[bag][slot]
             if not item then return nil end
             return { itemID = idOf(item), hyperlink = linkOf(item), isLocked = M.locked[bag .. ":" .. slot] == true,
@@ -753,6 +783,7 @@ function M.tooltip()
         AddDoubleLine = function(self, l, r) self.lines[#self.lines + 1] = { l, r } end,
         SetAction = function(self, slot) self.action = slot; self.lines[#self.lines + 1] = { "action:" .. slot } end,
         SetSpellByID = function(self, id) self.spell = id; self.lines[#self.lines + 1] = { "spell:" .. id } end,
+        SetHyperlink = function(self, link) self.lines[#self.lines + 1] = { link } end,
         SetOwner = function(self, owner) self.owner, self.lines, self.shown, self.action = owner, {}, false, nil end,
         Show = function(self) self.shown = true end,
         Hide = function(self) self.shown, self.owner = false, nil end,

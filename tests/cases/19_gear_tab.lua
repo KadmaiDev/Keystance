@@ -25,11 +25,12 @@ test("a profile's Gear button swaps the list for its gear editor; Back returns",
     eq(page.list:IsShown(), true)
 end)
 
-test("slots: click takes what's worn, a dropped item is used, right-click leaves it alone", function()
+test("slots: the worn item picked from the flyout, a dropped item is used, right-click leaves it alone", function()
     local c, ns = gearLogin()
     ns.SaveProfile("Prot")
     local view = gearView("Prot")
     click(view.slots[1])
+    click(view.flyout.cells[1])
     eq(c.profiles.Prot.gear[1], gearString(1101), "the worn helm")
     eq(view.slots[1].name.text, "Coif")
     wow.cursor = { "item", 1100, "|cffffffff|H" .. gearString(1100) .. "|h[Lionheart Helm]|h|r" }
@@ -40,8 +41,11 @@ test("slots: click takes what's worn, a dropped item is used, right-click leaves
     eq(c.profiles.Prot.gear, nil, "no slots left: no gear")
     eq(view.slots[1].name.text, "Head")
     click(view.slots[1])
+    click(view.flyout.cells[1])
     click(view.slots[5])
-    eq(c.profiles.Prot.gear[1], gearString(1101), "nothing worn there: the saved gear stays")
+    eq(view.flyout.slot, 5)
+    eq(view.flyout.cells[1]:IsShown(), false, "nothing to choose for the chest")
+    eq(c.profiles.Prot.gear[1], gearString(1101), "the saved gear stays")
     eq(c.profiles.Prot.gear[5], nil)
 end)
 
@@ -143,7 +147,8 @@ test("a two-hander and an off hand aren't saved together", function()
     local c, ns = gearLogin()
     ns.SaveProfile("Ret")
     local view = gearView("Ret")
-    click(view.slots[17]) -- the worn shield
+    click(view.slots[17])
+    click(view.flyout.cells[1]) -- the worn shield
     eq(c.profiles.Ret.gear[17], gearString(2129))
     cursorItem(1680) -- a two-hander
     click(view.slots[16])
