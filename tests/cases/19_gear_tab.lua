@@ -92,3 +92,47 @@ test("the editor goes back to the list if its profile is deleted", function()
     eq(page.list:IsShown(), true)
     eq(view:IsShown(), false)
 end)
+
+local function cursorItem(id)
+    wow.cursor = { "item", id, "|cffffffff|H" .. gearString(id) .. "|h[" .. wow.itemNames[id] .. "]|h|r" }
+end
+
+test("an item only goes in a slot it can be worn in; a wrong one stays on the cursor and says where it goes", function()
+    local c, ns = gearLogin()
+    ns.SaveProfile("Prot")
+    local view = gearView("Prot")
+    cursorItem(1300) -- boots
+    view.slots[7].scripts.OnReceiveDrag(view.slots[7]) -- Legs
+    eq(c.profiles.Prot.gear, nil, "not saved")
+    eq(wow.cursor[2], 1300, "still on the cursor")
+    assert(printed():find("Stompers can't go in Legs: it goes in Feet.", 1, true), printed())
+    view.slots[8].scripts.OnReceiveDrag(view.slots[8]) -- Feet
+    eq(c.profiles.Prot.gear[8], gearString(1300))
+    eq(wow.cursor, nil)
+    -- Rings go in either ring slot; a one-hander in the off hand only with dual wield.
+    cursorItem(1000)
+    click(view.slots[12])
+    eq(c.profiles.Prot.gear[12], gearString(1000))
+    wow.dualWield = false
+    cursorItem(2132)
+    click(view.slots[17])
+    eq(c.profiles.Prot.gear[17], nil)
+    assert(printed():find("can't go in your off hand: you can't dual wield yet", 1, true), printed())
+    wow.dualWield = true
+    click(view.slots[17])
+    eq(c.profiles.Prot.gear[17], gearString(2132))
+    -- Something you can't wear at all.
+    cursorItem(6948) -- Hearthstone
+    click(view.slots[1])
+    assert(printed():find("Hearthstone isn't something you wear.", 1, true), printed())
+    wow.cursor = nil
+end)
+
+test("an item saved in the wrong slot before this check is shown in red", function()
+    local c, ns = gearLogin()
+    ns.SaveProfile("Prot")
+    c.profiles.Prot.gear = { [7] = gearString(1300) }
+    local view = gearView("Prot")
+    eq(view.slots[7].wrong, true)
+    eq(view.slots[7].name.text, "Stompers (wrong slot)")
+end)

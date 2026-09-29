@@ -79,6 +79,13 @@ local function MakeSlot(view, f, slot, x, y)
     local function Drop(self)
         local item = CursorItem()
         if item then
+            -- Only where it can be worn (boots in Feet, not Legs); a wrong one stays on the
+            -- cursor, as on the character sheet, and says where it goes.
+            local fits, why = ns.ItemFitsSlot(item, self.slot)
+            if not fits then
+                ns.Print(why)
+                return true
+            end
             ClearCursor() -- back to its bag
             SetSlot(self.view, self.slot, item)
             return true
@@ -194,8 +201,11 @@ local function RefreshItems(view, p)
             b.icon:SetTexture(C_Item.GetItemIconByID(ns.ItemStringID(item)))
             b.icon:SetDesaturated(false)
             b.icon:SetAlpha(1)
-            b.name:SetText(ns.GearItemName(item))
-            b.name:SetTextColor(1, 1, 1)
+            -- Saved in a slot it can't go in (before this was checked): shown in red.
+            local fits = ns.ItemFitsSlot(item, slot)
+            b.wrong = not fits or nil
+            b.name:SetText(fits and ns.GearItemName(item) or L["%s (wrong slot)"]:format(ns.GearItemName(item)))
+            if fits then b.name:SetTextColor(1, 1, 1) else b.name:SetTextColor(1, 0.3, 0.3) end
         else
             b.icon:SetTexture(EmptyIcon(slot))
             b.icon:SetDesaturated(true)

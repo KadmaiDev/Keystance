@@ -71,9 +71,10 @@ function M.load(files)
     M.dead = false
     M.equipLoc = { [2129] = "INVTYPE_SHIELD", [1680] = "INVTYPE_2HWEAPON", [2132] = "INVTYPE_WEAPON",
         [1000] = "INVTYPE_FINGER", [1001] = "INVTYPE_FINGER", [1100] = "INVTYPE_HEAD", [1101] = "INVTYPE_HEAD",
-        [1200] = "INVTYPE_TRINKET" }
+        [1200] = "INVTYPE_TRINKET", [1300] = "INVTYPE_FEET" }
     M.itemNames = { [2129] = "Large Round Shield", [1680] = "Headchopper", [2132] = "Short Cutlass", [6948] = "Hearthstone",
-        [1000] = "Band of Flesh", [1001] = "Seal of Wrynn", [1100] = "Lionheart Helm", [1101] = "Coif", [1200] = "Lucky Charm" }
+        [1000] = "Band of Flesh", [1001] = "Seal of Wrynn", [1100] = "Lionheart Helm", [1101] = "Coif", [1200] = "Lucky Charm",
+        [1300] = "Stompers" }
     M.sets = {}        -- { { name = "Healing", equipped = true }, ... }
 
     wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
@@ -422,6 +423,8 @@ function M.load(files)
     PickupInventoryItem = function(slot) pickupAt({ "inv", slot }) end
     CursorHasItem = function() return M.cursor ~= nil and M.cursor[1] == "item" end
     UnitIsDeadOrGhost = function() return M.dead end
+    M.dualWield = true
+    CanDualWield = function() return M.dualWield end
     C_Container = {
         GetContainerNumSlots = function(bag) return M.bags[bag] and M.bags[bag].size or 0 end,
         GetContainerNumFreeSlots = function(bag)

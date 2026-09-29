@@ -77,6 +77,41 @@ function ns.GearItemName(s)
 end
 
 ---------------------------------------------------------------------------
+-- Which slot an item goes in (its equip location), as the character sheet allows
+---------------------------------------------------------------------------
+local FITS = {
+    INVTYPE_HEAD = { 1 }, INVTYPE_NECK = { 2 }, INVTYPE_SHOULDER = { 3 }, INVTYPE_BODY = { 4 }, INVTYPE_CHEST = { 5 },
+    INVTYPE_ROBE = { 5 }, INVTYPE_WAIST = { 6 }, INVTYPE_LEGS = { 7 }, INVTYPE_FEET = { 8 }, INVTYPE_WRIST = { 9 },
+    INVTYPE_HAND = { 10 }, INVTYPE_FINGER = { 11, 12 }, INVTYPE_TRINKET = { 13, 14 }, INVTYPE_CLOAK = { 15 },
+    INVTYPE_WEAPON = { 16, 17 }, INVTYPE_2HWEAPON = { 16 }, INVTYPE_WEAPONMAINHAND = { 16 },
+    INVTYPE_WEAPONOFFHAND = { 17 }, INVTYPE_SHIELD = { 17 }, INVTYPE_HOLDABLE = { 17 }, INVTYPE_RANGED = { 18 },
+    INVTYPE_RANGEDRIGHT = { 18 }, INVTYPE_THROWN = { 18 }, INVTYPE_RELIC = { 18 }, INVTYPE_TABARD = { 19 },
+}
+
+-- True if the item can go in that gear slot; else false and why ("Stompers can't go in
+-- Legs: it goes in Feet."). A one-hander in the off hand needs dual wield. An equip
+-- location this list doesn't know is allowed (the game still has the last word).
+function ns.ItemFitsSlot(item, slot)
+    local _, _, _, loc = C_Item.GetItemInfoInstant(item)
+    local name = ns.GearItemName(item)
+    if type(loc) ~= "string" or loc == "" or loc == "INVTYPE_NON_EQUIP_IGNORE" or loc == "INVTYPE_AMMO"
+        or loc == "INVTYPE_BAG" then
+        return false, L["%s isn't something you wear."]:format(name)
+    end
+    local slots = FITS[loc]
+    if not slots then return true end
+    for _, s in ipairs(slots) do
+        if s == slot then
+            if slot == OFF_HAND and loc == "INVTYPE_WEAPON" and CanDualWield and not CanDualWield() then
+                return false, L["%s can't go in your off hand: you can't dual wield yet."]:format(name)
+            end
+            return true
+        end
+    end
+    return false, L["%s can't go in %s: it goes in %s."]:format(name, ns.GEAR_SLOT_NAMES[slot], ns.GEAR_SLOT_NAMES[slots[1]])
+end
+
+---------------------------------------------------------------------------
 -- Saving
 ---------------------------------------------------------------------------
 -- The gear worn now, as { [slot] = item string }: every slot, or only those in `slots`.
