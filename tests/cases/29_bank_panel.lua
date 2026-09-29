@@ -157,6 +157,8 @@ test("EllesmereUI's and ElvUI's bank windows get the button too", function()
     wow.runTimers()
     local buttons = ns.BankButtons()
     eq(buttons.EUI_BankFrame.parent, header)
+    assert(buttons.EUI_BankFrame.icon.texture:find("logo.tga", 1, true), "EllesmereUI's round buttons have the gold ring")
+    assert(buttons.BankFrame.icon.texture:find("minimap.tga", 1, true), "Blizzard's: the plain logo")
     eq(buttons.ElvUI_BankContainerFrame.parent, ElvUI_BankContainerFrame)
 end)
 

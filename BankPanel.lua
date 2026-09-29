@@ -10,6 +10,8 @@ local L = ns.L
 local ipairs, pairs, pcall, CreateFrame = ipairs, pairs, pcall, CreateFrame
 
 local ICON = "Interface\\AddOns\\" .. ADDON .. "\\media\\minimap.tga"
+-- The logo with its gold ring, like EllesmereUI's own round header buttons.
+local RINGED = "Interface\\AddOns\\" .. ADDON .. "\\media\\logo.tga"
 local ROWS, ROW_H, WIDTH = 8, 30, 380
 
 local panel
@@ -211,23 +213,34 @@ end
 ---------------------------------------------------------------------------
 -- The button on the bank window
 ---------------------------------------------------------------------------
-local function Button(parent, bankFrame, size)
+-- round: EllesmereUI's style, the ringed logo slightly dimmed, brightening on hover (no
+-- square highlight on a round button).
+local function Button(parent, bankFrame, size, round)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(size, size)
     b.icon = b:CreateTexture(nil, "ARTWORK")
     b.icon:SetAllPoints()
-    b.icon:SetTexture(ICON)
-    local hl = b:CreateTexture(nil, "HIGHLIGHT")
-    hl:SetAllPoints()
-    hl:SetColorTexture(1, 1, 1, 0.15)
+    b.icon:SetTexture(round and RINGED or ICON)
+    if round then
+        b.rest = 0.9
+        b.icon:SetAlpha(b.rest)
+    else
+        local hl = b:CreateTexture(nil, "HIGHLIGHT")
+        hl:SetAllPoints()
+        hl:SetColorTexture(1, 1, 1, 0.15)
+    end
     b:SetScript("OnClick", function() TogglePanel(bankFrame) end)
     b:SetScript("OnEnter", function(self)
+        if self.rest then self.icon:SetAlpha(1) end
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
         GameTooltip:AddLine("Keystance")
         GameTooltip:AddLine(L["Move your profiles' gear in and out of the bank."], 1, 1, 1, true)
         GameTooltip:Show()
     end)
-    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    b:SetScript("OnLeave", function(self)
+        if self.rest then self.icon:SetAlpha(self.rest) end
+        GameTooltip:Hide()
+    end)
     return b
 end
 
@@ -256,7 +269,7 @@ local PLACES = {
         local f = _G.EUI_BankFrame
         local search = f and f._searchBox
         if not (search and search.GetParent) then return end
-        local b = Button(search:GetParent(), f, 24)
+        local b = Button(search:GetParent(), f, 24, true)
         b:SetPoint("RIGHT", search, "LEFT", af and -73 or -43, 0)
         return b
     end,
