@@ -65,6 +65,14 @@ local function MakeRow(page, f, r)
     label:SetJustifyH("LEFT")
     row.label = label
     f.texts[#f.texts + 1] = label
+    -- EllesmereUI's Visibility when it isn't Always ("in combat", "mouseover"), under the name.
+    local note = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    note:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -1)
+    note:SetWidth(LABEL_WIDTH - 6)
+    note:SetJustifyH("LEFT")
+    note:Hide()
+    row.note = note
+    f.texts[#f.texts + 1] = note
     row.slots = {}
     for i = 1, 12 do
         local b = CreateFrame("Button", nil, row)
@@ -182,6 +190,11 @@ end
 -- Fills a row's slots from a bar: icon, slot, key.
 local function FillRow(page, row, bar)
     row.label:SetText(bar.name)
+    local note = bar.note
+    row.note:SetShown(note ~= nil)
+    row.label:ClearAllPoints()
+    row.label:SetPoint("LEFT", row, "LEFT", 0, note and 5 or 0)
+    if note then row.note:SetText(note) end
     for i, b in ipairs(row.slots) do
         local btn = bar.buttons[i]
         local slot = ns.BarButtonSlot(btn)
@@ -212,7 +225,9 @@ local function RowButton(page, row, text, title, fn)
     b:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine(title)
-        GameTooltip:AddLine(ns.BarSource() == "blizzard" and L["Switches it as Options > Action Bars does. Its spells and keys stay."]
+        local source = ns.BarSource()
+        GameTooltip:AddLine(source == "blizzard" and L["Switches it as Options > Action Bars does. Its spells and keys stay."]
+            or source == "ellesmere" and L["Sets its Visibility in EllesmereUI (Never, or back to what it was). That's part of your EllesmereUI profile, so characters sharing the profile change too. Its spells and keys stay."]
             or L["Opens your bar addon's Action Bars settings, where you switch it. Its spells and keys stay."], 1, 1, 1, true)
         GameTooltip:Show()
     end)

@@ -229,6 +229,49 @@ for k = 1, 15 do ELV_INFO[k] = { barFrame = "ElvUI_Bar" .. k, label = L["Bar %d"
 
 local function Exists(name) return type(_G[name]) == "table" end
 
+---------------------------------------------------------------------------
+-- EllesmereUI's bar settings (its own, unofficial: every piece is checked, and a missing
+-- one means Keystance just opens its settings instead). A bar's Visibility is one of
+-- always, mouseover, in_combat, out_of_combat, never (and group modes); "enabled" = false
+-- switches a bar off entirely.
+---------------------------------------------------------------------------
+local function EuiModule()
+    local lite = type(EllesmereUI) == "table" and EllesmereUI.Lite
+    if type(lite) ~= "table" or type(lite.GetAddon) ~= "function" then return nil end
+    local ok, eab = pcall(lite.GetAddon, "EllesmereUIActionBars", true)
+    if ok and type(eab) == "table" then return eab end
+end
+
+-- A bar's settings table in the EllesmereUI profile in use, or nil.
+local function EuiSettings(key)
+    local eab = EuiModule()
+    local db = eab and eab.db
+    local bars = type(db) == "table" and type(db.profile) == "table" and db.profile.bars
+    local set = type(bars) == "table" and bars[key]
+    return type(set) == "table" and set or nil, eab
+end
+
+-- Its Visibility, read without writing (EllesmereUI's own Normalize writes it back).
+local function EuiMode(set)
+    if type(set.barVisibility) == "string" then return set.barVisibility end
+    if set.alwaysHidden then return "never" end
+    if set.mouseoverEnabled then return "mouseover" end
+    if set.combatShowEnabled then return "in_combat" end
+    if set.combatHideEnabled then return "out_of_combat" end
+    return "always"
+end
+
+-- Words for a mode, made once each: "in_combat" -> "in combat".
+local MODE_NOTES = { always = false }
+local function ModeNote(mode)
+    local note = MODE_NOTES[mode]
+    if note == nil then
+        note = L[mode:gsub("_", " ")]
+        MODE_NOTES[mode] = note
+    end
+    return note or nil
+end
+
 -- A bar entry of `list` (reused), with its twelve buttons.
 local function Bar(list, i, name)
     local bar = list[i]
@@ -251,7 +294,13 @@ local function Collect(list, shown)
     local source = ns.BarSource()
     if source == "ellesmere" then
         for _, info in ipairs(EUI_BARS) do
-            if Exists(info.barFrame) and Shown(info.barFrame) == shown then
+            -- In use unless its Visibility is Never or it's switched off: a bar shown only
+            -- in combat (hidden now) is still in use. Without its settings, what's on screen.
+            local set = EuiSettings(info.key)
+            local mode = set and EuiMode(set)
+            local on
+            if set then on = set.enabled ~= false and mode ~= "never" else on = Shown(info.barFrame) end
+            if Exists(info.barFrame) and on == shown then
                 n = n + 1
                 if not info.commands then
                     Names(info, function(b) return info.command .. b end,
@@ -261,6 +310,7 @@ local function Collect(list, shown)
                 local bar = Bar(list, n, info.label)
                 bar.source, bar.key, bar.frameName = source, info.key, info.barFrame
                 bar.canHide = info.key ~= "MainBar"
+                bar.note = shown and mode and ModeNote(mode) or nil
                 for b = 1, 12 do
                     local btn = bar.buttons[b]
                     btn.command, btn.frame, btn.click = info.commands[b], _G[info.frames[b]], info.clicks[b]
@@ -281,6 +331,7 @@ local function Collect(list, shown)
                 local bar = Bar(list, n, info.label)
                 bar.source, bar.key, bar.frameName = source, k, info.barFrame
                 bar.canHide = k ~= 1
+                bar.note = nil
                 for b = 1, 12 do
                     local btn = bar.buttons[b]
                     btn.frame = _G[info.frames[b]]
@@ -300,6 +351,7 @@ local function Collect(list, shown)
                 local bar = Bar(list, n, info.name)
                 bar.source, bar.key, bar.frameName = source, info.toggle, info.frame
                 bar.canHide = info.toggle ~= nil -- the main bar has no switch
+                bar.note = nil
                 if not info.commands then
                     Names(info, function(b) return info.command .. b end, function(b) return info.button .. b end)
                 end
@@ -334,6 +386,7 @@ function ns.SetBarShown(bar, on)
         return false
     end
     local name, frameName = bar.name, bar.frameName
+    if bar.source == "ellesmere" and ns.SetEuiBarShown(bar, on) then return true end
     if bar.source == "ellesmere" then
         local ok = type(EllesmereUI) == "table" and type(EllesmereUI.ShowModule) == "function"
             and pcall(EllesmereUI.ShowModule, EllesmereUI, "EllesmereUIActionBars")
@@ -377,6 +430,49 @@ function ns.SetBarShown(bar, on)
         ns.RequestRefresh("bars")
     end)
     return ok
+end
+
+-- EllesmereUI's bars in one click, as its own Visibility control does (the owner's
+-- decision, 2026-09-29): Hide sets Never and remembers what it was; Show puts that back (or
+-- Always). Then its three refreshes run, and 0.5 s later the result is checked. Returns
+-- false (so its settings page opens instead) when anything needed is missing, or the bar
+-- is switched off entirely (only EllesmereUI's full refresh brings that back).
+function ns.SetEuiBarShown(bar, on)
+    local set, eab = EuiSettings(bar.key)
+    local vc = eab and eab.VisibilityCompat
+    if not (set and set.enabled ~= false and type(vc) == "table" and type(vc.ApplyMode) == "function"
+        and type(eab.RefreshRuntimeVisibility) == "function" and type(eab.RefreshMouseover) == "function"
+        and type(eab.ApplyCombatVisibility) == "function") then
+        return false
+    end
+    local saved = ns.db.settings.euiVisibility or {}
+    ns.db.settings.euiVisibility = saved
+    local was, mode = EuiMode(set), nil
+    if on then
+        mode = saved[bar.key] or "always"
+        if was ~= "never" then return false end -- not hidden by its Visibility: its page decides
+    else
+        if was == "never" then return false end
+        mode = "never"
+    end
+    if not pcall(vc.ApplyMode, set, mode) then return false end
+    if on then saved[bar.key] = nil else saved[bar.key] = was end
+    pcall(eab.RefreshRuntimeVisibility, eab)
+    pcall(eab.RefreshMouseover, eab)
+    pcall(eab.ApplyCombatVisibility, eab)
+    local name, frameName = bar.name, bar.frameName
+    C_Timer.After(0.5, function()
+        local done = EuiMode(set) == mode and (mode ~= "never" or not Shown(frameName))
+            and (mode ~= "always" or Shown(frameName))
+        if done then
+            ns.Print(on and L["%s is back (%s)."]:format(name, mode == "always" and L["always shown"] or ModeNote(mode))
+                or L["%s is hidden now (its Visibility is Never in EllesmereUI). It keeps its spells and keys; Show brings it back."]:format(name))
+        else
+            ns.Print(L["%s didn't change: switch it in EllesmereUI's Action Bars settings (/eui)."]:format(name))
+        end
+        ns.RequestRefresh("bars")
+    end)
+    return true
 end
 
 function ns.ShowBar(bar) return ns.SetBarShown(bar, true) end

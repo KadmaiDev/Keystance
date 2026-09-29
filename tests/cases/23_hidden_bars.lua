@@ -171,3 +171,107 @@ test("Hide waits out combat too", function()
     eq(#wow.blocked, 0)
     wow.leaveCombat()
 end)
+
+-- A stand-in for EllesmereUI's action bars: bar settings in its profile, its Visibility
+-- helper and its refreshes, which show or hide each bar frame by its Visibility (out of
+-- combat, as now). `bars` is { [key] = settings }.
+local function fakeEllesmere(bars)
+    local frames = {}
+    for key in pairs(bars) do frames[key] = CreateFrame("Frame", "EABBar_" .. key) end
+    CreateFrame("Button", "EABButton1"):SetAttribute("action", 1)
+    local eab = { db = { profile = { bars = bars } }, calls = {}, VisibilityCompat = {} }
+    function eab.VisibilityCompat.ApplyMode(set, mode)
+        set.barVisibility, set.alwaysHidden = mode, mode == "never"
+        return mode
+    end
+    function eab:RefreshRuntimeVisibility()
+        self.calls[#self.calls + 1] = "RefreshRuntimeVisibility"
+        for key, set in pairs(bars) do
+            local mode = set.barVisibility or "always"
+            frames[key]:SetShown(set.enabled ~= false and mode ~= "never" and mode ~= "in_combat")
+        end
+    end
+    function eab:RefreshMouseover() self.calls[#self.calls + 1] = "RefreshMouseover" end
+    function eab:ApplyCombatVisibility() self.calls[#self.calls + 1] = "ApplyCombatVisibility" end
+    local opened
+    EllesmereUI = { Lite = { GetAddon = function(name) return name == "EllesmereUIActionBars" and eab or nil end },
+        ShowModule = function(_, module) opened = module end }
+    eab:RefreshRuntimeVisibility()
+    eab.calls = {}
+    return eab, frames, function() return opened end
+end
+
+test("EllesmereUI bars shown only in combat or on mouseover count as in use, with a note", function()
+    loginWithSetup(nil)
+    fakeEllesmere({ MainBar = {}, Bar2 = { barVisibility = "mouseover" }, Bar4 = { barVisibility = "in_combat" },
+        Bar5 = { barVisibility = "never" }, Bar6 = { enabled = false } })
+    local page = barsPage()
+    eq(page.rows[1].label.text, "Bar 1")
+    eq(page.rows[1].note:IsShown(), false, "always shown: no note")
+    eq(page.rows[2].note.text, "mouseover")
+    eq(page.rows[3].label.text, "Bar 4", "hidden now, but in use")
+    eq(page.rows[3].note.text, "in combat")
+    eq(page.hiddenFold.text, "+ Hidden bars (2)", "Never and switched off")
+    EllesmereUI = nil
+end)
+
+test("Hide sets an EllesmereUI bar's Visibility to Never, and Show puts back what it was", function()
+    loginWithSetup(nil)
+    local bars = { MainBar = {}, Bar2 = { barVisibility = "mouseover" } }
+    local eab, frames, opened = fakeEllesmere(bars)
+    local page = barsPage()
+    click(page.rows[2].hide)
+    eq(bars.Bar2.barVisibility, "never")
+    eq(KeystanceDB.settings.euiVisibility.Bar2, "mouseover", "remembered")
+    eq(table.concat(eab.calls, ","), "RefreshRuntimeVisibility,RefreshMouseover,ApplyCombatVisibility",
+        "the refreshes its own Visibility control runs")
+    eq(frames.Bar2:IsShown(), false)
+    eq(opened(), nil, "no settings page needed")
+    wow.runTimers()
+    assert(printed():find("Bar 2 is hidden now (its Visibility is Never in EllesmereUI)", 1, true), printed())
+    wow.runTimers()
+    local rows = openFold(page)
+    eq(rows[1].label.text, "Bar 2")
+    click(rows[1].show)
+    eq(bars.Bar2.barVisibility, "mouseover", "as it was")
+    eq(KeystanceDB.settings.euiVisibility.Bar2, nil)
+    wow.runTimers()
+    assert(printed():find("Bar 2 is back (mouseover).", 1, true), printed())
+    EllesmereUI = nil
+end)
+
+test("an EllesmereUI bar Keystance didn't hide comes back as always shown", function()
+    loginWithSetup(nil)
+    local bars = { MainBar = {}, Bar3 = { barVisibility = "never" } }
+    fakeEllesmere(bars)
+    local page = barsPage()
+    click(openFold(page)[1].show)
+    eq(bars.Bar3.barVisibility, "always")
+    wow.runTimers()
+    assert(printed():find("Bar 3 is back (always shown).", 1, true), printed())
+    EllesmereUI = nil
+end)
+
+test("a bar switched off entirely, or EllesmereUI without its pieces: its settings page opens instead", function()
+    loginWithSetup(nil)
+    local bars = { MainBar = {}, Bar6 = { enabled = false } }
+    local eab, _, opened = fakeEllesmere(bars)
+    local page = barsPage()
+    click(openFold(page)[1].show)
+    eq(opened(), "EllesmereUIActionBars")
+    eq(bars.Bar6.enabled, false, "not touched")
+    EllesmereUI = nil
+end)
+
+test("if EllesmereUI lacks a piece Keystance needs (after an update), its page opens and nothing changes", function()
+    loginWithSetup(nil)
+    local bars = { MainBar = {}, Bar2 = {} }
+    local eab, _, opened = fakeEllesmere(bars)
+    eab.RefreshMouseover = nil
+    local page = barsPage()
+    click(page.rows[2].hide)
+    eq(opened(), "EllesmereUIActionBars")
+    eq(bars.Bar2.barVisibility, nil, "not touched")
+    assert(printed():find("Switch Bar 2 off in EllesmereUI's Action Bars settings.", 1, true), printed())
+    EllesmereUI = nil
+end)
