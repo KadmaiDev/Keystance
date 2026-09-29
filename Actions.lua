@@ -1,11 +1,12 @@
 -- Keystance actions: what's in each action slot, which slot a binding command triggers, and
--- which bars are on screen, for Blizzard's bars, EllesmereUI's and ElvUI's. Read-only.
+-- which bars are on screen or hidden, for Blizzard's bars, EllesmereUI's and ElvUI's. Reads
+-- only, except ns.ShowBar, which puts a hidden bar on screen (never touching its slots).
 -- Slot numbers and binding commands were measured with the phase 0 probe (AGENTS.md).
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
 
-local type, tonumber, pcall = type, tonumber, pcall
+local type, tonumber, pcall, ipairs, unpack = type, tonumber, pcall, ipairs, unpack
 local issecretvalue = issecretvalue or function() return false end
 local HasAction, GetActionInfo, GetActionText = HasAction, GetActionInfo, GetActionText
 
@@ -177,16 +178,25 @@ local ELV_COMMANDS = {
     [15] = "MULTIACTIONBAR7BUTTON",
 }
 
--- Blizzard's bars: the bar frame, its buttons' name and their binding command.
+-- Blizzard's bars: the bar frame, its buttons' name and their binding command; for the
+-- extra bars, their first action slot and their place in the game's bar switches
+-- (GetActionBarToggles: bottom left, bottom right, right, right 2, bars 6-8).
 local BLIZZARD_BARS = {
     { frame = "MainActionBar", alt = "MainMenuBar", button = "ActionButton", command = "ACTIONBUTTON", name = L["Main bar"] },
-    { frame = "MultiBarBottomLeft", button = "MultiBarBottomLeftButton", command = "MULTIACTIONBAR1BUTTON", name = L["Bottom left"] },
-    { frame = "MultiBarBottomRight", button = "MultiBarBottomRightButton", command = "MULTIACTIONBAR2BUTTON", name = L["Bottom right"] },
-    { frame = "MultiBarRight", button = "MultiBarRightButton", command = "MULTIACTIONBAR3BUTTON", name = L["Right"] },
-    { frame = "MultiBarLeft", button = "MultiBarLeftButton", command = "MULTIACTIONBAR4BUTTON", name = L["Right 2"] },
-    { frame = "MultiBar5", button = "MultiBar5Button", command = "MULTIACTIONBAR5BUTTON", name = L["Bar 6"] },
-    { frame = "MultiBar6", button = "MultiBar6Button", command = "MULTIACTIONBAR6BUTTON", name = L["Bar 7"] },
-    { frame = "MultiBar7", button = "MultiBar7Button", command = "MULTIACTIONBAR7BUTTON", name = L["Bar 8"] },
+    { frame = "MultiBarBottomLeft", button = "MultiBarBottomLeftButton", command = "MULTIACTIONBAR1BUTTON",
+        name = L["Bottom left"], first = 61, toggle = 1 },
+    { frame = "MultiBarBottomRight", button = "MultiBarBottomRightButton", command = "MULTIACTIONBAR2BUTTON",
+        name = L["Bottom right"], first = 49, toggle = 2 },
+    { frame = "MultiBarRight", button = "MultiBarRightButton", command = "MULTIACTIONBAR3BUTTON", name = L["Right"],
+        first = 25, toggle = 3 },
+    { frame = "MultiBarLeft", button = "MultiBarLeftButton", command = "MULTIACTIONBAR4BUTTON", name = L["Right 2"],
+        first = 37, toggle = 4 },
+    { frame = "MultiBar5", button = "MultiBar5Button", command = "MULTIACTIONBAR5BUTTON", name = L["Bar 6"],
+        first = 145, toggle = 5 },
+    { frame = "MultiBar6", button = "MultiBar6Button", command = "MULTIACTIONBAR6BUTTON", name = L["Bar 7"],
+        first = 157, toggle = 6 },
+    { frame = "MultiBar7", button = "MultiBar7Button", command = "MULTIACTIONBAR7BUTTON", name = L["Bar 8"],
+        first = 169, toggle = 7 },
 }
 
 -- Which bar addon draws the bars: "ellesmere", "elvui" or "blizzard".
@@ -217,82 +227,143 @@ end
 local ELV_INFO = {}
 for k = 1, 15 do ELV_INFO[k] = { barFrame = "ElvUI_Bar" .. k, label = L["Bar %d"]:format(k) } end
 
-local bars = {} -- reused between calls
-local function Bar(i, name)
-    local bar = bars[i]
+local function Exists(name) return type(_G[name]) == "table" end
+
+-- A bar entry of `list` (reused), with its twelve buttons.
+local function Bar(list, i, name)
+    local bar = list[i]
     if not bar then
         bar = { buttons = {} }
-        bars[i] = bar
+        list[i] = bar
     end
     bar.name = name
+    for b = 1, 12 do bar.buttons[b] = bar.buttons[b] or {} end
     return bar
 end
 
--- The bars on screen now, in order. Reuses its tables: read, don't keep.
-function ns.ShownBars()
+-- The bars on screen (shown = true) or the ones that exist but are hidden (false), in
+-- order, into `list`. Each bar also says which addon draws it and how to show it:
+-- bar.source, bar.key (Blizzard's toggle, EllesmereUI's bar key, ElvUI's number),
+-- bar.frameName. A hidden bar's buttons carry their slot (btn.slot), as a hidden button may
+-- not keep its action up to date.
+local function Collect(list, shown)
     local n = 0
     local source = ns.BarSource()
     if source == "ellesmere" then
         for _, info in ipairs(EUI_BARS) do
-            if Shown(info.barFrame) then
+            if Exists(info.barFrame) and Shown(info.barFrame) == shown then
                 n = n + 1
                 if not info.commands then
                     Names(info, function(b) return info.command .. b end,
                         function(b) return "EABButton" .. (info.first + b - 1) end,
                         function(b) return "CLICK EABButton" .. (info.first + b - 1) .. ":LeftButton" end)
                 end
-                local bar = Bar(n, info.label)
+                local bar = Bar(list, n, info.label)
+                bar.source, bar.key, bar.frameName = source, info.key, info.barFrame
                 for b = 1, 12 do
-                    local btn = bar.buttons[b] or {}
-                    bar.buttons[b] = btn
+                    local btn = bar.buttons[b]
                     btn.command, btn.frame, btn.click = info.commands[b], _G[info.frames[b]], info.clicks[b]
+                    btn.slot = not shown and (info.first + b - 1) or nil
                 end
             end
         end
     elseif source == "elvui" then
         for k = 1, 15 do
             local info = ELV_INFO[k]
-            if Shown(info.barFrame) then
+            if Exists(info.barFrame) and Shown(info.barFrame) == shown then
                 n = n + 1
                 if not info.commands then
                     Names(info, ELV_COMMANDS[k] and function(b) return ELV_COMMANDS[k] .. b end,
                         function(b) return "ElvUI_Bar" .. k .. "Button" .. b end,
                         function(b) return "CLICK ElvUI_Bar" .. k .. "Button" .. b .. ":LeftButton" end)
                 end
-                local bar = Bar(n, info.label)
+                local bar = Bar(list, n, info.label)
+                bar.source, bar.key, bar.frameName = source, k, info.barFrame
                 for b = 1, 12 do
-                    local btn = bar.buttons[b] or {}
-                    bar.buttons[b] = btn
+                    local btn = bar.buttons[b]
                     btn.frame = _G[info.frames[b]]
                     -- ElvUI keeps each button's binding command on the button.
                     btn.command = btn.frame and btn.frame.keyBoundTarget or info.commands[b]
                     btn.click = info.clicks[b]
+                    btn.slot = not shown and ((k - 1) * 12 + b) or nil -- bar k shows page k by default
                 end
             end
         end
     else
         for _, info in ipairs(BLIZZARD_BARS) do
-            if Shown(info.frame) or (info.alt and Shown(info.alt)) then
+            local on = Shown(info.frame) or (info.alt and Shown(info.alt)) or false
+            -- A hidden bar is listed only if the game can switch it on (not the main bar).
+            if on == shown and (shown or (info.toggle and Exists(info.frame))) then
                 n = n + 1
-                local bar = Bar(n, info.name)
+                local bar = Bar(list, n, info.name)
+                bar.source, bar.key, bar.frameName = source, info.toggle, info.frame
                 if not info.commands then
                     Names(info, function(b) return info.command .. b end, function(b) return info.button .. b end)
                 end
                 for b = 1, 12 do
-                    local btn = bar.buttons[b] or {}
-                    bar.buttons[b] = btn
+                    local btn = bar.buttons[b]
                     btn.command, btn.frame, btn.click = info.commands[b], _G[info.frames[b]], nil
+                    btn.slot = not shown and info.first and (info.first + b - 1) or nil
                 end
             end
         end
     end
-    for i = n + 1, #bars do bars[i] = nil end
-    return bars, n
+    for i = n + 1, #list do list[i] = nil end
+    return list, n
+end
+
+-- The bars on screen now, in order. Reuses its tables: read, don't keep.
+local shownList, hiddenList = {}, {}
+function ns.ShownBars() return Collect(shownList, true) end
+
+-- The bars that exist but are hidden (they keep their slots and keys), in order.
+function ns.HiddenBars() return Collect(hiddenList, false) end
+
+-- Puts a hidden bar on screen: Blizzard's through the game's own bar switch (as Options >
+-- Action Bars does); EllesmereUI's and ElvUI's bars belong to those addons, so their action
+-- bar settings open for the player to switch it on there (Keystance doesn't change another
+-- addon's settings). Not in combat.
+function ns.ShowBar(bar)
+    if ns.InCombat() then
+        ns.Print(L["Not in combat: try again when combat ends."])
+        return false
+    end
+    local name, frameName = bar.name, bar.frameName
+    if bar.source == "ellesmere" then
+        local ok = type(EllesmereUI) == "table" and type(EllesmereUI.ShowModule) == "function"
+            and pcall(EllesmereUI.ShowModule, EllesmereUI, "EllesmereUIActionBars")
+        ns.Print(ok and L["Switch %s on in EllesmereUI's Action Bars settings; Keystance shows it as soon as it's on."]:format(name)
+            or L["Switch %s on in EllesmereUI's settings (/eui, Action Bars)."]:format(name))
+        return ok and true or false
+    elseif bar.source == "elvui" then
+        local E = type(ElvUI) == "table" and ElvUI[1]
+        local ok = type(E) == "table" and type(E.ToggleOptions) == "function" and pcall(E.ToggleOptions, E, "actionbar")
+        ns.Print(ok and L["Switch %s on in ElvUI's Action Bars settings; Keystance shows it as soon as it's on."]:format(name)
+            or L["Switch %s on in ElvUI's settings (/ec, Action Bars)."]:format(name))
+        return ok and true or false
+    end
+    -- Blizzard's: the game's switches, the rest kept as they are.
+    local toggles = GetActionBarToggles and { GetActionBarToggles() }
+    local ok = toggles and #toggles >= (bar.key or 99) and SetActionBarToggles and true or false
+    if ok then
+        toggles[bar.key] = true
+        ok = pcall(SetActionBarToggles, unpack(toggles))
+    end
+    -- Whether it appeared (the switch isn't verified on Forever yet): if not, say where.
+    C_Timer.After(0.5, function()
+        if ok and Shown(frameName) then
+            ns.Print(L["%s is on screen now."]:format(name))
+        else
+            ns.Print(L["%s didn't appear: switch it on in the game's Options, under Action Bars."]:format(name))
+        end
+        ns.RequestRefresh("bars")
+    end)
+    return ok
 end
 
 -- The slot a bar button shows now.
 function ns.BarButtonSlot(btn)
-    return ButtonSlot(btn.frame) or ns.CommandSlot(btn.command)
+    return btn.slot or ButtonSlot(btn.frame) or ns.CommandSlot(btn.command)
 end
 
 -- The first key bound to a bar button: its command's, or a click binding on the button.

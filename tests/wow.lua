@@ -29,6 +29,7 @@ local PROTECTED = {
     "SetOverrideBinding", "SetOverrideBindingClick", "ClearOverrideBindings",
     "PickupMacro", "EditMacro", "CreateMacro", "DeleteMacro",
     "C_Spell.PickupSpell", "C_SpellBook.PickupSpellBookItem", "C_ActionBar.PutActionInSlot",
+    "SetActionBarToggles", -- assumed: it shows and hides Blizzard's bars (secure frames)
 }
 
 local function copy(t)
@@ -392,6 +393,23 @@ function M.load(files)
         M.locked = {}
         M.fire("ITEM_LOCK_CHANGED")
     end
+    -- The game's switches for Blizzard's extra bars, as Options > Action Bars sets them:
+    -- bottom left, bottom right, right, right 2, bars 6-8. Setting one shows or hides its bar
+    -- frame, unless M.togglesWork is false (as if the game ignored the call).
+    M.barToggles = { false, false, false, false, false, false, false }
+    M.togglesWork, M.toggleCalls = true, nil
+    local TOGGLE_FRAMES = { "MultiBarBottomLeft", "MultiBarBottomRight", "MultiBarRight", "MultiBarLeft",
+        "MultiBar5", "MultiBar6", "MultiBar7" }
+    GetActionBarToggles = function() return unpack(M.barToggles) end
+    SetActionBarToggles = protect("SetActionBarToggles", function(...)
+        M.barToggles = { ... }
+        M.toggleCalls = (M.toggleCalls or 0) + 1
+        if not M.togglesWork then return end
+        for i, name in ipairs(TOGGLE_FRAMES) do
+            local f = _G[name]
+            if f and M.barToggles[i] then f:Show() end
+        end
+    end)
     GetInventoryItemID = function(_, slot) return idOf(M.inventory[slot]) end
     GetInventoryItemLink = function(_, slot)
         if M.linksNotReady then return nil end

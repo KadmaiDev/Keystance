@@ -1,5 +1,6 @@
 -- Keystance Bars tab: the action bars on screen (Blizzard's, EllesmereUI's or ElvUI's),
--- each slot with its icon and key. Hovering shows the action's tooltip; slots take drops,
+-- each slot with its icon and key; under them, folded away, the bars that exist but are
+-- hidden (dimmed, still usable), each with Show (ns.ShowBar). Hovering shows the action's tooltip; slots take drops,
 -- can be dragged, and right-click removes. Keybind mode, as the game's own quick keybind
 -- mode: hover a slot and press a key (or a mouse or controller button) to put it there;
 -- right-click clears the slot's keys; Escape finishes. While it's on, key presses go to
@@ -8,7 +9,7 @@ local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
 local L = ns.L
 
-local ipairs, CreateFrame = ipairs, CreateFrame
+local ipairs, type, CreateFrame = ipairs, type, CreateFrame
 local GetActionTexture, HasAction = GetActionTexture, HasAction
 
 local SIZE, GAP, ROW = 30, 2, 33
@@ -136,8 +137,10 @@ local function StopBindMode(page)
     page.catcher:EnableKeyboard(false)
     if page.catcher.EnableGamePadButton then pcall(page.catcher.EnableGamePadButton, page.catcher, false) end
     page.catcher:Hide()
-    for _, row in ipairs(page.rows) do
-        for _, b in ipairs(row.slots) do b:EnableMouseWheel(false) end
+    for _, rows in ipairs({ page.rows, page.hiddenRows }) do
+        for _, row in ipairs(rows) do
+            for _, b in ipairs(row.slots) do b:EnableMouseWheel(false) end
+        end
     end
     ns.RefreshWindow()
 end
@@ -148,8 +151,10 @@ local function StartBindMode(page)
     page.catcher:Show()
     page.catcher:EnableKeyboard(true)
     if page.catcher.EnableGamePadButton then pcall(page.catcher.EnableGamePadButton, page.catcher, true) end
-    for _, row in ipairs(page.rows) do
-        for _, b in ipairs(row.slots) do b:EnableMouseWheel(true) end
+    for _, rows in ipairs({ page.rows, page.hiddenRows }) do
+        for _, row in ipairs(rows) do
+            for _, b in ipairs(row.slots) do b:EnableMouseWheel(true) end
+        end
     end
     ns.RefreshWindow()
 end
@@ -174,6 +179,63 @@ local function AskStart(page)
     StaticPopup_Show("KEYSTANCE_BIND_MODE", nil, nil, page)
 end
 
+-- Fills a row's slots from a bar: icon, slot, key.
+local function FillRow(page, row, bar)
+    row.label:SetText(bar.name)
+    for i, b in ipairs(row.slots) do
+        local btn = bar.buttons[i]
+        local slot = ns.BarButtonSlot(btn)
+        local key = ns.BarButtonKey(btn)
+        b.slot, b.key, b.command = slot, key, btn.command
+        local texture = slot and GetActionTexture(slot)
+        b.icon:SetTexture(texture)
+        b.icon:SetShown(texture ~= nil)
+        b.keyText:SetText(ns.ShortKey(key) or "")
+        b:EnableMouseWheel(page.bindMode and true or false)
+    end
+end
+
+local function NewRow(page, r)
+    local row = MakeRow(page, page.window, r)
+    ns.SkinText(row.label)
+    for _, b in ipairs(row.slots) do ns.SkinText(b.keyText) end
+    return row
+end
+
+-- A hidden bar's row: dimmed, with Show beside it (on the page, so it isn't dimmed too).
+local function HiddenRow(page, r)
+    local row = NewRow(page, r)
+    row:SetAlpha(0.55)
+    local show = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+    show:SetSize(64, 20)
+    show:SetPoint("LEFT", row, "RIGHT", 8, 0)
+    show:SetText(L["Show"])
+    show:SetScript("OnClick", function() if row.bar then ns.ShowBar(row.bar) end end)
+    show:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(L["Put this bar on screen"])
+        GameTooltip:AddLine(ns.BarSource() == "blizzard" and L["Switches it on, as Options > Action Bars does."]
+            or L["Opens your bar addon's Action Bars settings, where you switch it on."], 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    show:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    ns.SkinButton(show)
+    row.show = show
+    return row
+end
+
+-- When a hidden bar comes on screen (from its addon's settings, or the game's), the tab
+-- follows. Hooked once per bar frame.
+local hooked = {}
+local function Watch(frameName)
+    if hooked[frameName] then return end
+    local f = _G[frameName]
+    if type(f) == "table" and f.HookScript then
+        hooked[frameName] = true
+        f:HookScript("OnShow", function() ns.RequestRefresh("bars") end)
+    end
+end
+
 local function Refresh(page)
     local bars, n = ns.ShownBars()
     page.bindButton:SetText(page.bindMode and L["Done"] or L["Keybind mode"])
@@ -184,35 +246,74 @@ local function Refresh(page)
         local bar = bars[r]
         if bar then
             if not row then
-                row = MakeRow(page, page.window, r)
+                row = NewRow(page, r)
                 page.rows[r] = row
-                ns.SkinText(row.label)
-                for _, b in ipairs(row.slots) do ns.SkinText(b.keyText) end
             end
-            row.label:SetText(bar.name)
-            for i, b in ipairs(row.slots) do
-                local btn = bar.buttons[i]
-                local slot = ns.BarButtonSlot(btn)
-                local key = ns.BarButtonKey(btn)
-                b.slot, b.key, b.command = slot, key, btn.command
-                local texture = slot and GetActionTexture(slot)
-                b.icon:SetTexture(texture)
-                b.icon:SetShown(texture ~= nil)
-                b.keyText:SetText(ns.ShortKey(key) or "")
-            end
+            FillRow(page, row, bar)
             row:Show()
-            for _, b in ipairs(row.slots) do b:EnableMouseWheel(page.bindMode and true or false) end
         elseif row then
             row:Hide()
         end
     end
-    page.empty:SetShown(n == 0)
-    page.more:SetShown(n > MAX_ROWS)
-    if n > MAX_ROWS then page.more:SetText(L["and %d more bars"]:format(n - MAX_ROWS)) end
+    -- The hidden bars, folded under the shown ones.
+    local hidden, h = ns.HiddenBars()
+    local used = math.min(n, MAX_ROWS)
+    local open = ns.db.settings.hiddenBarsOpen and true or false
+    local fold = page.hiddenFold
+    fold:SetShown(h > 0 and used < MAX_ROWS)
+    if h > 0 then
+        fold:ClearAllPoints()
+        fold:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -40 - used * ROW - 2)
+        if page.foldCount ~= h or page.foldOpen ~= open then -- the label only when it changes
+            page.foldCount, page.foldOpen = h, open
+            fold:SetText((open and "- " or "+ ") .. L["Hidden bars (%d)"]:format(h))
+        end
+    end
+    local room = open and math.max(0, MAX_ROWS - used - 1) or 0
+    for r = 1, math.max(#page.hiddenRows, h) do
+        local row = page.hiddenRows[r]
+        local bar = r <= room and hidden[r]
+        if bar then
+            if not row then
+                row = HiddenRow(page, used + 1 + r)
+                page.hiddenRows[r] = row
+            end
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -40 - (used + r) * ROW)
+            row.bar = bar
+            FillRow(page, row, bar)
+            row:Show()
+            row.show:Show()
+        elseif row then
+            row:Hide()
+            row.show:Hide()
+        end
+        if hidden[r] then Watch(hidden[r].frameName) end
+    end
+    page.empty:SetShown(n == 0 and h == 0)
+    local extra = math.max(0, n - MAX_ROWS) + (open and math.max(0, h - room) or 0)
+    page.more:SetShown(extra > 0)
+    if extra > 0 then page.more:SetText(L["and %d more bars"]:format(extra)) end
 end
 
 local function Build(page, f)
-    page.window, page.rows = f, {}
+    page.window, page.rows, page.hiddenRows = f, {}, {}
+    -- Folds the hidden bars away or out (remembered).
+    local fold = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+    fold:SetSize(150, 22)
+    fold:SetScript("OnClick", function()
+        ns.db.settings.hiddenBarsOpen = not ns.db.settings.hiddenBarsOpen or nil
+        ns.RefreshWindow()
+    end)
+    fold:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(L["Bars that aren't on screen. They keep their spells and keys, and you can fill them here; Show puts one on screen."], 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    fold:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    fold:Hide()
+    page.hiddenFold = fold
+    f.buttons[#f.buttons + 1] = fold
     local source = page:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     source:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -16)
     page.source = source
