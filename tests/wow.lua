@@ -205,6 +205,11 @@ function M.load(files)
         t[1], t[2], t[3], t[4] = r, g, b, a
         self.vertex = t
     end
+    function frameMethods:SetColorTexture(r, g, b, a)
+        local t = self.fill or {}
+        t[1], t[2], t[3], t[4] = r, g, b, a
+        self.fill = t
+    end
     function frameMethods:SetTextColor(r, g, b)
         local t = self.color or {}
         t[1], t[2], t[3] = r, g, b

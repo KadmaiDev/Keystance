@@ -2,7 +2,7 @@
 package.path = "tests/?.lua;" .. package.path
 wow = require("wow")
 
-FILES = { "Locales.lua", "Core.lua", "Skins.lua", "Actions.lua", "Snapshot.lua", "Apply.lua", "Gear.lua", "Profiles.lua", "Ranks.lua", "Rules.lua", "Spells.lua", "Drops.lua", "Layouts.lua", "Window.lua",
+FILES = { "Locales.lua", "Core.lua", "Skins.lua", "Actions.lua", "Snapshot.lua", "Apply.lua", "Gear.lua", "Profiles.lua", "Ranks.lua", "Rules.lua", "Spells.lua", "Drops.lua", "Layouts.lua", "Ergonomics.lua", "Window.lua",
     "Keyboard.lua", "Bars.lua", "ProfilesTab.lua", "GearTab.lua", "BankPanel.lua", "IconPicker.lua", "Guide.lua", "Switcher.lua", "RulesTab.lua", "SpellPanel.lua", "Options.lua", "Minimap.lua" }
 tests, passed, failed = {}, 0, 0
 
@@ -58,6 +58,7 @@ CASES = {
     "27_gear_missing.lua",
     "28_gear_undo_homes.lua",
     "29_bank_panel.lua",
+    "30_heatmap.lua",
 }
 do
     local where = {}

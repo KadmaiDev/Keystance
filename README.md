@@ -36,6 +36,7 @@ A Keystance button on the bank window (Blizzard's, EllesmereUI's or ElvUI's) ope
 ## See and set your keys
 
 - **Keyboard:** see which key does what on an on-screen keyboard (US or UK layout, with or without the numpad), with the Shift, Ctrl and Alt layers, or on a controller.
+- **Heat map:** colours every key by how easy it is to reach while your hand rests on your movement keys (read from your keybinds: WASD, ESDF...), from green to red, so you can see where the spells you use most would sit comfortably. Each key's tooltip gives its reach too.
 - **Actions panel:** your spells (and the ones still to learn), macros, raid markers, profiles and commands in one searchable list. Drag them onto your bars or straight onto a key.
 
 ![The keyboard with the numpad, each key showing its spell or command, and the Actions panel's Commands beside it](media/keyboard-binding.png)
@@ -84,7 +85,7 @@ Keystance takes on the look of your UI (the default UI, EllesmereUI or ElvUI), a
 
 ## Performance
 
-Keystance does nothing while you play: no code runs every frame, windows are only built the first time you open them, and while they're closed the game's events (combat, bag and gear changes, bar and key changes) cost one check and create no garbage. It uses about 500 KB of memory with the window never opened (measured outside the game; `/kst mem` shows the real figure).
+Keystance does nothing while you play: no code runs every frame, windows are only built the first time you open them, and while they're closed the game's events (combat, bag and gear changes, bar and key changes) cost one check and create no garbage. It uses about 540 KB of memory with the window never opened (measured outside the game; `/kst mem` shows the real figure).
 
 ## Development
 

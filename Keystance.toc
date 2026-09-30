@@ -24,6 +24,7 @@ Rules.lua
 Spells.lua
 Drops.lua
 Layouts.lua
+Ergonomics.lua
 Window.lua
 Keyboard.lua
 Bars.lua

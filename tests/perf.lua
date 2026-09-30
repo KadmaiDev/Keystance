@@ -4,8 +4,12 @@
 -- the real figure.
 package.path = "tests/?.lua;" .. package.path
 local wow = require("wow")
-local FILES = { "Locales.lua", "Core.lua", "Skins.lua", "Actions.lua", "Snapshot.lua", "Apply.lua", "Gear.lua", "Profiles.lua", "Ranks.lua", "Rules.lua", "Spells.lua", "Drops.lua", "Layouts.lua", "Window.lua",
-    "Keyboard.lua", "Bars.lua", "ProfilesTab.lua", "GearTab.lua", "IconPicker.lua", "Guide.lua", "Switcher.lua", "RulesTab.lua", "SpellPanel.lua", "Options.lua", "Minimap.lua" }
+-- The files the game loads, in order, from the .toc (a list kept here fell behind twice).
+local FILES = {}
+for line in io.lines("Keystance.toc") do
+    line = line:gsub("%s+$", "")
+    if line:match("%.lua$") and not line:match("^#") then FILES[#FILES + 1] = line end
+end
 
 local function out(fmt, ...) io.write(fmt:format(...), "\n") end
 local function settle()
@@ -102,5 +106,8 @@ out(" window open:")
 SlashCmdList.KEYSTANCE("")
 ns.ShowTab("keyboard")
 garbage("  Keyboard tab redrawn (74 keys)", 2000, function() ns.RefreshWindow() end)
+KeystanceDB.settings.heatmap = true
+garbage("  Keyboard tab redrawn, heat map on", 2000, function() ns.RefreshWindow() end)
+KeystanceDB.settings.heatmap = nil
 ns.ShowTab("bars")
 garbage("  Bars tab redrawn (2 bars)", 2000, function() ns.RefreshWindow() end)

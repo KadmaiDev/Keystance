@@ -2,7 +2,9 @@
 -- each key does, with the spell, macro or item icon of the action slot it triggers. Keys
 -- take drops (Drops.lua), can be dragged to pick up, right-clicked to remove, and clicked to
 -- put a held raid marker or profile switch on them. Toggles show the Shift, Ctrl
--- and Alt layers (and combinations); holding a real modifier switches the view live.
+-- and Alt layers (and combinations); holding a real modifier switches the view live. The
+-- heat map colours each key by how easy it is to reach from the movement keys
+-- (Ergonomics.lua); every key's tooltip says so too.
 -- Bound keys the drawn keyboard doesn't have are listed underneath. Read-only.
 local ADDON, ns = ...
 if ns.disabled then return end -- another copy of Keystance is running (Core.lua)
@@ -101,6 +103,12 @@ local function CapTooltip(cap)
     end
     if cap.slot then
         GameTooltip:AddDoubleLine(L["Action slot"], cap.slot, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6)
+    end
+    if cap.movement then
+        GameTooltip:AddDoubleLine(L["Reach"], L["a movement key"], 0.6, 0.6, 0.6, ns.MovementColour())
+    elseif cap.reach then
+        local _, name, r, g, b = ns.ReachLevel(cap.reach)
+        GameTooltip:AddDoubleLine(L["Reach"], L["%s (%d)"]:format(name, cap.reach), 0.6, 0.6, 0.6, r, g, b)
     end
     GameTooltip:Show()
 end
@@ -321,6 +329,16 @@ local function Tint(cap, r, g, b, a)
     cap.bg:SetColorTexture(r, g, b, a)
 end
 
+-- With the heat map on, a bound key's icon sits further in, so its colour shows as a frame.
+-- Changed only when it changes: redraws stay allocation-free.
+local function Inset(cap, px)
+    if cap.inset == px then return end
+    cap.inset = px
+    cap.icon:ClearAllPoints()
+    cap.icon:SetPoint("TOPLEFT", px, -px)
+    cap.icon:SetPoint("BOTTOMRIGHT", -px, px)
+end
+
 -- What an action slot holds, by name ("Holy Light"), for a controller's callouts.
 local function ActionName(slot)
     local kind, id = GetActionInfo(slot)
@@ -337,6 +355,8 @@ end
 local NOT_BOUND = "|cff808080" .. L["Not bound"] .. "|r"
 
 local function RefreshCaps(page, layer, padMods)
+    local heat = not padMods and page.heatOn
+    local map = not padMods and ns.ReachMap(page.layoutKey)
     for _, cap in ipairs(page.board.caps) do
         -- A modifier: Shift, Ctrl or Alt, or the controller button set to act as one.
         local modAs = cap.mod and cap.key or (padMods and padMods[cap.key])
@@ -348,6 +368,7 @@ local function RefreshCaps(page, layer, padMods)
             cap.name:SetText(cap.mod and "" or (modAs == "SHIFT" and L["Shift"] or modAs == "CTRL" and L["Ctrl"] or L["Alt"]))
             Tint(cap, on and 0.45 or 0.1, on and 0.35 or 0.1, on and 0.1 or 0.12, 0.9)
             cap.fullKey, cap.command, cap.slot = nil, nil, nil
+            cap.reach, cap.movement = nil, nil
         elseif not cap.blank then
             local full = cap.full[layer]
             local command = GetBindingAction(full, true)
@@ -375,7 +396,19 @@ local function RefreshCaps(page, layer, padMods)
                     cap.name:SetText(slot and "" or (CommandName(command) or ""))
                 end
             end
-            Tint(cap, 0.1, 0.1, 0.12, (command ~= "") and 0.9 or 0.45)
+            -- How easy the key is to reach, from the movement keys (none on a controller).
+            cap.movement = map and layer == 1 and map.movement[cap.key] or nil
+            cap.reach = map and ns.KeyReach(page.layoutKey, cap.key, PREFIXES[layer]) or nil
+            if heat and cap.movement then
+                local r, g, b = ns.MovementColour()
+                Tint(cap, r, g, b, 0.85)
+            elseif heat and cap.reach then
+                local _, _, r, g, b = ns.ReachLevel(cap.reach)
+                Tint(cap, r, g, b, (command ~= "") and 0.95 or 0.7)
+            else
+                Tint(cap, 0.1, 0.1, 0.12, (command ~= "") and 0.9 or 0.45)
+            end
+            Inset(cap, heat and 4 or 2)
         end
     end
 end
@@ -440,9 +473,10 @@ local function Refresh(page)
         page.board:Show()
         page.layoutKey, page.boardKey = key, boardKey
         ns.SetWindowWidth(numpad and NUMPAD_WIDTH or nil)
-        page.others:ClearAllPoints()
-        page.others:SetPoint("TOPLEFT", page.board, "BOTTOMLEFT", 0, -12)
-        page.others:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -16, 36) -- above the layout buttons
+        page.legend:ClearAllPoints()
+        page.legend:SetPoint("TOPLEFT", page.board, "BOTTOMLEFT", 0, -10)
+        page.legend:SetPoint("RIGHT", page, "RIGHT", -16, 0)
+        page.othersUnder = nil -- placed below, under the legend or the board
         -- A board built just now takes the look (one built before already has it).
         if built then
             for i = texts + 1, #page.window.texts do ns.SkinText(page.window.texts[i]) end
@@ -450,6 +484,21 @@ local function Refresh(page)
     end
     page.numpad:SetShown(not pad)
     if numpad then page.numpad:LockHighlight() else page.numpad:UnlockHighlight() end
+    -- The heat map: keyboards only.
+    page.heatOn = not pad and ns.db.settings.heatmap and true or false
+    page.heat:SetShown(not pad)
+    if page.heatOn then page.heat:LockHighlight() else page.heat:UnlockHighlight() end
+    page.heat:SetText((page.heatOn and "|cffffd100" or "") .. L["Heat map"] .. (page.heatOn and "|r" or ""))
+    page.legend:SetShown(page.heatOn)
+    if page.heatOn then page.legend:SetText(ns.ReachLegend(key)) end
+    -- The "also bound" list goes under the legend while it shows, else under the keyboard.
+    local under = page.heatOn and page.legend or page.board
+    if page.othersUnder ~= under then
+        page.othersUnder = under
+        page.others:ClearAllPoints()
+        page.others:SetPoint("TOPLEFT", under, "BOTTOMLEFT", 0, page.heatOn and -8 or -12)
+        page.others:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -16, 36) -- above the layout buttons
+    end
     -- On a controller, the layer buttons say which controller button is Shift, Ctrl or Alt.
     local padMods = pad and ns.PadModifiers() or nil
     for k in pairs(padButton) do padButton[k] = nil end
@@ -512,6 +561,31 @@ local function Build(page, f)
     end)
     page.numpad = numpad
     f.buttons[#f.buttons + 1] = numpad
+    -- The heat map: each key coloured by how easy it is to reach from the movement keys.
+    local heat = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+    heat:SetSize(86, 22)
+    heat:SetPoint("RIGHT", numpad, "LEFT", -6, 0)
+    heat:SetScript("OnClick", function()
+        ns.db.settings.heatmap = not ns.db.settings.heatmap or nil
+        ns.RefreshWindow()
+    end)
+    heat:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine(L["Heat map"])
+        GameTooltip:AddLine(L["Colours each key by how easy it is to reach while your hand rests on your movement keys: good places for the spells you use most."], 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    heat:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    page.heat = heat
+    f.buttons[#f.buttons + 1] = heat
+    -- What the colours mean, while the heat map is on.
+    local legend = page:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    -- Anchored under whichever keyboard is drawn (Refresh).
+    legend:SetJustifyH("LEFT")
+    legend:SetWordWrap(true)
+    legend:Hide()
+    page.legend = legend
+    f.texts[#f.texts + 1] = legend
     local binding = page:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     binding:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -36)
     binding:SetTextColor(0.4, 0.8, 1)
