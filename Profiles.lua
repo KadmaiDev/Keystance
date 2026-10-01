@@ -218,9 +218,10 @@ local function Touched(before)
 end
 
 -- The undo record for a change from `before`: what it touched, with how things were.
-local function Record(before, label, gear, homes)
+local function Record(before, label, gear, homes, profileBinds)
     local slots, keys = Touched(before)
-    return { state = before, only = slots, keys = keys, gear = gear, homes = homes, label = label, at = time() }
+    return { state = before, only = slots, keys = keys, gear = gear, homes = homes, profileBinds = profileBinds,
+        label = label, at = time() }
 end
 
 -- Applies a state now, recording the setup before it for Undo. `done` is said afterwards
@@ -237,7 +238,7 @@ local function Change(state, options, done, undo, onDone)
         return false
     end
     if slots + keys > 0 or options.gearChanged then
-        c.lastChange = Record(before, undo, options.gearBefore, options.gearHomes)
+        c.lastChange = Record(before, undo, options.gearBefore, options.gearHomes, options.profileBinds)
         if ns.StatusStale then ns.StatusStale() end
     end
     if onDone then onDone() end
@@ -320,12 +321,131 @@ function ns.Undo()
             gearChanged = ok
             if not ok then Print(L["Gear not changed: %s."]:format(why)) end
         end
+        -- Profiles' saved keys, if the change moved them (moving the hand), go back too.
+        local profileBinds
+        if last.profileBinds then
+            profileBinds = {}
+            for name, binds in pairs(last.profileBinds) do
+                local p = c.profiles[name]
+                if p then
+                    profileBinds[name] = p.binds
+                    p.binds = binds
+                end
+            end
+        end
         -- Only what that change touched (records from before this was kept: everything).
         Change(last.state, { scope = "all", only = last.only, onlyKeys = last.only and (last.keys or {}),
-            gearBefore = gearBefore, gearChanged = gearChanged, gearHomes = gearHomes },
+            gearBefore = gearBefore, gearChanged = gearChanged, gearHomes = gearHomes, profileBinds = profileBinds },
             L["Undid %s"]:format(last.label), L["the undo"], function() c.active = nil end)
     end)
     if not now then Notify(L["Undo will happen when combat ends."]) end
+end
+
+---------------------------------------------------------------------------
+-- Moving the hand one key right or left (Ergonomics.lua's map): every keybind in the
+-- left-hand block, in every Shift/Ctrl/Alt layer, and the keys the character's profiles
+-- saved, so applying one afterwards keeps the new place. The original setup isn't touched.
+-- One change: Undo puts it all back.
+---------------------------------------------------------------------------
+local LAYERS = { "", "SHIFT-", "CTRL-", "CTRL-SHIFT-", "ALT-", "ALT-SHIFT-", "ALT-CTRL-", "ALT-CTRL-SHIFT-" }
+
+local function ShiftKey(key, to)
+    local prefix, base = ns.SplitKey(key)
+    local dest = to[base]
+    return dest and (prefix .. dest) or key
+end
+
+local function ShiftHand(layoutKey, dir)
+    local c = Char()
+    local to, why = ns.HandShiftMap(layoutKey, dir)
+    if not to then return Print(L["Keys not moved: %s."]:format(why)) end
+    ns.OwnKeybindsFirst()
+    local state = ns.CurrentState()
+    local was, touched = {}, {}
+    for command, keys in pairs(state.binds) do
+        for _, key in ipairs(keys) do was[key] = command end
+    end
+    local now = {}
+    for key, command in pairs(was) do now[key] = command end
+    for from, dest in pairs(to) do
+        for _, prefix in ipairs(LAYERS) do
+            now[prefix .. dest] = was[prefix .. from]
+            touched[prefix .. dest], touched[prefix .. from] = true, true
+        end
+    end
+    local binds = {}
+    for key, command in pairs(now) do
+        binds[command] = binds[command] or {}
+        table.insert(binds[command], key)
+    end
+    -- The profiles' keys, kept for Undo, then moved.
+    local profileBinds = {}
+    for name, p in pairs(c.profiles) do
+        if type(p.binds) == "table" then
+            profileBinds[name] = p.binds
+            local moved = {}
+            for command, keys in pairs(p.binds) do
+                moved[command] = {}
+                for i, key in ipairs(keys) do moved[command][i] = ShiftKey(key, to) end
+            end
+            p.binds = moved
+        end
+    end
+    local map = ns.ReachMap(layoutKey)
+    local dirName = dir > 0 and L["right"] or L["left"]
+    local ok = Change({ slots = state.slots, binds = binds },
+        { scope = "all", only = {}, onlyKeys = touched, profileBinds = profileBinds },
+        L["Your keys moved one key %s"]:format(dirName), L["moving your keys %s"]:format(dirName))
+    if not ok then
+        for name, binds in pairs(profileBinds) do c.profiles[name].binds = binds end
+        return
+    end
+    map = ns.ReachMap(layoutKey) -- read again: the movement keys moved
+    Notify(L["Your movement keys are now %s."]:format(table.concat({ map.keys.forward, map.keys.left, map.keys.back,
+        map.keys.right }, " ")))
+end
+
+-- The movement keys, and the edge keys that wrap round, after moving that way: for the question.
+local function Describe(layoutKey, dir)
+    local map = ns.ReachMap(layoutKey)
+    local to = ns.HandShiftMap(layoutKey, dir)
+    local k = map.keys
+    local moves = table.concat({ to[k.forward], to[k.left], to[k.back], to[k.right] }, " ")
+    local wraps, onto = {}, {}
+    for from, dest in pairs(to) do
+        -- A wrap: the key's binds land on the other side of the row.
+        local pos = ns.KeyPosition(layoutKey, from)
+        local there = ns.KeyPosition(layoutKey, dest)
+        if pos and there and (pos[1] - there[1]) * dir > 0 then
+            wraps[#wraps + 1], onto[#onto + 1] = from, dest
+        end
+    end
+    table.sort(wraps)
+    table.sort(onto)
+    return moves, table.concat(wraps, " "), table.concat(onto, " ")
+end
+
+-- Asks first (what moves where), then moves the hand: dir 1 right, -1 left.
+function ns.AskShiftHand(dir)
+    local layoutKey = ns.LayoutKey(ns.db.settings.layout)
+    local to, why = ns.HandShiftMap(layoutKey, dir)
+    if not to then return Print(L["Keys not moved: %s."]:format(why)) end
+    local moves, wraps, onto = Describe(layoutKey, dir)
+    local text = L["Move every keybind on the left of your keyboard one key %s, in every Shift, Ctrl and Alt layer?\n\nYour movement keys go to %s. What's on %s goes round to %s. Your profiles' keys move too.\n\nUndo puts it all back."]
+        :format(dir > 0 and L["right"] or L["left"], moves, wraps, onto)
+    if ns.SharedKeybinds() then
+        text = text .. "\n\n" .. L["Your keybinds are shared by all your characters, so this character gets its own first: the others keep theirs."]
+    end
+    ns.Dialog("KEYSTANCE_SHIFT_HAND", {
+        text = "%s",
+        button1 = L["Move"],
+        button2 = CANCEL or L["Cancel"],
+        OnAccept = function(_, data)
+            local now = ns.OutOfCombat("apply", function() ShiftHand(data.layout, data.dir) end)
+            if not now then Notify(L["Your keys will move when combat ends."]) end
+        end,
+    })
+    StaticPopup_Show("KEYSTANCE_SHIFT_HAND", text, nil, { layout = layoutKey, dir = dir })
 end
 
 -- Puts back the bars and every key as they were before Keystance (undoable).

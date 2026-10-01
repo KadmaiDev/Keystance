@@ -475,7 +475,9 @@ local function Refresh(page)
         ns.SetWindowWidth(numpad and NUMPAD_WIDTH or nil)
         page.legend:ClearAllPoints()
         page.legend:SetPoint("TOPLEFT", page.board, "BOTTOMLEFT", 0, -10)
-        page.legend:SetPoint("RIGHT", page, "RIGHT", -16, 0)
+        page.legend:SetPoint("RIGHT", page.handLeft, "LEFT", -8, 0)
+        page.handRight:ClearAllPoints()
+        page.handRight:SetPoint("TOPRIGHT", page.board, "BOTTOMRIGHT", 0, -6)
         page.othersUnder = nil -- placed below, under the legend or the board
         -- A board built just now takes the look (one built before already has it).
         if built then
@@ -491,6 +493,13 @@ local function Refresh(page)
     page.heat:SetText((page.heatOn and "|cffffd100" or "") .. L["Heat map"] .. (page.heatOn and "|r" or ""))
     page.legend:SetShown(page.heatOn)
     if page.heatOn then page.legend:SetText(ns.ReachLegend(key)) end
+    -- Moving the hand (and every keybind with it), with the heat map.
+    page.handLeft:SetShown(page.heatOn)
+    page.handRight:SetShown(page.heatOn)
+    if page.heatOn then
+        page.handLeft:SetEnabled(ns.CanShiftHand(-1))
+        page.handRight:SetEnabled(ns.CanShiftHand(1))
+    end
     -- The "also bound" list goes under the legend while it shows, else under the keyboard.
     local under = page.heatOn and page.legend or page.board
     if page.othersUnder ~= under then
@@ -578,6 +587,32 @@ local function Build(page, f)
     heat:SetScript("OnLeave", function() GameTooltip:Hide() end)
     page.heat = heat
     f.buttons[#f.buttons + 1] = heat
+    -- Move the hand one key left or right, every keybind with it (Profiles.lua asks first).
+    local function HandButton(dir, text, tip)
+        local b = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+        b:SetSize(96, 22)
+        b:SetText(text)
+        b:SetScript("OnClick", function() ns.AskShiftHand(dir) end)
+        b:SetMotionScriptsWhileDisabled(true)
+        b:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:AddLine(text)
+            GameTooltip:AddLine(tip, 1, 1, 1, true)
+            if not self:IsEnabled() then
+                GameTooltip:AddLine(L["Not from where your movement keys are now."], 1, 0.3, 0.3, true)
+            end
+            GameTooltip:Show()
+        end)
+        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        b:Hide()
+        f.buttons[#f.buttons + 1] = b
+        return b
+    end
+    page.handRight = HandButton(1, L["Hand right"],
+        L["Moves your movement keys one key right (W A S D to E S D F) and every keybind on the left of your keyboard with them, so each stays under the same finger. Asks first; Undo puts it back."])
+    page.handLeft = HandButton(-1, L["Hand left"],
+        L["Moves your movement keys one key left (E S D F to W A S D) and every keybind on the left of your keyboard with them. Asks first; Undo puts it back."])
+    page.handLeft:SetPoint("RIGHT", page.handRight, "LEFT", -4, 0)
     -- What the colours mean, while the heat map is on.
     local legend = page:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     -- Anchored under whichever keyboard is drawn (Refresh).

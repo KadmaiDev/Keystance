@@ -218,6 +218,8 @@ function M.load(files)
     function frameMethods:SetTexCoord(...) self.texCoord = { ... } end
     function frameMethods:IsProtected() return false end
     function frameMethods:EnableKeyboard(on) self.keyboard = on end
+    function frameMethods:SetEnabled(on) self.enabled = on and true or false end
+    function frameMethods:IsEnabled() return self.enabled ~= false end
     function frameMethods:EnableGamePadButton(on) self.gamepad = on end
     function frameMethods:GetAlpha() return self.alpha or 1 end
     function frameMethods:GetID() return self.id end

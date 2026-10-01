@@ -59,6 +59,7 @@ CASES = {
     "28_gear_undo_homes.lua",
     "29_bank_panel.lua",
     "30_heatmap.lua",
+    "31_hand_shift.lua",
 }
 do
     local where = {}

@@ -37,6 +37,7 @@ A Keystance button on the bank window (Blizzard's, EllesmereUI's or ElvUI's) ope
 
 - **Keyboard:** see which key does what on an on-screen keyboard (US or UK layout, with or without the numpad), with the Shift, Ctrl and Alt layers, or on a controller.
 - **Heat map:** colours every key by how easy it is to reach while your hand rests on your movement keys (read from your keybinds: WASD, ESDF...), from green to red, so you can see where the spells you use most would sit comfortably. Each key's tooltip gives its reach too.
+- **Move your hand:** fancy E S D F instead of W A S D? "Hand right" moves your movement keys one key right and every keybind on the left of your keyboard with them, in every Shift, Ctrl and Alt layer, so each spell stays under the same finger. The column pushed off the edge wraps round to the freed left edge, so nothing is lost, and your profiles' keys move too. It asks first, Undo puts it all back, and "Hand left" goes the other way.
 - **Actions panel:** your spells (and the ones still to learn), macros, raid markers, profiles and commands in one searchable list. Drag them onto your bars or straight onto a key.
 
 ![The keyboard with the numpad, each key showing its spell or command, and the Actions panel's Commands beside it](media/keyboard-binding.png)

@@ -90,6 +90,9 @@ local function Movement(pos)
 end
 
 -- From a finger's home to a key: rows above cost a little less than the same distance across.
+-- Where a key sits: { x, y } in key units, or nil.
+function ns.KeyPosition(layoutKey, key) return Positions(layoutKey)[key] end
+
 local function Distance(key, home)
     local dx, dy = key[1] - home[1], key[2] - home[2]
     if dy < 0 then dy = dy * UP end
@@ -174,6 +177,81 @@ function ns.ReachLegend(layoutKey)
     end
     map.legend = from .. " " .. table.concat(parts, " · ")
     return map.legend
+end
+
+---------------------------------------------------------------------------
+-- Moving the hand: every keybind in the left-hand block one key right (or left), so they
+-- all stay where they were for the fingers. Per keyboard row (numbers, Tab, Caps, Shift
+-- rows), the keys from the left edge to the hand's reach, plus one: the column pushed off
+-- that edge wraps round to the freed left edge, so no keybind is lost. Left from E S D F
+-- uses the same block as right from W A S D, so one undoes the other exactly.
+---------------------------------------------------------------------------
+local SHIFT_ROWS = { 2, 3, 4, 5 } -- the layout rows: numbers, Tab row, Caps row, Shift row
+local MOST_RIGHT = 7              -- the strafe-right key no further right than this (G)
+
+-- The block's keys per row, left to right, for a hand whose strafe-right key is at `rightX`.
+local function Block(layoutKey, rightX)
+    local layout = ns.LAYOUTS[layoutKey]
+    local limit = rightX + REACH
+    local rows = {}
+    for _, r in ipairs(SHIFT_ROWS) do
+        local list, x = {}, 0
+        for _, info in ipairs(layout.rows[r] or {}) do
+            x = x + (info.gap or 0)
+            local w = info.w or 1
+            if info[1] ~= "" and not info.mod then
+                list[#list + 1] = info[1]
+                if x + w / 2 > limit then break end -- the edge column, then stop
+            end
+            x = x + w
+        end
+        rows[#rows + 1] = list
+    end
+    return rows
+end
+
+-- The key each key's binds move to, one key right (dir 1) or left (dir -1): { [key] = key },
+-- or nil and why. `right` is the strafe-right key to move from (the bound one by default).
+function ns.HandShiftMap(layoutKey, dir, right)
+    local layout = ns.LAYOUTS[layoutKey]
+    if not (layout and layout.rows) then return nil, L["only on a keyboard"] end
+    local map = ns.ReachMap(layoutKey)
+    if not map.fromBinds and not right then return nil, L["your movement keys aren't on the left of this keyboard"] end
+    local pos = Positions(layoutKey)
+    local at = pos[right or map.keys.right]
+    if not at then return nil, L["your movement keys aren't on the left of this keyboard"] end
+    if dir > 0 and at[1] > MOST_RIGHT then return nil, L["your hand can't go further right"] end
+    if dir < 0 and right == nil then
+        -- Not past the left edge: after moving, strafe left still needs a key to its left
+        -- for the pinky, so it must have two now (A in E S D F; not A in W A S D).
+        local n = 0
+        for _, info in ipairs(layout.rows[4]) do
+            if info[1] == map.keys.left then break end
+            if info[1] ~= "" and not info.mod then n = n + 1 end
+        end
+        if n < 2 then return nil, L["your hand can't go further left"] end
+    end
+    -- The same block either way: the one for the hand in its left-hand position.
+    local rows = Block(layoutKey, dir > 0 and at[1] or at[1] - 1)
+    local to = {}
+    for _, list in ipairs(rows) do
+        local n = #list
+        for i, key in ipairs(list) do
+            if dir > 0 then to[key] = list[i % n + 1] else to[key] = list[(i - 2) % n + 1] end
+        end
+    end
+    return to
+end
+
+-- True if the hand can move that way (1 right, -1 left) from where the movement keys are
+-- now, on the keyboard drawn. Kept with the reach map (redraws make no garbage).
+function ns.CanShiftHand(dir)
+    local layoutKey = ns.LayoutKey(ns.db.settings.layout)
+    if not (ns.LAYOUTS[layoutKey] and ns.LAYOUTS[layoutKey].rows) then return false end
+    local map = ns.ReachMap(layoutKey)
+    map.canShift = map.canShift or {}
+    if map.canShift[dir] == nil then map.canShift[dir] = ns.HandShiftMap(layoutKey, dir) ~= nil end
+    return map.canShift[dir]
 end
 
 -- Movement keys may have moved.
