@@ -113,19 +113,62 @@ test("the apply question names the gear with the slots and keys", function()
     eq(shown, "1 slots and your gear")
 end)
 
-test("Update keeps a profile's gear; Copy copies it", function()
-    local c, ns = gearLogin()
+test("with ItemRack as the gear source, Update keeps a profile's gear; Copy copies it", function()
+    local c, ns = gearLogin({ Dps = { [16] = 1680 } })
     ns.SaveProfile("Ret")
     ns.SetProfileGear("Ret", { [1] = gearString(1100) })
     ns.SetProfileItemRack("Ret", "Dps")
+    eq(ns.UpdateSaves("Ret"), "bars and keys")
     ns.SaveProfile("Ret", true)
-    eq(c.profiles.Ret.gear[1], gearString(1100))
+    eq(c.profiles.Ret.gear[1], gearString(1100), "not the helm worn now")
     eq(c.profiles.Ret.itemrack, "Dps")
     ns.DuplicateProfile("Ret", "Ret 2")
     eq(c.profiles["Ret 2"].gear[1], gearString(1100))
     ns.SetProfileGear("Ret", nil)
     eq(c.profiles.Ret.gear, nil)
     eq(c.profiles["Ret 2"].gear[1], gearString(1100), "the copy is its own")
+end)
+
+test("with Keystance's own gear, Update saves the gear worn now in the profile's slots", function()
+    local c, ns = gearLogin()
+    ns.SaveProfile("Ret")
+    ns.SetProfileGear("Ret", { [16] = gearString(1680), [1] = gearString(1100) })
+    ns.SetProfileItemRack("Ret", "Dps")
+    local shown
+    StaticPopup_Show = function(which, text1, text2) shown = text2 end
+    ns.ConfirmUpdate("Ret")
+    eq(shown, "bars, keys and gear", "the question says the gear is saved too")
+    -- Worn now: one-hander 2132, shield 2129, helm 1101; a ring the profile has no slot for.
+    wow.inventory[11] = 1000
+    ns.SaveProfile("Ret", true)
+    local gear = c.profiles.Ret.gear
+    eq(gear[16], gearString(2132), "the main hand worn now")
+    eq(gear[17], gearString(2129), "and the off hand that goes with it")
+    eq(gear[1], gearString(1101))
+    eq(gear[11], nil, "a slot the profile left alone stays alone")
+    eq(c.profiles.Ret.itemrack, "Dps", "its ItemRack set is kept for when ItemRack is the source")
+
+    -- A slot worn empty now drops out.
+    wow.inventory[1] = nil
+    ns.SaveProfile("Ret", true)
+    eq(c.profiles.Ret.gear[1], nil)
+    eq(c.profiles.Ret.gear[16], gearString(2132))
+end)
+
+test("Update doesn't give gear to a profile without any, and keeps the old gear if items haven't loaded", function()
+    local c, ns = gearLogin()
+    ns.SaveProfile("Ret")
+    eq(ns.UpdateSaves("Ret"), "bars and keys")
+    ns.SaveProfile("Ret", true)
+    eq(c.profiles.Ret.gear, nil, "no gear: stays without")
+
+    ns.SetProfileGear("Ret", { [1] = gearString(1100) })
+    wow.linksNotReady = true
+    wow.printed = {}
+    eq(ns.SaveProfile("Ret", true), "Ret", "the bars still update")
+    wow.linksNotReady = nil
+    eq(c.profiles.Ret.gear[1], gearString(1100), "the old gear stays")
+    assert(printed():find("Gear not saved", 1, true), printed())
 end)
 
 test("a rule switching profiles leaves gear alone: the player just chose it", function()

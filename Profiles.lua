@@ -84,6 +84,17 @@ function ns.SaveProfile(name, replace)
     if existing then
         local old = c.profiles[existing]
         p.created, p.gear, p.itemrack, p.icon = old.created, old.gear, old.itemrack, old.icon -- Update keeps them
+        -- With Keystance's own gear, Update saves the gear worn now too: the slots the profile
+        -- has gear for (a weapons-only profile stays weapons-only; a slot worn empty now drops
+        -- out). If the game hasn't loaded the items yet, the old gear stays.
+        if ns.ProfileGear(old) == "items" then
+            local items, why = ns.CaptureGear(ns.GearSlotsOf(old.gear))
+            if items then
+                p.gear = next(items) and items or nil
+            else
+                Print(L["Gear not saved: %s"]:format(why))
+            end
+        end
         c.profiles[existing] = nil
     end
     c.profiles[clean] = p
@@ -802,10 +813,19 @@ function ns.AskDuplicate(name)
     end, name .. " 2")
 end
 
+-- What Update saves: the gear too when the profile has Keystance's own gear and that's the
+-- gear source in use.
+function ns.UpdateSaves(name)
+    local key = ns.FindProfile(name)
+    local p = key and Char().profiles[key]
+    return (p and ns.ProfileGear(p) == "items") and L["bars, keys and gear"] or L["bars and keys"]
+end
+
 -- Replaces a profile with the current setup, after asking.
 function ns.ConfirmUpdate(name)
+    local what = ns.UpdateSaves(name)
     Dialog("KEYSTANCE_UPDATE", {
-        text = L["Replace %s with your bars and keys as they are now?"],
+        text = L["Replace %s with your %s as they are now?"],
         button1 = L["Replace"],
         button2 = CANCEL or "Cancel",
         OnAccept = function(_, data)
@@ -813,5 +833,5 @@ function ns.ConfirmUpdate(name)
             if ok then Notify(L["Updated %s from your current setup."]:format(ok)) else Print(why) end
         end,
     })
-    StaticPopup_Show("KEYSTANCE_UPDATE", name, nil, name)
+    StaticPopup_Show("KEYSTANCE_UPDATE", name, what, name)
 end
