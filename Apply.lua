@@ -62,11 +62,18 @@ ns.ScanBook = ScanBook
 ---------------------------------------------------------------------------
 -- Slots
 ---------------------------------------------------------------------------
--- True if the slot already holds this action.
+-- True if the slot already holds this action. Two macros of one name are the same unless
+-- both say whose they are (the account's or the character's) and differ.
 local function Same(want, have)
     if not want or not have then return want == have end
     if want.t ~= have.t then return false end
-    if want.t == "macro" then return want.name == have.name end
+    if want.t == "macro" then
+        if want.name ~= have.name then return false end
+        -- The slot holds one of two macros of that name, and which can't be read: the saved
+        -- one is put there to be sure.
+        if want.perChar ~= nil and have.ambiguous then return false end
+        return want.perChar == nil or have.perChar == nil or want.perChar == have.perChar
+    end
     return want.id == have.id
 end
 ns.SameAction = Same
@@ -116,6 +123,11 @@ local function Pickup(want, book)
         end
         C_Spell.PickupSpell(id)
     elseif want.t == "macro" then
+        -- Saved without saying whose (two of that name existed, or a save from before this was
+        -- kept) while two share the name now: which one belongs here can't be told.
+        if want.perChar == nil and select(2, ns.MacroKind(want.name)) then
+            return L["two macros are called %s, so Keystance can't tell which one goes here"]:format(want.name)
+        end
         local index = want.name and MacroIndex(want) or 0
         if not index or index == 0 then return L["macro '%s' not found"]:format(tostring(want.name)) end
         PickupMacro(index)
@@ -137,15 +149,19 @@ local function Describe(want)
     return want.name or (tostring(want.t) .. " " .. tostring(want.id))
 end
 
--- Makes slots 1-180 (or only those in `only`) match state.slots. Returns how many changed
--- and a list of failures.
-local function ApplySlots(state, failures, only)
+-- Makes slots 1-180 (or only those in `only`) match state.slots. Returns how many changed;
+-- adds to the list of failures and the set of slots written.
+local function ApplySlots(state, failures, only, written)
     local book = ScanBook()
     local changed = 0
     for slot = 1, ns.MANAGED_SLOTS do
         local want, have = state.slots[slot], (not only or only[slot]) and ns.DescribeSlot(slot)
         if only and not only[slot] then
             -- not part of this change
+        elseif only and want and want.t == "macro" and want.ambiguous and Same(want, have) then
+            -- Undoing a slot that held one of two macros of one name: which one can't be told.
+            failures[#failures + 1] = L["slot %d (%s): %s"]:format(slot, Describe(want),
+                L["two macros are called %s, so Keystance can't tell which one goes here"]:format(want.name))
         elseif not Same(want, have) and have and not PLACEABLE[have.t] then
             failures[#failures + 1] = L["slot %d holds %s, which Keystance couldn't put back, so it's left as it is"]
                 :format(slot, Describe(have))
@@ -154,6 +170,7 @@ local function ApplySlots(state, failures, only)
                 PickupAction(slot)
                 ClearCursor()
                 changed = changed + 1
+                written[slot] = true
             else
                 local why = Pickup(want, book)
                 if why then
@@ -163,6 +180,7 @@ local function ApplySlots(state, failures, only)
                     PlaceAction(slot)
                     ClearCursor() -- placing onto a filled slot puts the old action on the cursor
                     changed = changed + 1
+                    written[slot] = true
                 end
             end
         end
@@ -171,59 +189,107 @@ local function ApplySlots(state, failures, only)
 end
 
 ---------------------------------------------------------------------------
--- Keys
+-- Keys: worked out first as a list of writes ({ key, command or false to unbind }), so
+-- nothing is written when the change can't go ahead.
 ---------------------------------------------------------------------------
 -- Makes the bindings match state.binds for the commands in scope ("bars": bar buttons
--- only; "all": every command). A wanted key bound elsewhere is taken over. Returns how
--- many keys changed.
-local function ApplyBinds(state, scope)
+-- only; "all": every command). A wanted key bound elsewhere is taken over.
+local function PlanBinds(state, scope, writes)
     local inScope = scope == "all" and function() return true end or ns.IsBarCommand
     local want = {} -- [key] = command
-    for command, keys in pairs(state.binds or {}) do
+    for command, keys in pairs(state.binds) do
         if inScope(command) then
             for _, key in ipairs(keys) do want[key] = command end
         end
     end
-    local changed = 0
+    local planned = {}
     -- Keys now bound in scope that the state doesn't bind to the same command.
     for command, keys in pairs(ns.ReadBindings()) do
         if inScope(command) then
             for _, key in ipairs(keys) do
-                if want[key] ~= command then
-                    if want[key] then SetBinding(key, want[key]) else SetBinding(key) end
-                    changed = changed + 1
+                if want[key] ~= command and not planned[key] then
+                    writes[#writes + 1] = { key, want[key] or false }
+                    planned[key] = true
                 end
             end
         end
     end
     -- Keys the state binds that aren't bound that way yet.
     for key, command in pairs(want) do
-        if GetBindingAction(key) ~= command then
-            SetBinding(key, command)
-            changed = changed + 1
+        if not planned[key] and GetBindingAction(key) ~= command then
+            writes[#writes + 1] = { key, command }
+            planned[key] = true
         end
     end
-    if changed > 0 then SaveBindings(GetCurrentBindingSet()) end
-    return changed
 end
 
 -- Puts back only these keys as the state had them (bound to its command, or unbound):
 -- an undo touches the keys its change touched, nothing else.
-local function ApplyKeys(state, keys)
+local function PlanKeys(state, keys, writes)
     local was = {}
-    for command, list in pairs(state.binds or {}) do
+    for command, list in pairs(state.binds) do
         for _, key in ipairs(list) do was[key] = command end
     end
-    local changed = 0
     for key in pairs(keys) do
         local want, now = was[key], GetBindingAction(key)
-        if (want or "") ~= (now or "") then
-            if want then SetBinding(key, want) else SetBinding(key) end
-            changed = changed + 1
+        if (want or "") ~= (now or "") then writes[#writes + 1] = { key, want or false } end
+    end
+end
+
+---------------------------------------------------------------------------
+-- Checking saved data before it's used: a profile, snapshot or undo record damaged in the
+-- saved file (or by another addon) is refused whole, before anything changes, and left as
+-- it is in the save.
+---------------------------------------------------------------------------
+local function BadAction(a)
+    if type(a) ~= "table" or type(a.t) ~= "string" then return true end
+    if a.t == "macro" then
+        return type(a.name) ~= "string" or (a.perChar ~= nil and type(a.perChar) ~= "boolean")
+    end
+    if a.t == "spell" then return type(a.id) ~= "number" or (a.name ~= nil and type(a.name) ~= "string") end
+    if a.t == "item" or a.t == "flyout" then return type(a.id) ~= "number" end
+    return false -- other kinds are never placed, only left alone
+end
+
+-- True if `binds` is { [command] = { key, ... } }; else false and what's wrong.
+function ns.CheckBinds(binds)
+    if type(binds) ~= "table" then return false, L["its keys"] end
+    for command, keys in pairs(binds) do
+        if type(command) ~= "string" or type(keys) ~= "table" then
+            return false, L["the keys of %s"]:format(tostring(command))
+        end
+        for i, key in pairs(keys) do
+            if type(i) ~= "number" or type(key) ~= "string" then
+                return false, L["the keys of %s"]:format(command)
+            end
         end
     end
-    if changed > 0 then SaveBindings(GetCurrentBindingSet()) end
-    return changed
+    return true
+end
+
+-- True if the state can be applied (keys too, with `needBinds`); else false and what part
+-- of it is damaged.
+function ns.CheckState(state, needBinds)
+    if type(state) ~= "table" or type(state.slots) ~= "table" then return false, L["its action bars"] end
+    for slot, a in pairs(state.slots) do
+        if type(slot) ~= "number" or BadAction(a) then return false, L["slot %s"]:format(tostring(slot)) end
+    end
+    if needBinds or state.binds ~= nil then return ns.CheckBinds(state.binds) end
+    return true
+end
+
+-- Whether a change can go ahead now (combat, the cursor, the state itself, and the "Before
+-- Keystance" snapshot, which comes before Keystance's first change: until the game has
+-- loaded the bars and keys it can't be taken, so nothing changes yet). ok, or false and why.
+function ns.CanChange(state, needBinds)
+    if InCombatLockdown() then return false, L["in combat"] end
+    if GetCursorInfo() then return false, L["put down what you're holding on the cursor first"] end
+    if state ~= nil then
+        local ok, where = ns.CheckState(state, needBinds)
+        if not ok then return false, L["the saved setup is damaged (%s), so it was left alone"]:format(where) end
+    end
+    if not ns.TakeSnapshot() then return false, L["your bars and keys haven't loaded yet; try again in a moment"] end
+    return true
 end
 
 ---------------------------------------------------------------------------
@@ -238,26 +304,38 @@ end
 
 -- Applies a state now. Must not be called in combat (use ns.OutOfCombat). options:
 -- scope = "bars" (default) or "all" for keys; keys = false leaves keys alone; only = a set
--- of slots and onlyKeys = a set of keys limit it to those (an undo). Returns ok,
--- slotsChanged, keysChanged, failures; ok is false (with a reason) if it didn't start.
+-- of slots and onlyKeys = a set of keys limit it to those (an undo). Keys shared by the
+-- whole account are never written: with ownKeys the character gets its own keybinds first
+-- (nothing changes on screen, the others keep theirs), else nothing changes and the third
+-- value is "shared". Returns ok, slotsChanged, keysChanged, failures, the set of slots
+-- written; ok is false (with a reason) if it didn't start.
 function ns.ApplyState(state, options)
     options = options or {}
-    if InCombatLockdown() then return false, L["in combat"] end
-    if GetCursorInfo() then return false, L["put down what you're holding on the cursor first"] end
-    ns.TakeSnapshot() -- the "Before Keystance" setup comes before Keystance's first change
-    local failures = {}
-    local slots = ApplySlots(state, failures, options.only)
-    local keys = 0
+    local ok, why = ns.CanChange(state, options.keys ~= false)
+    if not ok then return false, why end
+    local writes = {}
     if options.onlyKeys then
-        keys = ApplyKeys(state, options.onlyKeys)
+        PlanKeys(state, options.onlyKeys, writes)
     elseif options.keys ~= false then
-        keys = ApplyBinds(state, options.scope or "bars")
+        PlanBinds(state, options.scope or "bars", writes)
     end
-    return true, slots, keys, failures
+    if #writes > 0 and ns.SharedKeybinds() then
+        if not options.ownKeys then return false, L["your keybinds are shared by all your characters"], "shared" end
+        SaveBindings(2) -- this character's own keybinds, a copy of the shared ones (measured)
+    end
+    local failures, written = {}, {}
+    local slots = ApplySlots(state, failures, options.only, written)
+    for _, w in ipairs(writes) do
+        if w[2] then SetBinding(w[1], w[2]) else SetBinding(w[1]) end
+    end
+    if #writes > 0 then SaveBindings(GetCurrentBindingSet()) end
+    return true, slots, #writes, failures, written
 end
 
--- How many slots and keys applying the state would change (for the preview).
+-- How many slots and keys applying the state would change (for the preview). A damaged
+-- state changes nothing (applying it is refused).
 function ns.CountChanges(state, scope)
+    if not ns.CheckState(state, true) then return 0, 0 end
     local slots = 0
     for slot = 1, ns.MANAGED_SLOTS do
         if not Same(state.slots[slot], ns.DescribeSlot(slot)) then slots = slots + 1 end

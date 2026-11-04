@@ -76,18 +76,116 @@ local DEFAULTS = {
 -- never reset: players' profiles and snapshots must survive every update.
 local UPGRADES = {}
 
+---------------------------------------------------------------------------
+-- Repairing a damaged save at load (a hand edit, a disk error, another addon writing into
+-- it): a value of the wrong type is dropped, so it reads as never set (a setting goes back
+-- to its default), instead of breaking every window that reads it. Only values that are
+-- unusable as they are go; profiles' slots and keys, the snapshot and the undo record are
+-- never touched here: a damaged one is refused whole when it's used (Apply.lua's
+-- ns.CheckState), and stays in the save as it was.
+---------------------------------------------------------------------------
+local SETTING_TYPES = {
+    skin = "string", layout = "string", messages = "string", gearSource = "string", tab = "string",
+    switcher = "string", spellKind = "string", spellFilter = "string",
+    askSwitch = "boolean", autoOff = "boolean", heatmap = "boolean", hiddenBarsOpen = "boolean",
+    minimapHidden = "boolean", numpad = "boolean", ranksOff = "boolean", spellPanelHidden = "boolean",
+    minimapAngle = "number",
+    euiVisibility = "table", spellCollapsed = "table", window = "position", switcherPos = "position",
+    spellPanelPos = "position",
+}
+
+local function IsPosition(p)
+    return type(p) == "table" and type(p[1]) == "string" and type(p[2]) == "string" and type(p[3]) == "number"
+        and type(p[4]) == "number"
+end
+
+-- Fields of a character and their types (anything else is left alone).
+local CHAR_TYPES = {
+    class = "string", active = "string", profiles = "table", rules = "table",
+    lastChange = "table", keySlots = "table", guide = "table", bankSeen = "table",
+}
+-- (The snapshot is never dropped, even damaged: without one, Keystance would take a new one
+-- of the setup as it is now and call it "Before Keystance".)
+
+-- Fields of a profile besides its slots and keys (checked when applied).
+local PROFILE_TYPES = {
+    gear = "table", itemrack = "string", icon = "any", created = "number", updated = "number",
+    nSlots = "number", nBinds = "number",
+}
+
+local function RepairProfile(p)
+    for field, want in pairs(PROFILE_TYPES) do
+        local v = p[field]
+        if v ~= nil and want ~= "any" and type(v) ~= want then p[field] = nil end
+    end
+    if p.icon ~= nil and type(p.icon) ~= "number" and type(p.icon) ~= "string" then p.icon = nil end
+    if p.gear then
+        for slot, item in pairs(p.gear) do
+            if type(slot) ~= "number" or type(item) ~= "string" then p.gear[slot] = nil end
+        end
+    end
+end
+
+local function RepairChar(c)
+    for field, want in pairs(CHAR_TYPES) do
+        if c[field] ~= nil and type(c[field]) ~= want then c[field] = nil end
+    end
+    for name, p in pairs(c.profiles or {}) do
+        if type(name) ~= "string" or type(p) ~= "table" then
+            c.profiles[name] = nil
+        else
+            RepairProfile(p)
+        end
+    end
+    if c.rules then
+        local kept = {}
+        for _, rule in ipairs(c.rules) do
+            if type(rule) == "table" and type(rule.when) == "string" and type(rule.profile) == "string" then
+                kept[#kept + 1] = rule
+            end
+        end
+        c.rules = kept
+    end
+    for n, owner in pairs(c.keySlots or {}) do
+        if type(n) ~= "number" or type(owner) ~= "string" then c.keySlots[n] = nil end
+    end
+    local snap = c.snapshot
+    if type(snap) == "table" then
+        -- Only the description shown in Settings; the snapshot itself is checked when restored.
+        for _, field in ipairs({ "at", "nSlots", "nBinds" }) do
+            if snap[field] ~= nil and type(snap[field]) ~= "number" then snap[field] = nil end
+        end
+    end
+end
+
+local function Repair(saved)
+    local settings = saved.settings
+    for key, want in pairs(SETTING_TYPES) do
+        local v = settings[key]
+        if v ~= nil and not (want == "position" and IsPosition(v) or type(v) == want) then settings[key] = nil end
+    end
+    for name, c in pairs(saved.chars) do
+        if type(name) ~= "string" or type(c) ~= "table" then
+            saved.chars[name] = nil
+        else
+            RepairChar(c)
+        end
+    end
+end
+
 function ns.InitDB(saved)
     if type(saved) ~= "table" then saved = {} end
-    saved.v = saved.v or DB_VERSION
+    if type(saved.v) ~= "number" then saved.v = DB_VERSION end
     while saved.v < DB_VERSION and UPGRADES[saved.v] do
         UPGRADES[saved.v](saved)
         saved.v = saved.v + 1
     end
     if type(saved.settings) ~= "table" then saved.settings = {} end
+    if type(saved.chars) ~= "table" then saved.chars = {} end
+    Repair(saved)
     for k, v in pairs(DEFAULTS) do
         if saved.settings[k] == nil then saved.settings[k] = v end
     end
-    if type(saved.chars) ~= "table" then saved.chars = {} end
     return saved
 end
 

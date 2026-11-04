@@ -88,7 +88,12 @@ function ns.SaveProfile(name, replace)
         -- has gear for (a weapons-only profile stays weapons-only; a slot worn empty now drops
         -- out). If the game hasn't loaded the items yet, the old gear stays.
         if ns.ProfileGear(old) == "items" then
-            local items, why = ns.CaptureGear(ns.GearSlotsOf(old.gear))
+            local items, why
+            if ns.GearBusy() then
+                why = L["your gear is still being changed; Update again once it's done"]
+            else
+                items, why = ns.CaptureGear(ns.GearSlotsOf(old.gear))
+            end
             if items then
                 p.gear = next(items) and items or nil
             else
@@ -204,13 +209,16 @@ local function Report(what, slots, keys, failures)
     end
 end
 
--- What a change touched: the slots and keys that differ between `before` and now, so an
--- undo puts back those and nothing else (not changes the player made since).
-local function Touched(before)
+-- What a change touched: the slots and keys that differ between `before` and now, and
+-- every slot it wrote (one of two macros of a name looks the same as the other), so an undo
+-- puts back those and nothing else (not changes the player made since).
+local function Touched(before, written)
     local after = ns.CurrentState()
     local slots, keys = {}, {}
     for slot = 1, ns.MANAGED_SLOTS do
-        if not ns.SameAction(before.slots[slot], after.slots[slot]) then slots[slot] = true end
+        if (written and written[slot]) or not ns.SameAction(before.slots[slot], after.slots[slot]) then
+            slots[slot] = true
+        end
     end
     local was, now = {}, {}
     for command, list in pairs(before.binds) do
@@ -229,27 +237,33 @@ local function Touched(before)
 end
 
 -- The undo record for a change from `before`: what it touched, with how things were.
-local function Record(before, label, gear, homes, profileBinds)
-    local slots, keys = Touched(before)
-    return { state = before, only = slots, keys = keys, gear = gear, homes = homes, profileBinds = profileBinds,
-        label = label, at = time() }
+-- `extra` adds what else it changed: gear (the gear it replaced), homes (where items it put
+-- into empty slots came from), profileBinds (profiles' saved keys before), keySlots (which
+-- profile each Profile N keybind belonged to before: { [n] = name or false }).
+local function Record(before, label, extra)
+    extra = extra or {}
+    local slots, keys = Touched(before, extra.written)
+    return { state = before, only = slots, keys = keys, gear = extra.gear, homes = extra.homes,
+        profileBinds = extra.profileBinds, keySlots = extra.keySlots, label = label, at = time() }
 end
 
 -- Applies a state now, recording the setup before it for Undo. `done` is said afterwards
 -- ("Prot applied"); `undo` names the change for the Undo button ("applying Prot").
 -- options.gearChanged says gear is going on too, options.gearBefore is the gear it
--- replaces and options.gearHomes where the items it puts into empty slots came from, kept
--- for Undo.
+-- replaces and options.gearHomes where the items it puts into empty slots came from;
+-- options.profileBinds and options.keySlots what else it changed (see Record); all kept for
+-- Undo.
 local function Change(state, options, done, undo, onDone)
     local c = Char()
     local before = ns.CurrentState()
-    local ok, slots, keys, failures = ns.ApplyState(state, options)
+    local ok, slots, keys, failures, written = ns.ApplyState(state, options)
     if not ok then
         Print(L["Nothing changed: %s."]:format(slots))
         return false
     end
-    if slots + keys > 0 or options.gearChanged then
-        c.lastChange = Record(before, undo, options.gearBefore, options.gearHomes, options.profileBinds)
+    if slots + keys > 0 or options.gearChanged or options.keySlots then
+        c.lastChange = Record(before, undo, { gear = options.gearBefore, homes = options.gearHomes,
+            profileBinds = options.profileBinds, keySlots = options.keySlots, written = written })
         if ns.StatusStale then ns.StatusStale() end
     end
     if onDone then onDone() end
@@ -260,10 +274,10 @@ end
 
 ns.ApplyChange = Change
 
--- Records the setup from before a change made elsewhere (a drop), for Undo.
-function ns.RecordChange(before, label)
+-- Records the setup from before a change made elsewhere (a drop), for Undo; `extra` as Record.
+function ns.RecordChange(before, label, extra)
     local c = Char()
-    if c then c.lastChange = Record(before, label) end
+    if c then c.lastChange = Record(before, label, extra) end
     if ns.StatusStale then ns.StatusStale() end -- the strip's Undo follows
 end
 
@@ -273,27 +287,46 @@ function ns.UndoLabel()
     return c and c.lastChange and c.lastChange.label
 end
 
+-- True if applying the profile would change keys shared by every character.
+local function ChangesSharedKeys(p)
+    if not ns.SharedKeybinds() then return false end
+    local _, keyChanges = ns.CountChanges(p, "bars")
+    return keyChanges > 0
+end
+
 -- Applies a profile, now or after combat: its gear first, then bars and keys. keys = false
 -- leaves keys alone ("bars only"); noGear leaves gear alone (a rule switching because the
 -- player changed gear mustn't undo that change). While this character shares the account's
 -- keybinds, changing keys would change them for every character, so it asks first (owner's
--- decision, PLAN.md) unless `asked`.
-function ns.ApplyProfile(name, keys, asked, noGear)
+-- decision, PLAN.md); `ownFirst` is the answer "own keybinds, then apply", done in the same
+-- step as the apply, so nothing queued in between can write the shared keys. Whether keys
+-- would change is checked again when it runs (after combat, things may differ).
+function ns.ApplyProfile(name, keys, ownFirst, noGear)
     local c = Char()
     local key = ns.FindProfile(name)
     if not key then return Print(L["No profile called %s. /kst profiles lists them."]:format(tostring(name))) end
-    if keys ~= false and not asked and ns.SharedKeybinds() then
-        local _, keyChanges = ns.CountChanges(c.profiles[key], "bars")
-        if keyChanges > 0 then return ns.AskSharedKeybinds(key, noGear) end
+    if keys ~= false and not ownFirst and ChangesSharedKeys(c.profiles[key]) then
+        return ns.AskSharedKeybinds(key, noGear)
     end
     local now = ns.OutOfCombat("apply", function()
         ns.pendingProfile = nil
         local p = c.profiles[key]
         if not p then return end -- deleted meanwhile
+        -- Everything that could stop it is checked before the gear starts moving.
+        local ok, why = ns.CanChange(p, keys ~= false)
+        if not ok then return Print(L["%s not applied: %s."]:format(key, why)) end
+        if keys ~= false and ns.SharedKeybinds() then
+            if ownFirst then
+                ns.OwnKeybindsFirst()
+                Notify(L["This character now has its own keybinds. Your other characters keep theirs."])
+            elseif ChangesSharedKeys(p) then
+                return ns.AskSharedKeybinds(key, noGear)
+            end
+        end
         local gearBefore, gearChanged, gearHomes
         if not noGear then gearBefore, gearChanged, gearHomes = ns.StartProfileGear(p) end
         Change(p, { keys = keys ~= false, scope = "bars", gearBefore = gearBefore, gearChanged = gearChanged,
-            gearHomes = gearHomes },
+            gearHomes = gearHomes, ownKeys = ownFirst },
             L["%s applied"]:format(key), L["applying %s"]:format(key), function() c.active = key end)
     end)
     if not now then
@@ -315,6 +348,48 @@ function ns.CancelPendingProfile()
     return true
 end
 
+-- True if the undo record is whole: { state, only = { [slot] = true }, keys = { [key] = true },
+-- gear = { [slot] = item string or false }, homes = { [Key] = place }, profileBinds =
+-- { [name] = binds }, keySlots = { [n] = name or false } } (all but state optional).
+-- Else false and what's damaged.
+local function CheckRecord(last)
+    if type(last) ~= "table" then return false, L["its record"] end
+    local ok, why = ns.CheckState(last.state, true)
+    if not ok then return false, why end
+    local function Set(t, keyType)
+        if t == nil then return true end
+        if type(t) ~= "table" then return false end
+        for k in pairs(t) do if type(k) ~= keyType then return false end end
+        return true
+    end
+    if not (Set(last.only, "number") and Set(last.keys, "string")) then return false, L["its list of changes"] end
+    if last.gear ~= nil then
+        if type(last.gear) ~= "table" then return false, L["its gear"] end
+        for slot, item in pairs(last.gear) do
+            if type(slot) ~= "number" or (item ~= false and type(item) ~= "string") then return false, L["its gear"] end
+        end
+    end
+    if last.homes ~= nil then
+        if type(last.homes) ~= "table" then return false, L["its gear"] end
+        for k, loc in pairs(last.homes) do
+            if type(k) ~= "string" or type(loc) ~= "number" then return false, L["its gear"] end
+        end
+    end
+    if last.profileBinds ~= nil then
+        if type(last.profileBinds) ~= "table" then return false, L["its profiles' keys"] end
+        for name, binds in pairs(last.profileBinds) do
+            if type(name) ~= "string" or not ns.CheckBinds(binds) then return false, L["its profiles' keys"] end
+        end
+    end
+    if last.keySlots ~= nil then
+        if type(last.keySlots) ~= "table" then return false, L["its profile keys"] end
+        for n, owner in pairs(last.keySlots) do
+            if type(n) ~= "number" or (owner ~= false and type(owner) ~= "string") then return false, L["its profile keys"] end
+        end
+    end
+    return true
+end
+
 -- Puts back the setup from before the last change (a second Undo redoes it).
 function ns.Undo()
     local c = Char()
@@ -323,17 +398,29 @@ function ns.Undo()
     local now = ns.OutOfCombat("apply", function()
         local last = c.lastChange
         if not last then return end
+        -- Everything that could stop it is checked before anything changes (gear, profiles).
+        local ok, why = CheckRecord(last)
+        if ok then
+            ok, why = ns.CanChange(last.state, true)
+        else
+            why = L["the saved setup is damaged (%s), so it was left alone"]:format(why)
+        end
+        if not ok then return Print(L["Nothing changed: %s."]:format(why)) end
+        -- A swap still under way (the change's own, or a later one's) stops first: it would
+        -- carry on putting on gear that's being undone.
+        ns.CancelGear()
         -- The gear from before goes back on, items taken off going back where they came from
         -- (kept for a second Undo in turn).
         local gearBefore, gearChanged, gearHomes
-        if last.gear and ns.GearChanges(last.gear) > 0 and not GetCursorInfo() then
+        if last.gear and ns.GearChanges(last.gear) > 0 then
             gearBefore, gearHomes = ns.CaptureGear(ns.GearSlotsOf(last.gear), true), {}
             local ok, why = ns.EquipGear(last.gear, ns.GearReport, last.homes, gearHomes)
             gearChanged = ok
             if not ok then Print(L["Gear not changed: %s."]:format(why)) end
         end
-        -- Profiles' saved keys, if the change moved them (moving the hand), go back too.
-        local profileBinds
+        -- Profiles' saved keys, if the change moved them (moving the hand), go back too, as
+        -- does which profile each Profile N keybind belongs to.
+        local profileBinds, keySlots
         if last.profileBinds then
             profileBinds = {}
             for name, binds in pairs(last.profileBinds) do
@@ -344,10 +431,27 @@ function ns.Undo()
                 end
             end
         end
-        -- Only what that change touched (records from before this was kept: everything).
-        Change(last.state, { scope = "all", only = last.only, onlyKeys = last.only and (last.keys or {}),
-            gearBefore = gearBefore, gearChanged = gearChanged, gearHomes = gearHomes, profileBinds = profileBinds },
-            L["Undid %s"]:format(last.label), L["the undo"], function() c.active = nil end)
+        if last.keySlots then
+            keySlots = {}
+            local slots = ns.ProfileKeySlots()
+            for n, owner in pairs(last.keySlots) do
+                keySlots[n] = slots[n] or false
+                slots[n] = owner or nil
+            end
+        end
+        -- Only what that change touched (records from before this was kept: everything). The
+        -- account's shared keys are never written: the character gets its own first.
+        local done = Change(last.state, { scope = "all", only = last.only, onlyKeys = last.only and (last.keys or {}),
+            gearBefore = gearBefore, gearChanged = gearChanged, gearHomes = gearHomes, profileBinds = profileBinds,
+            keySlots = keySlots, ownKeys = true },
+            L["Undid %s"]:format(tostring(last.label)), L["the undo"], function() c.active = nil end)
+        if not done then
+            -- Nothing changed after all: the profiles keep what they had.
+            for name, binds in pairs(profileBinds or {}) do c.profiles[name].binds = binds end
+            local slots = ns.ProfileKeySlots()
+            for n, owner in pairs(keySlots or {}) do slots[n] = owner or nil end
+        end
+        if keySlots then ns.NameBindings() end
     end)
     if not now then Notify(L["Undo will happen when combat ends."]) end
 end
@@ -392,7 +496,7 @@ local function ShiftHand(layoutKey, dir)
     -- The profiles' keys, kept for Undo, then moved.
     local profileBinds = {}
     for name, p in pairs(c.profiles) do
-        if type(p.binds) == "table" then
+        if ns.CheckBinds(p.binds) then -- a damaged one is left as it is
             profileBinds[name] = p.binds
             local moved = {}
             for command, keys in pairs(p.binds) do
@@ -405,7 +509,7 @@ local function ShiftHand(layoutKey, dir)
     local map = ns.ReachMap(layoutKey)
     local dirName = dir > 0 and L["right"] or L["left"]
     local ok = Change({ slots = state.slots, binds = binds },
-        { scope = "all", only = {}, onlyKeys = touched, profileBinds = profileBinds },
+        { scope = "all", only = {}, onlyKeys = touched, profileBinds = profileBinds, ownKeys = true },
         L["Your keys moved one key %s"]:format(dirName), L["moving your keys %s"]:format(dirName))
     if not ok then
         for name, binds in pairs(profileBinds) do c.profiles[name].binds = binds end
@@ -465,8 +569,9 @@ function ns.RestoreOriginal()
     if not (c and c.snapshot) then return Print(L["Your original setup hasn't been saved yet."]) end
     ns.pendingProfile = nil -- Restore takes the queue's place
     local now = ns.OutOfCombat("apply", function()
-        Change(c.snapshot, { scope = "all" }, L["Your original setup is back"], L["restoring your original setup"],
-            function() c.active = nil end)
+        -- The account's shared keys are never written: the character gets its own first.
+        Change(c.snapshot, { scope = "all", ownKeys = true }, L["Your original setup is back"],
+            L["restoring your original setup"], function() c.active = nil end)
     end)
     if not now then Notify(L["Your original setup will come back when combat ends."]) end
 end
@@ -481,10 +586,12 @@ end
 
 -- Before a key is changed: the "Before Keystance" snapshot if it isn't taken yet, and this
 -- character's own keybinds if it shares the account's (so other characters keep theirs).
--- Out of combat only (callers check).
+-- False if the game hasn't loaded the bars and keys yet (then nothing changes). Out of
+-- combat only (callers check).
 function ns.OwnKeybindsFirst()
-    ns.TakeSnapshot()
+    if not ns.TakeSnapshot() then return false end
     if ns.SharedKeybinds() then SaveBindings(2) end
+    return true
 end
 
 -- Gives this character its own keybinds: the current ones are copied, so nothing changes
@@ -493,7 +600,9 @@ end
 function ns.UseOwnKeybinds()
     if not ns.SharedKeybinds() then return Print(L["This character already has its own keybinds."]) end
     local now = ns.OutOfCombat("ownkeys", function()
-        ns.OwnKeybindsFirst()
+        if not ns.OwnKeybindsFirst() then
+            return Print(L["Nothing changed: %s."]:format(L["your bars and keys haven't loaded yet; try again in a moment"]))
+        end
         Notify(L["This character now has its own keybinds. Your other characters keep theirs."])
         ns.ProfilesChanged()
     end)
@@ -605,6 +714,8 @@ function ns.SetProfileKey(name, key)
         Print(L["Not in combat: try again when combat ends."])
         return false
     end
+    local owners = {} -- each slot's owner before, for Undo
+    for i = 1, BINDABLE do owners[i] = Slots()[i] or false end
     local n, fresh = ns.AssignProfileSlot(profile)
     if not n then
         Print(L["Up to %d profiles can have keys. Take one off another profile first."]:format(BINDABLE))
@@ -632,7 +743,7 @@ function ns.SetProfileKey(name, key)
         Print(L["Nothing changed: %s."]:format(why))
         return false
     end
-    ns.RecordChange(before, L["putting %s on %s"]:format(profile, key))
+    ns.RecordChange(before, L["putting %s on %s"]:format(profile, key), { keySlots = { [n] = owners[n] } })
     NameBindings()
     Notify(L["%s is now on %s."]:format(profile, key))
     if was and was ~= "" then Print(L["(%s was %s.)"]:format(key, ns.CommandName(was))) end
@@ -659,7 +770,7 @@ function ns.ClearProfileKey(name)
             Print(L["Nothing changed: %s."]:format(why))
             return false
         end
-        ns.RecordChange(before, L["taking %s's key off"]:format(profile))
+        ns.RecordChange(before, L["taking %s's key off"]:format(profile), { keySlots = { [n] = profile } })
     end
     Slots()[n] = nil
     NameBindings()
@@ -722,10 +833,7 @@ function ns.AskSharedKeybinds(name, noGear)
         button1 = L["Own keybinds, then apply"],
         button2 = CANCEL or "Cancel",
         button3 = L["Bars only"],
-        OnAccept = function(_, data)
-            ns.UseOwnKeybinds()
-            ns.ApplyProfile(data.name, nil, true, data.noGear)
-        end,
+        OnAccept = function(_, data) ns.ApplyProfile(data.name, nil, true, data.noGear) end,
         OnAlt = function(_, data) ns.ApplyProfile(data.name, false, nil, data.noGear) end,
     })
     StaticPopup_Show("KEYSTANCE_SHARED_KEYS", name, nil, { name = name, noGear = noGear })
@@ -736,12 +844,17 @@ function ns.ConfirmRestore()
     local c = Char()
     if not (c and c.snapshot) then return Print(L["Your original setup hasn't been saved yet."]) end
     Dialog("KEYSTANCE_RESTORE", {
-        text = L["Put your bars and every keybind back as they were before Keystance (saved %s)?\n\nYou can undo this."],
+        text = "%s",
         button1 = L["Restore"],
         button2 = CANCEL or "Cancel",
         OnAccept = function() ns.RestoreOriginal() end,
     })
-    StaticPopup_Show("KEYSTANCE_RESTORE", date("%d %b %Y", c.snapshot.at))
+    local at = type(c.snapshot) == "table" and type(c.snapshot.at) == "number" and date("%d %b %Y", c.snapshot.at) or "?"
+    local text = L["Put your bars and every keybind back as they were before Keystance (saved %s)?\n\nYou can undo this."]:format(at)
+    if ns.SharedKeybinds() then
+        text = text .. "\n\n" .. L["Your keybinds are shared by all your characters, so this character gets its own first: the others keep theirs."]
+    end
+    StaticPopup_Show("KEYSTANCE_RESTORE", text)
 end
 
 function ns.ConfirmDelete(name)

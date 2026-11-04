@@ -54,7 +54,7 @@ function ns.PickupFromSlot(slot, fullKey, command)
     if ns.InCombat() then return Refused(L["Not in combat: try again when combat ends."]) end
     ns.CancelBinding() -- one thing held at a time
     if GetCursorInfo() or not slot or slot > ns.MANAGED_SLOTS or not HasAction(slot) then return false end
-    ns.TakeSnapshot()
+    if not ns.TakeSnapshot() then return Refused(L["Your bars and keys haven't loaded yet; try again in a moment."]) end
     local before = ns.CurrentState()
     local label = SlotLabel(slot)
     PickupAction(slot)
@@ -77,9 +77,11 @@ ns.On("CURSOR_CHANGED", function()
     end
 end)
 
--- The setup to undo to: from before the pick-up, if this came from here.
+-- The setup to undo to: from before the pick-up, if this came from here. Nil if the game
+-- hasn't loaded the bars and keys yet: the "Before Keystance" snapshot comes before
+-- Keystance's first change, so nothing may change until it's taken.
 local function Before()
-    ns.TakeSnapshot() -- the "Before Keystance" setup comes before Keystance's first change
+    if not ns.TakeSnapshot() then return nil end
     local s = source
     source = nil
     return s and s.before or ns.CurrentState(), s
@@ -92,6 +94,7 @@ function ns.DropOnSlot(slot)
     if not slot or slot > ns.MANAGED_SLOTS then return Refused(L["That slot isn't one Keystance can change."]) end
     local label = CursorLabel()
     local before, from = Before()
+    if not before then return Refused(L["Your bars and keys haven't loaded yet; try again in a moment."]) end
     PlaceAction(slot)
     if not HasAction(slot) then return Refused(L["%s couldn't go there."]:format(label)) end
     ns.RecordChange(before, (from and L["moving %s"] or L["placing %s"]):format(label))
@@ -144,6 +147,7 @@ local function PlaceAndBind(key)
     end
     local label = CursorLabel()
     local before = Before()
+    if not before then return Refused(L["Your bars and keys haven't loaded yet; try again in a moment."]) end
     PlaceAction(slot) -- an empty slot, so nothing comes back onto the cursor
     if not HasAction(slot) then return Refused(L["%s couldn't go on a bar."]:format(label)) end
     local state = ns.CurrentState()
@@ -181,7 +185,10 @@ local function AskToBind(text, key)
             if not data then return end
             if ns.InCombat() then return Refused(L["Not in combat: drop it again when combat ends."]) end
             if not GetCursorInfo() then return Refused(L["Nothing is held on the cursor any more."]) end
-            ns.OwnKeybindsFirst() -- this character's own keybinds first (same as /kst ownkeys)
+            -- This character's own keybinds first (same as /kst ownkeys).
+            if not ns.OwnKeybindsFirst() then
+                return Refused(L["Your bars and keys haven't loaded yet; try again in a moment."])
+            end
             PlaceAndBind(data)
         end,
     })

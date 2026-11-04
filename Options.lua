@@ -51,8 +51,11 @@ local function RefreshPage(page)
     page.messagesRow:Refresh()
     page.ranksRow:Refresh()
     local snap = ns.char and ns.char.snapshot
-    page.snapshot:SetText(snap and L["Your bars and keys as they were before Keystance, saved %s (%d slots, %d keys). Restore puts them back; use it before uninstalling Keystance."]
+    local described = type(snap) == "table" and type(snap.at) == "number" and type(snap.nSlots) == "number"
+        and type(snap.nBinds) == "number"
+    page.snapshot:SetText(snap and (described and L["Your bars and keys as they were before Keystance, saved %s (%d slots, %d keys). Restore puts them back; use it before uninstalling Keystance."]
         :format(date("%d %b %Y", snap.at), snap.nSlots, snap.nBinds)
+        or L["Your bars and keys as they were before Keystance. Restore puts them back; use it before uninstalling Keystance."])
         or L["Keystance saves your bars and keys as they are now, shortly after you log in, so you can always get them back."])
     local combat = ns.InCombat()
     page.restore:SetEnabled(snap ~= nil and not combat)

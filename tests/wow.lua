@@ -490,8 +490,15 @@ function M.load(files)
             if f then f:SetShown(M.barToggles[i] and true or false) end
         end
     end
-    GetInventoryItemID = function(_, slot) return idOf(M.inventory[slot]) end
+    -- M.secretSlots[slot] = "id" (the ID is secret, no link) or "link" (the link is secret).
+    M.secretSlots = {}
+    GetInventoryItemID = function(_, slot)
+        if M.secretSlots[slot] == "id" then return SECRET end
+        return idOf(M.inventory[slot])
+    end
     GetInventoryItemLink = function(_, slot)
+        if M.secretSlots[slot] == "id" then return nil end
+        if M.secretSlots[slot] == "link" then return SECRET end
         if M.linksNotReady then return nil end
         return linkOf(M.inventory[slot])
     end

@@ -182,7 +182,9 @@ local function AskStart(page)
         OnAccept = function(_, data)
             if ns.InCombat() then return ns.Print(L["Not in combat: try again when combat ends."]) end
             if not data:IsVisible() then return end -- the tab closed while asking
-            ns.OwnKeybindsFirst()
+            if not ns.OwnKeybindsFirst() then
+                return ns.Print(L["Your bars and keys haven't loaded yet; try again in a moment."])
+            end
             StartBindMode(data)
         end,
     })

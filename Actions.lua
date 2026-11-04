@@ -118,9 +118,30 @@ function ns.CommandIcon(command)
     return icon or nil
 end
 
+-- Whose macro of that name it is: true for the character's own, false for the account's,
+-- nil if there's none. A bar slot names its macro but nothing more (GetActionInfo gives the
+-- spell it shows, measured), so when the account and the character both have a macro of
+-- that name (or one has two), which one the slot holds can't be told: nil, true.
+function ns.MacroKind(name)
+    local account, perChar = GetNumMacros()
+    local first = MAX_ACCOUNT_MACROS or 120
+    local inAccount, inChar = 0, 0
+    for i = 1, account or 0 do
+        if GetMacroInfo(i) == name then inAccount = inAccount + 1 end
+    end
+    for i = first + 1, first + (perChar or 0) do
+        if GetMacroInfo(i) == name then inChar = inChar + 1 end
+    end
+    if inAccount + inChar > 1 then return nil, true end
+    if inChar == 1 then return true end
+    if inAccount == 1 then return false end
+    return nil
+end
+
 -- A slot's action as saved data, or nil for an empty slot:
 --   { t = "spell", id = 19834, name = "Blessing of Might", rank = "Rank 2" }
 --   { t = "macro", name = "Attack", body = "...", icon = 132349, perChar = true, spell = 6603 }
+--     (perChar nil and ambiguous = true when two macros share the name: see ns.MacroKind)
 --   { t = "item", id = 6948 }
 --   { t = "flyout", id = 264 } and any other kind the same way.
 -- A macro slot reports the spell the macro shows, not the macro; its name comes from
@@ -138,8 +159,7 @@ function ns.DescribeSlot(slot)
         if name and GetMacroInfo then
             local _, icon, body = GetMacroInfo(name)
             m.icon, m.body = icon, body
-            local index = GetMacroIndexByName and GetMacroIndexByName(name)
-            if type(index) == "number" and index > 0 then m.perChar = index > (MAX_ACCOUNT_MACROS or 120) end
+            m.perChar, m.ambiguous = ns.MacroKind(name)
         end
         return m
     elseif kind == "item" then

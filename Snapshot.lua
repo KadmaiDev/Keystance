@@ -21,9 +21,14 @@ function ns.ReadBindings()
     return binds, count
 end
 
--- Takes the snapshot if this character has none. Returns true once one exists. Bars and
--- keybindings arrive from the game shortly after login; a snapshot of an empty setup
--- would later "restore" nothing, so it waits until both have loaded.
+-- Bars and keybindings arrive from the game shortly after login, so empty bars mean "not
+-- loaded yet" until the tries after entering the world are over; after that they're the
+-- player's (a character can have empty bars). Keys always exist once loaded (the game's
+-- defaults), so a snapshot is never taken without them: restoring one would unbind every key.
+local settled = false
+
+-- Takes the snapshot if this character has none. Returns true once one exists; false means
+-- the game hasn't loaded the bars and keys yet, and nothing may change them until it has.
 function ns.TakeSnapshot()
     local c = ns.char
     if not c then return false end
@@ -37,7 +42,7 @@ function ns.TakeSnapshot()
         end
     end
     local binds, nBinds = ns.ReadBindings()
-    if nSlots == 0 or nBinds == 0 then return false end
+    if nBinds == 0 or (nSlots == 0 and not settled) then return false end
     c.snapshot = {
         at = time(), set = GetCurrentBindingSet(),
         slots = slots, binds = binds, nSlots = nSlots, nBinds = nBinds,
@@ -51,6 +56,7 @@ end
 local TRIES, WAIT = 10, 3
 local trying = false
 local function Try(n)
+    if n >= TRIES then settled = true end
     if ns.TakeSnapshot() or n >= TRIES then
         trying = false
         return

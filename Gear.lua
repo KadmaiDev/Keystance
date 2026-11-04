@@ -121,14 +121,18 @@ end
 -- The gear worn now, as { [slot] = item string }: every slot, or only those in `slots`.
 -- With `empties` (Undo's record), an empty slot is false: Undo empties it again. Returns
 -- nil and why if the game hasn't loaded the items yet (right after login it knows item IDs
--- before links).
+-- before links), can't say what's there (a secret value), or is still moving one: a slot
+-- read as empty then would be saved as empty (or emptied by Undo).
 function ns.CaptureGear(slots, empties)
     local items = {}
     for slot = 1, 19 do
         if not slots or slots[slot] then
             local id = GetInventoryItemID("player", slot)
-            local s = Worn(slot)
-            if id and not Secret(id) and not s then return nil, L["Your gear hasn't loaded yet; try again in a moment."] end
+            local link = GetInventoryItemLink("player", slot)
+            if Secret(id) or Secret(link) then return nil, L["the game won't say what you're wearing right now"] end
+            if IsInventoryItemLocked(slot) then return nil, L["your gear is still being moved; try again in a moment"] end
+            local s = ItemString(link)
+            if id and not s then return nil, L["Your gear hasn't loaded yet; try again in a moment."] end
             if s then
                 items[slot] = s
             elseif empties then
@@ -192,7 +196,7 @@ local function Scan(carriedOnly)
         if IsInventoryItemLocked(slot) then locked[slot] = true end
         if not where[slot] then
             local id = GetInventoryItemID("player", slot)
-            if id and not Secret(id) then loading = true end
+            if id then loading = true end -- not loaded yet, or a secret value: not empty
         end
     end
     for i = 1, (bankOpen and not carriedOnly) and #BAGS or CARRIED do
@@ -377,6 +381,19 @@ function ns.GearSlotsOf(items)
     return slots
 end
 
+-- The same, plus every other gear slot the swap would take an item from (a ring moving
+-- from the second ring slot to the first), so Undo puts it back there.
+local function SlotsTouched(items)
+    local slots = ns.GearSlotsOf(items)
+    local moves = Plan(Scan(), items, NONE)
+    for _, move in ipairs(moves) do
+        local from = move[2]
+        if not move.off and from and from < 1000 then slots[from] = true end
+    end
+    return slots
+end
+ns.GearSlotsTouched = SlotsTouched
+
 -- What could go in `slot`, for the gear editor: { { item = item string, worn = true |
 -- bank = true }, ... }, each item once (by Key), the one worn there first, then the rest
 -- worn, the bags and the bank (while it's open), in that order.
@@ -416,6 +433,16 @@ local function Quiet(seconds) ns.gearQuietUntil = GetTime() + (seconds or QUIET)
 -- True while Keystance's own swap, or a set it asked ItemRack for, is under way.
 function ns.GearBusy()
     return job ~= nil or (itemRackUntil ~= nil and GetTime() < itemRackUntil)
+end
+
+-- Stops Keystance's own swap under way (a later change replaces it, or Undo is putting
+-- the gear back), with no report: what it already moved stays. True if one was stopped.
+function ns.CancelGear()
+    if not job then return false end
+    gen = gen + 1
+    job = nil
+    ns.CancelWaiting("gear")
+    return true
 end
 
 local function Finish(result)
@@ -840,9 +867,9 @@ ns.LOGO_ICON = "Interface\\AddOns\\" .. ADDON .. "\\media\\icon.tga"
 
 -- The icon of a saved slot action ({ t = "spell", id = ... }), or nil.
 local function ActionIcon(a)
-    if a.t == "spell" then return C_Spell.GetSpellTexture(a.id) end
-    if a.t == "item" then return C_Item.GetItemIconByID(a.id) end
-    if a.t == "macro" and a.name then
+    if a.t == "spell" and type(a.id) == "number" then return C_Spell.GetSpellTexture(a.id) end
+    if a.t == "item" and type(a.id) == "number" then return C_Item.GetItemIconByID(a.id) end
+    if a.t == "macro" and type(a.name) == "string" then
         local _, icon = GetMacroInfo(a.name)
         return icon
     end
@@ -858,8 +885,8 @@ function ns.AutoProfileIcon(p)
     local weapon = p.gear and ns.ItemStringID(p.gear[16])
     if weapon then return C_Item.GetItemIconByID(weapon) or ns.LOGO_ICON end
     for slot = 1, ns.MANAGED_SLOTS do
-        local a = p.slots and p.slots[slot]
-        local icon = a and ActionIcon(a)
+        local a = type(p.slots) == "table" and p.slots[slot]
+        local icon = type(a) == "table" and ActionIcon(a)
         if icon then return icon end
     end
     return ns.LOGO_ICON
@@ -883,8 +910,8 @@ function ns.ProfileIcons(p)
     local set = p.itemrack and ns.ItemRackSetIcon(p.itemrack)
     if set then list[#list + 1] = set end
     for slot = 1, ns.MANAGED_SLOTS do
-        local a = p.slots and p.slots[slot]
-        local icon = a and ActionIcon(a)
+        local a = type(p.slots) == "table" and p.slots[slot]
+        local icon = type(a) == "table" and ActionIcon(a)
         if icon then list[#list + 1] = icon end
     end
     return list
@@ -903,12 +930,16 @@ end
 -- items it puts into empty slots came from (filled as they go on; also for Undo).
 function ns.StartProfileGear(p)
     if GetCursorInfo() then return nil, false end -- applying stops too; say it once, there
+    -- An earlier profile's swap still under way stops: this profile's gear (or none) is
+    -- wanted now, and its Undo couldn't take back what that swap went on to do.
+    ns.CancelGear()
     local kind, data = ns.ProfileGear(p)
     if kind == "items" then
         if ns.GearChanges(data) == 0 then return nil, false end
-        -- What it replaces, for Undo (the off hand too when the main hand changes). Without
-        -- it (item links not loaded yet), gear stays as it is rather than change past Undo.
-        local before, why = ns.CaptureGear(ns.GearSlotsOf(data), true)
+        -- What it replaces, for Undo (the off hand too when the main hand changes, and any
+        -- slot an item is taken from). Without it (item links not loaded yet, an item still
+        -- moving), gear stays as it is rather than change past Undo.
+        local before, why = ns.CaptureGear(SlotsTouched(data), true)
         if not before then
             ns.Print(L["Gear not changed: %s"]:format(why))
             return nil, false
