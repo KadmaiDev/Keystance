@@ -406,14 +406,20 @@ function ns.Undo()
             why = L["the saved setup is damaged (%s), so it was left alone"]:format(why)
         end
         if not ok then return Print(L["Nothing changed: %s."]:format(why)) end
+        -- The gear from before goes back on, items taken off going back where they came from.
+        -- What's worn now is recorded first, for a second Undo: if it can't be (an item still
+        -- moving, not loaded or unreadable), nothing changes and this Undo stays for later.
+        local needGear = last.gear and ns.GearChanges(last.gear) > 0
+        local gearBefore, gearChanged, gearHomes
+        if needGear then
+            gearBefore, why = ns.CaptureGear(ns.GearSlotsTouched(last.gear), true)
+            if not gearBefore then return Print(L["Nothing changed: %s."]:format((why:gsub("%.$", "")))) end
+        end
         -- A swap still under way (the change's own, or a later one's) stops first: it would
         -- carry on putting on gear that's being undone.
         ns.CancelGear()
-        -- The gear from before goes back on, items taken off going back where they came from
-        -- (kept for a second Undo in turn).
-        local gearBefore, gearChanged, gearHomes
-        if last.gear and ns.GearChanges(last.gear) > 0 then
-            gearBefore, gearHomes = ns.CaptureGear(ns.GearSlotsOf(last.gear), true), {}
+        if needGear then
+            gearHomes = {}
             local ok, why = ns.EquipGear(last.gear, ns.GearReport, last.homes, gearHomes)
             gearChanged = ok
             if not ok then Print(L["Gear not changed: %s."]:format(why)) end

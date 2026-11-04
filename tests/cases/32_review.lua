@@ -389,18 +389,35 @@ test("a slot holding one of two macros of one name isn't said to be either", fun
     eq(ns.DescribeSlot(8).perChar, false, "one of that name: the account's")
 end)
 
-test("the character's macro saved: applied over the account's of that name, and Undo says it can't tell", function()
+test("a slot holding one of two macros of one name is never replaced: it couldn't be put back", function()
     local c, ns = twoBuffs()
     ns.SaveProfile("Ret")
     c.profiles.Ret.slots[8] = { t = "macro", name = "Buff", perChar = true } -- saved when it was the only one
     wow.slots[8] = { kind = "macro", macro = 1 }
-    ns.ApplyProfile("Ret")
-    eq(wow.slots[8].macro, 122, "the character's goes on")
-    eq(c.lastChange.only[8], true, "Undo knows the slot changed")
     wow.printed = {}
-    ns.Undo()
+    ns.ApplyProfile("Ret")
+    eq(wow.slots[8].macro, 1, "the account's stays")
     assert(printed():find("two macros are called Buff", 1, true), printed())
-    eq(wow.slots[8].macro, 122, "left as it is rather than guessed")
+    -- Another action saved there: still left, and said.
+    c.profiles.Ret.slots[8] = { t = "spell", id = 647, name = "Holy Light" }
+    wow.printed = {}
+    ns.ApplyProfile("Ret")
+    eq(wow.slots[8].macro, 1)
+    assert(printed():find("one of two macros with that name", 1, true), printed())
+    eq(c.lastChange == nil or not c.lastChange.only[8], true, "no undo needed for it")
+end)
+
+test("an empty slot saved where one of two macros of one name is now: the macro isn't cleared", function()
+    local c, ns = twoBuffs()
+    ns.SaveProfile("Ret")
+    wow.slots[8] = { kind = "macro", macro = 122 }
+    ns.ApplyProfile("Ret")
+    eq(wow.slots[8].macro, 122, "still there")
+    -- Nor by removing it from its bar (Drops' remove goes through the same writer).
+    local state = ns.CurrentState()
+    state.slots[8] = nil
+    ns.ApplyChange(state, { keys = false }, "removed", "removing")
+    eq(wow.slots[8].macro, 122)
 end)
 
 test("a macro saved while two shared its name isn't guessed when applied", function()
@@ -412,4 +429,66 @@ test("a macro saved while two shared its name isn't guessed when applied", funct
     ns.ApplyProfile("Ret")
     eq(wow.slots[8], nil, "left empty")
     assert(printed():find("two macros are called Buff", 1, true), printed())
+end)
+
+---------------------------------------------------------------------------
+-- Review round 2
+---------------------------------------------------------------------------
+test("a key list with a gap, or a slot number that isn't whole, is refused, not cut short", function()
+    local c, ns = profileLogin()
+    ns.SaveProfile("Ret")
+    shuffle()
+    c.profiles.Ret.binds.ACTIONBUTTON1 = { [2] = "1" } -- ipairs would see no keys
+    ns.ApplyProfile("Ret")
+    eq(GetBindingAction("1"), "ACTIONBUTTON2", "key 1 not unbound or changed")
+    eq(slotId(1), 647, "bars untouched")
+    eq(c.profiles.Ret.binds.ACTIONBUTTON1[2], "1", "the saved list kept")
+    c.profiles.Ret.binds.ACTIONBUTTON1 = { "1" }
+    c.profiles.Ret.slots[1.5] = { t = "spell", id = 647, name = "Holy Light" }
+    ns.ApplyProfile("Ret")
+    eq(slotId(1), 647, "refused: bars untouched")
+    eq(c.profiles.Ret.slots[1.5].id, 647)
+    c.profiles.Ret.slots[1.5] = nil
+    c.profiles.Ret.slots[0] = { t = "spell", id = 647, name = "Holy Light" }
+    eq(select(1, ns.CheckState(c.profiles.Ret, true)), false, "slot 0 isn't one")
+end)
+
+test("moving the hand leaves a profile's damaged key list as it was", function()
+    local c, ns = loginWithSetup(nil)
+    wow.bindings.A, wow.bindings.S, wow.bindings.D = "STRAFELEFT", "MOVEBACKWARD", "STRAFERIGHT"
+    wow.bindingSet = 2
+    wow.fire("UPDATE_BINDINGS")
+    ns.SaveProfile("Ret")
+    c.profiles.Ret.binds.ACTIONBUTTON1 = { [2] = "Q" }
+    ns.AskShiftHand(1)
+    acceptPopup()
+    eq(c.profiles.Ret.binds.ACTIONBUTTON1[2], "Q", "not emptied")
+    eq(GetBindingAction("E"), "MOVEFORWARD", "the live keys moved")
+end)
+
+test("Undo while the gear it would record is still moving waits: nothing changes, and it works once settled, redo too", function()
+    local c, ns = gearLogin()
+    wow.slots[1] = { kind = "spell", id = 647 }
+    ns.SaveProfile("Helm")
+    ns.SetProfileGear("Helm", { [1] = gearString(1100) })
+    wow.lockMoves = true
+    ns.ApplyProfile("Helm")
+    wow.runTimers()
+    eq(wow.idOf(wow.inventory[1]), 1100, "the new helm is on, still locked")
+    local record = c.lastChange
+    wow.printed = {}
+    ns.Undo()
+    eq(c.lastChange, record, "the undo record is kept")
+    eq(wow.idOf(wow.inventory[1]), 1100, "nothing changed")
+    assert(printed():find("Nothing changed", 1, true), printed())
+    wow.lockMoves = false
+    wow.unlock()
+    settleGear()
+    ns.Undo()
+    settleGear()
+    eq(wow.idOf(wow.inventory[1]), 1101, "the old helm is back")
+    eq(c.lastChange.gear[1], gearString(1100), "and the redo knows the new one")
+    ns.Undo()
+    settleGear()
+    eq(wow.idOf(wow.inventory[1]), 1100, "redone")
 end)

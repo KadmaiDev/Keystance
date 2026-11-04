@@ -63,15 +63,13 @@ ns.ScanBook = ScanBook
 -- Slots
 ---------------------------------------------------------------------------
 -- True if the slot already holds this action. Two macros of one name are the same unless
--- both say whose they are (the account's or the character's) and differ.
+-- both say whose they are (the account's or the character's) and differ. (A slot holding
+-- one of two macros of a name can't be told apart: ApplySlots leaves it alone.)
 local function Same(want, have)
     if not want or not have then return want == have end
     if want.t ~= have.t then return false end
     if want.t == "macro" then
         if want.name ~= have.name then return false end
-        -- The slot holds one of two macros of that name, and which can't be read: the saved
-        -- one is put there to be sure.
-        if want.perChar ~= nil and have.ambiguous then return false end
         return want.perChar == nil or have.perChar == nil or want.perChar == have.perChar
     end
     return want.id == have.id
@@ -162,6 +160,17 @@ local function ApplySlots(state, failures, only, written)
             -- Undoing a slot that held one of two macros of one name: which one can't be told.
             failures[#failures + 1] = L["slot %d (%s): %s"]:format(slot, Describe(want),
                 L["two macros are called %s, so Keystance can't tell which one goes here"]:format(want.name))
+        elseif have and have.ambiguous and want and want.t == "macro" and want.name == have.name then
+            -- One of two macros of that name: maybe the one saved, maybe not. Left as it is
+            -- (said only when the saved one says whose it was).
+            if want.perChar ~= nil then
+                failures[#failures + 1] = L["slot %d: two macros are called %s, so Keystance can't tell if it holds the one saved; it's left as it is"]
+                    :format(slot, have.name)
+            end
+        elseif have and have.ambiguous then
+            -- Taken off, it couldn't be put back: which of the two it is can't be read.
+            failures[#failures + 1] = L["slot %d holds %s, one of two macros with that name, which Keystance couldn't put back, so it's left as it is"]
+                :format(slot, have.name)
         elseif not Same(want, have) and have and not PLACEABLE[have.t] then
             failures[#failures + 1] = L["slot %d holds %s, which Keystance couldn't put back, so it's left as it is"]
                 :format(slot, Describe(have))
@@ -251,17 +260,26 @@ local function BadAction(a)
     return false -- other kinds are never placed, only left alone
 end
 
--- True if `binds` is { [command] = { key, ... } }; else false and what's wrong.
+-- True for a whole number from 1 up.
+local function Index(n)
+    return type(n) == "number" and n >= 1 and n == math.floor(n)
+end
+
+-- True if `binds` is { [command] = { key, ... } }, each list a plain list (1, 2, 3... with
+-- no gaps: ipairs would stop at a gap and drop the keys after it); else false and what's wrong.
 function ns.CheckBinds(binds)
     if type(binds) ~= "table" then return false, L["its keys"] end
     for command, keys in pairs(binds) do
         if type(command) ~= "string" or type(keys) ~= "table" then
             return false, L["the keys of %s"]:format(tostring(command))
         end
+        local n = 0
         for i, key in pairs(keys) do
-            if type(i) ~= "number" or type(key) ~= "string" then
-                return false, L["the keys of %s"]:format(command)
-            end
+            n = n + 1
+            if not Index(i) or type(key) ~= "string" then return false, L["the keys of %s"]:format(command) end
+        end
+        for i = 1, n do
+            if keys[i] == nil then return false, L["the keys of %s"]:format(command) end
         end
     end
     return true
@@ -272,7 +290,7 @@ end
 function ns.CheckState(state, needBinds)
     if type(state) ~= "table" or type(state.slots) ~= "table" then return false, L["its action bars"] end
     for slot, a in pairs(state.slots) do
-        if type(slot) ~= "number" or BadAction(a) then return false, L["slot %s"]:format(tostring(slot)) end
+        if not Index(slot) or BadAction(a) then return false, L["slot %s"]:format(tostring(slot)) end
     end
     if needBinds or state.binds ~= nil then return ns.CheckBinds(state.binds) end
     return true
