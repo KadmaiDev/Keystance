@@ -25,6 +25,7 @@ A profile can put on gear before its bars: one of your ItemRack sets, or Keystan
 
 - Click a slot to pick from what you have that fits: worn, in your bags, and in your bank while it's open.
 - Items left in the bank are marked "In your bank" (Keystance remembers what was there on your last visit), and a soft sound plays if something can't go on.
+- Update saves the gear you're wearing too, in the slots the profile has gear for (a weapons-only profile stays weapons-only).
 - Undo puts gear back where it came from, including back into the bank while it's open.
 
 ![The gear editor for Prot, with the Feet slot's choices flown out](media/gear-panel.png)
@@ -72,9 +73,10 @@ Keystance takes on the look of your UI (the default UI, EllesmereUI or ElvUI), a
 
 - Shortly after your first login with Keystance, before it has changed anything, it saves a copy of your bars and every keybind. **Restore original setup** (Profiles tab, Settings, or `/kst restore`) puts them all back.
 - **Before uninstalling Keystance, click Restore original setup.** Changes to bars and keys are kept by the game itself, so they stay after an addon is removed.
-- Every change can be undone with one click. Nothing changes in combat: changes wait until combat ends. Anything that can't be set is reported and left as it was.
+- Every change can be undone with one click. Nothing changes in combat: changes wait until combat ends. Anything that can't be set is reported and left as it was, and so is anything Keystance couldn't put back (a mount, or one of two macros with the same name).
+- A profile or saved setup damaged in the saved file is refused before anything changes, and kept as it is.
 - A profile holds your bars and the keys of your bar buttons only. Movement and every other key are left alone.
-- If your keybinds are shared by all your characters, Keystance asks before a profile changes them, and offers to give the character its own keybinds (nothing changes on screen, and your other characters keep theirs).
+- If your keybinds are shared by all your characters, Keystance never changes them: it asks before a profile changes keys, and offers to give the character its own keybinds (nothing changes on screen, and your other characters keep theirs). Restore and Undo do that too, rather than change the shared ones.
 
 ## Commands
 
@@ -86,7 +88,7 @@ Keystance takes on the look of your UI (the default UI, EllesmereUI or ElvUI), a
 
 ## Performance
 
-Keystance does nothing while you play: no code runs every frame, windows are only built the first time you open them, and while they're closed the game's events (combat, bag and gear changes, bar and key changes) cost one check and create no garbage. It uses about 540 KB of memory with the window never opened (measured outside the game; `/kst mem` shows the real figure).
+Keystance does nothing while you play: no code runs every frame, windows are only built the first time you open them, and while they're closed the game's events (combat, bag and gear changes, bar and key changes) cost one check and create no garbage. It uses about 570 KB of memory with the window never opened (measured outside the game; `/kst mem` shows the real figure).
 
 ## Development
 
