@@ -141,3 +141,29 @@ test("only the minimap button opens Blizzard's pop-up menus", function()
         end
     end
 end)
+
+test("game values are checked for secrecy before any truth test or comparison on the same line", function()
+    -- On Forever even testing a secret value for truth throws, so `x and not issecretvalue(x)`
+    -- is no guard: the check has to come first. The fake's secrets can't throw, so this reads
+    -- the code instead (Alts Forever's test; Gear.lua's checks go through its Secret()).
+    local function escape(s) return (s:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0")) end
+    for _, file in ipairs(FILES) do
+        local n = 0
+        for line in io.lines(file) do
+            n = n + 1
+            local code = line:gsub("%-%-.*$", "")
+            for fn, name in code:gmatch("(%f[%w_][issecretvalueS]+)%(%s*([%w_%.]+)%s*%)") do
+                if fn == "issecretvalue" or fn == "Secret" then
+                    local at = code:find(fn .. "(" .. name, 1, true)
+                    local before = code:sub(1, at - 1)
+                    local x = escape(name)
+                    local tested = before:find("%f[%w_%.]" .. x .. "%f[^%w_%.]%s*[~=<>]")
+                        or before:find("%f[%w_%.]" .. x .. "%f[^%w_%.]%s+and%f[^%w_]")
+                        or before:find("%f[%w_]not%s+" .. x .. "%f[^%w_%.]")
+                        or before:find("%f[%w_]if%s+" .. x .. "%f[^%w_%.]")
+                    assert(not tested, file .. ":" .. n .. " tests " .. name .. " before checking it isn't secret")
+                end
+            end
+        end
+    end
+end)
